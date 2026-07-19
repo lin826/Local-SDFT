@@ -1,0 +1,43 @@
+# SDFT on curated OpenClaw-style tool-use trajectories (LFM2.5-230M + LoRA).
+# Build data: uv run python scripts/build_openclaw_tooluse_data.py --write-sdft
+# Train uses identity SDFT pairs (gold tool trajectories) — see docs/openclaw-tooluse-sdft.md
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+data:
+  dataset: json
+  data_files: data/openclaw_tooluse.jsonl
+  split: train
+  prompt_fields: [instruction, input]
+  response_field: output
+  num_examples: 500
+  seed: 0
+
+generation:
+  num_shots: 2
+  batch_size: 4
+  max_new_tokens: 512
+  temperature: 0.0
+  top_p: 1.0
+  min_response_chars: 20
+  out_path: data/openclaw_tooluse_sdft_generated.jsonl
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/openclaw-tooluse-lora
+  epochs: 3
+  lr: 0.0002
+  batch_size: 4
+  grad_accum: 4
+  max_length: 1024
+  warmup_steps: 5
+  logging_steps: 5
+  save_strategy: epoch
+  seed: 0

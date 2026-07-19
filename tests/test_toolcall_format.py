@@ -11,6 +11,7 @@ from sdft.toolcall.format import (
     parse_assistant_action,
     postprocess_assistant_text,
 )
+from sdft.toolcall.loop import default_few_shot_messages
 from sdft.toolcall.sandbox import execute_code_interpreter
 from sdft.toolcall.scoring import extract_boxed_answer, score_openclaw_solution
 
@@ -117,3 +118,18 @@ def test_score_dollar_boxed():
 
     text = r"Answer: \boxed{\dfrac{1}{2}}"
     assert extract_boxed_answer(text) == r"\dfrac{1}{2}"
+
+
+def test_default_few_shot_messages_openclaw():
+    msgs = default_few_shot_messages(ToolCallFormat.OPENCLAW, 1)
+    assert len(msgs) == 2
+    assert msgs[0]["role"] == "user"
+    assert msgs[1]["role"] == "assistant"
+    assert "<tool_call>" in msgs[1]["content"]
+    assert r"\boxed{8}" in msgs[1]["content"]
+
+
+def test_default_few_shot_messages_lfm():
+    msgs = default_few_shot_messages(ToolCallFormat.LFM, 1)
+    assert any(m["role"] == "tool" for m in msgs)
+    assert any(m["role"] == "assistant" and "tool_call_start" in m["content"] for m in msgs)

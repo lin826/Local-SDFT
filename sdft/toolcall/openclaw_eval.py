@@ -74,6 +74,7 @@ def run_eval(cfg: Config) -> dict[str, Any]:
     rows = _load_eval_rows(cfg)
     print(f"loaded {len(rows)} eval examples")
 
+    few_shot_k = cfg.openclaw_eval.few_shot_k
     loop_cfg = ToolLoopConfig(
         max_rounds=cfg.toolcall.max_rounds,
         max_new_tokens=cfg.toolcall.max_new_tokens,
@@ -84,7 +85,9 @@ def run_eval(cfg: Config) -> dict[str, Any]:
         max_context_chars=cfg.toolcall.max_context_chars,
         max_obs_chars=cfg.toolcall.max_obs_chars,
         sandbox_timeout_s=cfg.toolcall.sandbox_timeout_s,
+        few_shot_k=few_shot_k,
     )
+    print(f"few_shot_k: {few_shot_k}")
 
     rng = random.Random(cfg.openclaw_eval.seed)
     results: list[dict[str, Any]] = []
@@ -156,6 +159,7 @@ def run_eval(cfg: Config) -> dict[str, Any]:
         "data_file": cfg.openclaw_eval.data_file,
         "num_examples": len(results),
         "n_samples": cfg.openclaw_eval.n_samples,
+        "few_shot_k": few_shot_k,
         "toolcall_format": cfg.toolcall.format,
         "pass_at_k": pass_at_k,
         "mean_score": mean_score,
@@ -189,6 +193,17 @@ def main() -> None:
         default=None,
         help="tool-call conversation format",
     )
+    parser.add_argument(
+        "--one-shot",
+        action="store_true",
+        help="prepend one tool-use demonstration (sets few_shot_k=1; not pass@k)",
+    )
+    parser.add_argument(
+        "--few-shot-k",
+        type=int,
+        default=None,
+        help="number of tool-use demos to prepend (overrides --one-shot)",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -200,6 +215,10 @@ def main() -> None:
         cfg.openclaw_eval.out_dir = args.out_dir
     if args.format is not None:
         cfg.toolcall.format = args.format
+    if args.few_shot_k is not None:
+        cfg.openclaw_eval.few_shot_k = args.few_shot_k
+    elif args.one_shot:
+        cfg.openclaw_eval.few_shot_k = 1
 
     summary = run_eval(cfg)
     print(

@@ -88,6 +88,8 @@ class OpenClawEvalConfig:
     split: str = "train"
     num_examples: int | None = 2
     n_samples: int = 1
+    # Prepend k high-quality tool-use demos before each test question (not pass@k).
+    few_shot_k: int = 0
     strict_box_verify: bool = True
     out_dir: str = "outputs/benchmarks/openclaw-rl"
     seed: int = 0
