@@ -18,6 +18,8 @@
 
 {% if request.query_params.get('started') %}
 <p class="notice">Benchmark started in the background. Refresh this page shortly, then open the newest run ID — <strong>Instruction / Input / Output</strong> are on the detail page (and previewed under Loaded results).</p>
+{% elif request.query_params.get('instruction') %}
+<p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then click Start benchmark.</p>
 {% endif %}
 
 <section class="section">
@@ -45,11 +47,11 @@
       </div>
       <div class="field">
         <label for="instruction">Instruction (inference)</label>
-        <input id="instruction" name="instruction" type="text" value="Tell a geek joke about PhD life">
+        <input id="instruction" name="instruction" type="text" value="{{ defaults.instruction }}">
       </div>
       <div class="field" style="grid-column: 1 / -1;">
         <label for="input_text">Input (inference, optional)</label>
-        <textarea id="input_text" name="input_text" placeholder="Extra context or constraints for the model…"></textarea>
+        <textarea id="input_text" name="input_text" placeholder="Extra context or constraints for the model…">{{ defaults.input_text }}</textarea>
       </div>
     </div>
     <div class="actions">

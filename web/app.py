@@ -62,10 +62,15 @@ async def index(request: Request) -> HTMLResponse:
 @app.get("/data", response_class=HTMLResponse)
 async def data_page(request: Request) -> HTMLResponse:
     records = load_collected_records(collected_records_path())
+    prefill = {
+        "instruction": request.query_params.get("instruction", ""),
+        "input_text": request.query_params.get("input_text", ""),
+        "output": request.query_params.get("output", ""),
+    }
     return templates.TemplateResponse(
         request,
         "data.html",
-        {"records": list(reversed(records)), "request": request},
+        {"records": list(reversed(records)), "request": request, "prefill": prefill},
     )
 
 
@@ -101,6 +106,12 @@ async def export_data(export_name: str = Form("geek-jokes-export")) -> RedirectR
 
 @app.get("/perf", response_class=HTMLResponse)
 async def perf_page(request: Request) -> HTMLResponse:
+    defaults = {
+        "instruction": request.query_params.get(
+            "instruction", "Tell a geek joke about PhD life"
+        ),
+        "input_text": request.query_params.get("input", ""),
+    }
     return templates.TemplateResponse(
         request,
         "perf.html",
@@ -109,6 +120,7 @@ async def perf_page(request: Request) -> HTMLResponse:
             "index": _index_entries(20),
             "config_options": CONFIG_OPTIONS,
             "request": request,
+            "defaults": defaults,
         },
     )
 

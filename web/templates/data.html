@@ -17,6 +17,8 @@
 
 {% if request.query_params.get('exported') %}
 <p class="notice">Exported {{ request.query_params.get('exported') }} rows to <code>data/collected/{{ request.query_params.get('path') }}</code>.</p>
+{% elif prefill and (prefill.instruction or prefill.output) %}
+<p class="notice">Prefilled from a benchmark run’s Save as example link — review before saving.</p>
 {% endif %}
 
 <section class="section">
@@ -24,15 +26,15 @@
   <form method="post" action="/data/entry">
     <div class="field">
       <label for="instruction">Instruction</label>
-      <input id="instruction" name="instruction" type="text" placeholder="Tell a geek joke about PhD life" required>
+      <input id="instruction" name="instruction" type="text" placeholder="Tell a geek joke about PhD life" value="{{ prefill.instruction if prefill else '' }}" required>
     </div>
     <div class="field">
       <label for="input_text">Input (optional)</label>
-      <input id="input_text" name="input_text" type="text" placeholder="Context or constraints">
+      <input id="input_text" name="input_text" type="text" placeholder="Context or constraints" value="{{ prefill.input_text if prefill else '' }}">
     </div>
     <div class="field">
       <label for="output">Output (gold response)</label>
-      <textarea id="output" name="output" required placeholder="The model's target response…"></textarea>
+      <textarea id="output" name="output" required placeholder="The model's target response…">{{ prefill.output if prefill else '' }}</textarea>
     </div>
     <div class="field">
       <label for="tags">Tags (comma-separated, optional)</label>

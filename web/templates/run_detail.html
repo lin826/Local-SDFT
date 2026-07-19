@@ -5,64 +5,96 @@
 <h1 class="page-title">Benchmark {{ result.benchmark }}</h1>
 <p class="lead"><code>{{ result.id }}</code> · {{ result.run_at }}</p>
 
-{% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the Alpaca text fields below — those counters are token counts, not Instruction/Input/Output.' %}
-{% set steps = [
-  'Summary (top): which model/config produced this run.',
-  'Instruction · Input · Output (middle): the prompt you typed and the model reply — this is where the text lives.',
-  'Metrics / Metadata (bottom): timing and throughput only.',
-  'Click Back to benchmarks to start a new inference run if Output is empty.',
-] %}
-{% include "howto.html" %}
-{% endwith %}
+<div class="pill-row">
+  <span class="pill">{{ result.benchmark }}</span>
+  <span class="pill pill-muted">{{ result.model }}</span>
+  <span class="pill pill-muted">{{ result.metrics.device }}</span>
+  {% if result.config_path %}
+  <span class="pill pill-muted">{{ result.config_path }}</span>
+  {% endif %}
+  <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.tokens_per_second) }} tok/s</span>
+  <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.latency_ms_mean) }} ms latency</span>
+</div>
+
+<details class="howto-collapsed">
+  <summary class="howto-summary">How to use this page</summary>
+  {% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the Alpaca text fields below — those counters are token counts, not Instruction/Input/Output.' %}
+  {% set steps = [
+    'Header pills (top): benchmark, model, device, config, and headline speed.',
+    'Prompt · Reply (below): the prompt you typed and the model reply — this is where the text lives.',
+    'Metrics / Advanced (bottom): timing, throughput, and raw metadata only.',
+    'Click Back to benchmarks to start a new inference run if Output is empty.',
+  ] %}
+  {% include "howto.html" %}
+  {% endwith %}
+</details>
 
 {% set examples = result.metadata.get('examples') if result.metadata else none %}
-
-<section class="section">
-  <h2>Summary</h2>
-  <div class="metrics">
-    <div class="metric"><strong>{{ result.benchmark }}</strong><span>benchmark</span></div>
-    <div class="metric"><strong>{{ result.model }}</strong><span>model</span></div>
-    <div class="metric"><strong>{{ result.metrics.device }}</strong><span>device</span></div>
-    {% if result.config_path %}
-    <div class="metric"><strong>{{ result.config_path }}</strong><span>config</span></div>
-    {% endif %}
-  </div>
-</section>
+{% set max_new_tokens = result.metadata.get('max_new_tokens') if result.metadata else none %}
+{% set is_truncated = max_new_tokens and max_new_tokens > 0 and result.metrics.output_tokens_total >= max_new_tokens %}
 
 {% if result.benchmark == 'inference' or examples %}
 <section class="section" id="io">
-  <h2>Instruction · Input · Output</h2>
+  <h2>Prompt · Reply</h2>
   <p class="lead" style="margin-bottom:1rem;">Alpaca-style text for this run. <em>Instruction</em> and <em>Input</em> are what you submitted on Performance; <em>Output</em> is the model’s generated reply.</p>
   {% if examples %}
   {% for ex in examples %}
   <article class="io-card">
-    <div class="io-field">
-      <span class="io-label">Instruction</span>
-      <pre class="io-text">{{ ex.instruction or '—' }}</pre>
+    <div class="io-grid">
+      <div class="io-col io-col-prompt">
+        <div class="io-field">
+          <div class="io-field-head">
+            <span class="io-label">Instruction</span>
+            <button type="button" class="copy-btn" data-copy-target="io-instruction-{{ loop.index0 }}">Copy</button>
+          </div>
+          <pre class="io-text" id="io-instruction-{{ loop.index0 }}">{{ ex.instruction or '—' }}</pre>
+        </div>
+        <div class="io-field">
+          <div class="io-field-head">
+            <span class="io-label">Input</span>
+            <button type="button" class="copy-btn" data-copy-target="io-input-{{ loop.index0 }}">Copy</button>
+          </div>
+          <div class="io-clamp" data-clamp>
+            <pre class="io-text" id="io-input-{{ loop.index0 }}">{{ ex.input or '—' }}</pre>
+          </div>
+          <button type="button" class="io-clamp-toggle" data-clamp-toggle hidden>Show more</button>
+        </div>
+      </div>
+      <div class="io-col io-col-reply">
+        <div class="io-field">
+          <div class="io-field-head">
+            <span class="io-label">Output <span class="io-hint">(model reply)</span>{% if is_truncated %}<span class="badge badge-truncated" title="output_tokens_total ({{ result.metrics.output_tokens_total }}) reached max_new_tokens ({{ max_new_tokens }}) — the reply may be cut off.">possibly truncated</span>{% endif %}</span>
+            <button type="button" class="copy-btn" data-copy-target="io-output-{{ loop.index0 }}">Copy</button>
+          </div>
+          <pre class="io-text io-output" id="io-output-{{ loop.index0 }}">{{ ex.output or '—' }}</pre>
+        </div>
+      </div>
     </div>
-    <div class="io-field">
-      <span class="io-label">Input</span>
-      <pre class="io-text">{{ ex.input or '—' }}</pre>
-    </div>
-    <div class="io-field">
-      <span class="io-label">Output <span class="io-hint">(model reply)</span></span>
-      <pre class="io-text io-output">{{ ex.output or '—' }}</pre>
+    <div class="io-actions">
+      <a class="btn btn-secondary btn-sm" href="/perf?instruction={{ ex.instruction|urlencode }}&input={{ ex.input|urlencode }}">Re-run</a>
+      <a class="btn btn-secondary btn-sm" href="/data?instruction={{ ex.instruction|urlencode }}&input_text={{ ex.input|urlencode }}&output={{ ex.output|urlencode }}">Save as example</a>
     </div>
   </article>
   {% endfor %}
   {% else %}
   <article class="io-card io-card-missing">
-    <div class="io-field">
-      <span class="io-label">Instruction</span>
-      <pre class="io-text io-missing">Not saved for this run</pre>
-    </div>
-    <div class="io-field">
-      <span class="io-label">Input</span>
-      <pre class="io-text io-missing">Not saved for this run</pre>
-    </div>
-    <div class="io-field">
-      <span class="io-label">Output <span class="io-hint">(model reply)</span></span>
-      <pre class="io-text io-output io-missing">Not saved for this run</pre>
+    <div class="io-grid">
+      <div class="io-col io-col-prompt">
+        <div class="io-field">
+          <span class="io-label">Instruction</span>
+          <pre class="io-text io-missing">Not saved for this run</pre>
+        </div>
+        <div class="io-field">
+          <span class="io-label">Input</span>
+          <pre class="io-text io-missing">Not saved for this run</pre>
+        </div>
+      </div>
+      <div class="io-col io-col-reply">
+        <div class="io-field">
+          <span class="io-label">Output <span class="io-hint">(model reply)</span></span>
+          <pre class="io-text io-output io-missing">Not saved for this run</pre>
+        </div>
+      </div>
     </div>
     <p class="empty" style="margin-top:0.75rem;">This ID was produced before outputs were persisted. Restart <code>uv run python -m web.app</code>, open <a href="/perf">Performance</a>, run inference again, then open the <strong>new</strong> run ID.</p>
   </article>
@@ -73,27 +105,82 @@
 <section class="section">
   <h2>Metrics</h2>
   <p class="meta" style="margin-bottom:0.75rem;">Timing and throughput only — not the prompt/reply text.</p>
-  <div class="metrics">
-    {% for key, value in result.metrics.to_dict().items() %}
-    <div class="metric"><strong>{{ value }}</strong><span>{{ key }}</span></div>
+  {% set metrics = result.metrics.to_dict() %}
+  {% set friendly = {
+    'tokens_per_second': 'Tokens/sec',
+    'latency_ms_mean': 'Avg latency (ms)',
+    'latency_ms_p50': 'P50 latency (ms)',
+    'latency_ms_p95': 'P95 latency (ms)',
+    'samples': 'Samples',
+    'batch_size': 'Batch size',
+    'input_tokens_total': 'Input tokens',
+    'output_tokens_total': 'Output tokens',
+    'device': 'Device',
+    'warmup_samples': 'Warmup samples',
+  } %}
+  {% set float_keys = ['tokens_per_second', 'latency_ms_mean', 'latency_ms_p50', 'latency_ms_p95'] %}
+  {% set hide_keys = ['latency_ms_p50', 'latency_ms_p95'] if metrics.samples == 1 else [] %}
+  <div class="metrics-strip">
+    {% for key, value in metrics.items() %}
+    {% if key not in hide_keys %}
+    <div class="metric-chip">
+      <strong>{{ "%.1f"|format(value) if key in float_keys else value }}</strong>
+      <span>{{ friendly.get(key, key) }}</span>
+    </div>
+    {% endif %}
     {% endfor %}
   </div>
 </section>
 
 {% if result.metadata %}
+{% set meta_items = [] %}
+{% for key, value in result.metadata.items() %}
+{% if key != 'examples' %}
+{% set _ = meta_items.append((key, value)) %}
+{% endif %}
+{% endfor %}
+{% if meta_items %}
 <section class="section">
-  <h2>Metadata</h2>
-  <div class="metrics">
-    {% for key, value in result.metadata.items() %}
-    {% if key != 'examples' %}
-    <div class="metric"><strong>{{ value }}</strong><span>{{ key }}</span></div>
-    {% endif %}
-    {% endfor %}
-  </div>
+  <details class="advanced-details">
+    <summary>Advanced (metadata)</summary>
+    <div class="metrics-strip">
+      {% for key, value in meta_items %}
+      <div class="metric-chip"><strong>{{ value }}</strong><span>{{ key }}</span></div>
+      {% endfor %}
+    </div>
+  </details>
 </section>
+{% endif %}
 {% endif %}
 
 <div class="actions">
   <a class="btn btn-secondary" href="/perf">Back to benchmarks</a>
 </div>
+
+<script>
+document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var target = document.getElementById(btn.getAttribute('data-copy-target'));
+    if (!target) return;
+    var text = target.textContent === '—' ? '' : target.textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      var original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(function () { btn.textContent = original; }, 1200);
+    });
+  });
+});
+
+document.querySelectorAll('[data-clamp]').forEach(function (el) {
+  var toggle = el.nextElementSibling;
+  if (!toggle) return;
+  if (el.scrollHeight > el.clientHeight + 4) {
+    toggle.hidden = false;
+  }
+  toggle.addEventListener('click', function () {
+    var expanded = el.classList.toggle('expanded');
+    toggle.textContent = expanded ? 'Show less' : 'Show more';
+  });
+});
+</script>
 {% endblock %}
