@@ -231,6 +231,24 @@ def main() -> None:
         default=None,
         help="custom one-line CoT cue (implies CoT when set)",
     )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=None,
+        help="per-turn generation cap (default: toolcall.max_new_tokens in config)",
+    )
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=None,
+        help="max tool-loop rounds before stopping (default: toolcall.max_rounds)",
+    )
+    parser.add_argument(
+        "--max-context-chars",
+        type=int,
+        default=None,
+        help="prompt char budget per round (default: toolcall.max_context_chars)",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -250,6 +268,12 @@ def main() -> None:
         cfg.toolcall.cot_line = args.cot_line
     elif args.cot:
         cfg.toolcall.cot_line = DEFAULT_COT_LINE
+    if args.max_new_tokens is not None:
+        cfg.toolcall.max_new_tokens = args.max_new_tokens
+    if args.max_rounds is not None:
+        cfg.toolcall.max_rounds = args.max_rounds
+    if args.max_context_chars is not None:
+        cfg.toolcall.max_context_chars = args.max_context_chars
 
     summary = run_eval(cfg)
     print(

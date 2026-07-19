@@ -10,7 +10,7 @@ toolcall:
   max_new_tokens: 512
   temperature: 0.0
   format: lfm
-  max_context_chars: 8192
+  max_context_chars: 12000
   max_obs_chars: 1024
   sandbox_timeout_s: 30
 

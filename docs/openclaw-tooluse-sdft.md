@@ -47,3 +47,46 @@ Outputs: `outputs/benchmarks/openclaw-rl/ablation/comparison.json` and
 
 The base 230M model does not emit reliable tool calls. Running `sdft.generate` would
 rewrite gold trajectories into plain text. For bootstrap we train on gold completions.
+
+## Generation limits (eval / ablation)
+
+Defaults (see `configs/openclaw_demo_eval.yaml`, `ToolLoopConfig` in `sdft/toolcall/loop.py`):
+
+| Knob | Default | Role |
+|---|---|---|
+| `max_new_tokens` | 512 | Per-turn decode cap |
+| `max_rounds` | 8 (eval yaml) / 16 (code default) | Tool-loop iterations |
+| `max_context_chars` | 12000 | Prompt size guard per round |
+
+Override from CLI:
+
+```bash
+uv run python -m sdft.toolcall.openclaw_eval \
+  --config configs/openclaw_demo_eval.yaml \
+  --max-new-tokens 1024 --max-rounds 16 --max-context-chars 16384
+
+uv run python scripts/run_openclaw_ablation.py --skip-data --skip-train \
+  --format lfm --max-rounds 16
+```
+
+### Missing `\boxed{}`: truncation vs format quality
+
+Ablation on held-out eval (`outputs/benchmarks/openclaw-rl/ablation/`, `format: lfm`):
+
+- **22/29** SDFT-ZS failures have `finish_reason=max_rounds`, **0** `context_overflow`.
+- Failures are mostly **prose answers** (`**391**`, “the result is 391”) without `\boxed{}`.
+- Raising limits (16 rounds, 1024 tokens/turn, 16k context) on idx=0 still ends at
+  `max_rounds` with no box — more budget just yields longer repetition.
+
+OpenClaw-format demo runs (`demo-sdft`, `format: openclaw`):
+
+- Many stops are `context_overflow` (prompt > `max_context_chars` after gibberish + hint loops).
+- Real `\boxed{…}` (excluding hint template) is rare; `pred='answer'` often comes from
+  the literal `\boxed{answer}` in invalid-action hints.
+- Higher context (16k) on a demo item **increased** response length (7k → 17k chars) without
+  producing a valid box.
+
+**Conclusion:** missing `\boxed{}` is primarily **format / training quality**, not per-turn
+token truncation. Modest `max_context_chars` alignment (8192 → 12000) avoids premature overflow
+on shorter runs; large `max_new_tokens` / `max_rounds` bumps alone will not fix boxing and
+can amplify degenerate loops.

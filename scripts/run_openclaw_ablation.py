@@ -201,6 +201,24 @@ def main() -> None:
     parser.add_argument("--merged", default=str(DEFAULT_MERGED), help="post-SDFT checkpoint dir")
     parser.add_argument("--skip-train", action="store_true", help="reuse existing merged checkpoint")
     parser.add_argument("--skip-data", action="store_true", help="skip data rebuild (implies --skip-train)")
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=None,
+        help="override toolcall.max_new_tokens for all conditions",
+    )
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=None,
+        help="override toolcall.max_rounds for all conditions",
+    )
+    parser.add_argument(
+        "--max-context-chars",
+        type=int,
+        default=None,
+        help="override toolcall.max_context_chars for all conditions",
+    )
     args = parser.parse_args()
 
     if args.skip_data:
@@ -218,6 +236,12 @@ def main() -> None:
         print(f"warning: merged checkpoint missing at {merged_path}; SDFT conditions may fail")
 
     eval_cfg = load_config(args.config)
+    if args.max_new_tokens is not None:
+        eval_cfg.toolcall.max_new_tokens = args.max_new_tokens
+    if args.max_rounds is not None:
+        eval_cfg.toolcall.max_rounds = args.max_rounds
+    if args.max_context_chars is not None:
+        eval_cfg.toolcall.max_context_chars = args.max_context_chars
     # Fail closed if held-out eval leaks into SDFT train prompts.
     eval_file = Path(eval_cfg.openclaw_eval.data_file or "")
     if not eval_file.is_absolute():
