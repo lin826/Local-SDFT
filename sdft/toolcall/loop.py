@@ -9,6 +9,7 @@ import torch
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 from .format import (
+    DEFAULT_COT_LINE,
     DEFAULT_LFM_JSON_SYSTEM,
     DEFAULT_OPENCLAW_SYSTEM,
     LFM_TOOL_CALL_END,
@@ -20,26 +21,34 @@ from .format import (
     format_tool_observation,
     parse_assistant_action,
     postprocess_assistant_text,
+    with_cot_line,
 )
 from .sandbox import CODE_INTERPRETER_TOOL, execute_code_interpreter
 
-# Fixed demos for few-shot eval (question intentionally not in openclaw_demo.jsonl).
+# Fixed demos for few-shot eval (must stay out of train and held-out eval).
 _ONE_SHOT_QUESTION = "What is 3 + 5?"
 _ONE_SHOT_CODE = "print(3 + 5)"
 _ONE_SHOT_RESULT = "8"
 _ONE_SHOT_ANSWER = "8"
 
 
-def default_few_shot_messages(fmt: ToolCallFormat, k: int = 1) -> list[dict[str, str]]:
+def default_few_shot_messages(
+    fmt: ToolCallFormat,
+    k: int = 1,
+    *,
+    cot_line: str | None = None,
+) -> list[dict[str, str]]:
     """Return up to ``k`` canned tool-use demonstrations as chat messages."""
     if k <= 0:
         return []
+    cot_prefix = f"{cot_line.strip()}\n\n" if cot_line and cot_line.strip() else ""
     if fmt == ToolCallFormat.LFM:
         demo = [
             {"role": "user", "content": _ONE_SHOT_QUESTION},
             {
                 "role": "assistant",
                 "content": (
+                    f"{cot_prefix}"
                     f'{LFM_TOOL_CALL_START}[{{"name": "code_interpreter", '
                     f'"arguments": {{"code": "{_ONE_SHOT_CODE}"}}}}]{LFM_TOOL_CALL_END}'
                 ),
@@ -53,7 +62,7 @@ def default_few_shot_messages(fmt: ToolCallFormat, k: int = 1) -> list[dict[str,
             {
                 "role": "assistant",
                 "content": (
-                    "I'll use the code interpreter.\n\n"
+                    f"{cot_prefix}I'll use the code interpreter.\n\n"
                     "<tool_call>\n"
                     f'{{"name": "code_interpreter", "arguments": {{"code": "{_ONE_SHOT_CODE}"}}}}\n'
                     "</tool_call>\n\n"
@@ -62,7 +71,6 @@ def default_few_shot_messages(fmt: ToolCallFormat, k: int = 1) -> list[dict[str,
                 ),
             },
         ]
-    # Only one unique high-quality demo is curated; truncate/repeat to honor k.
     if k == 1:
         return demo
     out: list[dict[str, str]] = []
@@ -92,6 +100,7 @@ class ToolLoopConfig:
     max_obs_chars: int = 1024
     sandbox_timeout_s: int = 30
     few_shot_k: int = 0
+    cot_line: str | None = None
 
 
 def _resolve_format(fmt: ToolCallFormat | str, tokenizer: PreTrainedTokenizerBase) -> ToolCallFormat:
@@ -125,7 +134,6 @@ def _render_prompt(
             add_generation_prompt=True,
         )
 
-    # Full multi-turn (few-shot + tool turns): first user is not always the test question.
     return build_openclaw_prompt(
         user_prompt=messages[0]["content"] if messages else "",
         tools=tools,
@@ -148,7 +156,12 @@ def run_tool_loop(
     """Run a ReTool-style tool loop until answer, limit, or context overflow."""
     cfg = cfg or ToolLoopConfig()
     fmt = _resolve_format(cfg.format, tokenizer)
-    system_prompt = cfg.system_prompt or _default_system(fmt)
+    base_system = cfg.system_prompt or _default_system(fmt)
+    cot = cfg.cot_line
+    if cot is True:  # type: ignore[comparison-overlap]
+        cot = DEFAULT_COT_LINE
+    cot_str = cot if isinstance(cot, str) else None
+    system_prompt = with_cot_line(base_system, cot_str)
     tool_specs = tools or [CODE_INTERPRETER_TOOL]
 
     if device is None:
@@ -156,7 +169,7 @@ def run_tool_loop(
 
     prefix = few_shot_messages
     if prefix is None and cfg.few_shot_k > 0:
-        prefix = default_few_shot_messages(fmt, cfg.few_shot_k)
+        prefix = default_few_shot_messages(fmt, cfg.few_shot_k, cot_line=cot_str)
     messages: list[dict[str, str]] = list(prefix or [])
     messages.append({"role": "user", "content": user_prompt})
     response_parts: list[str] = []

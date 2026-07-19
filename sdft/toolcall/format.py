@@ -68,6 +68,16 @@ DEFAULT_LFM_JSON_SYSTEM = (
     "When you have the final answer, respond in plain text."
 )
 
+# One-line CoT cue for ablations (appended to system prompt).
+DEFAULT_COT_LINE = "Think: call the interpreter, then box the answer."
+
+
+def with_cot_line(system_prompt: str, cot_line: str | None) -> str:
+    """Append a fixed one-line CoT instruction to the system prompt."""
+    if not cot_line or not cot_line.strip():
+        return system_prompt
+    return f"{system_prompt.rstrip()}\n{cot_line.strip()}"
+
 
 class ToolCallFormat(str, Enum):
     """Conversation formatting protocol."""

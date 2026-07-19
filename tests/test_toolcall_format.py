@@ -133,3 +133,30 @@ def test_default_few_shot_messages_lfm():
     msgs = default_few_shot_messages(ToolCallFormat.LFM, 1)
     assert any(m["role"] == "tool" for m in msgs)
     assert any(m["role"] == "assistant" and "tool_call_start" in m["content"] for m in msgs)
+
+
+def test_with_cot_line():
+    from sdft.toolcall.format import DEFAULT_OPENCLAW_SYSTEM, with_cot_line
+
+    out = with_cot_line(DEFAULT_OPENCLAW_SYSTEM, "Think step by step.")
+    assert "Think step by step." in out
+    assert with_cot_line(DEFAULT_OPENCLAW_SYSTEM, None) == DEFAULT_OPENCLAW_SYSTEM
+
+
+def test_split_guard_detects_overlap():
+    from sdft.toolcall.split_guard import assert_no_question_overlap
+
+    assert_no_question_overlap(
+        eval_questions=["What is 9 + 1?"],
+        train_questions=["What is 2 + 2?"],
+        forbidden=["What is 3 + 5?"],
+    )
+    try:
+        assert_no_question_overlap(
+            eval_questions=["What is 2 + 2?"],
+            train_questions=["What is 2 + 2?"],
+        )
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised

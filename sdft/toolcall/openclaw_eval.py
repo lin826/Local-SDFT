@@ -13,6 +13,7 @@ from typing import Any
 from datasets import load_dataset
 
 from sdft.config import Config, load_config
+from sdft.toolcall.format import DEFAULT_COT_LINE
 from sdft.toolcall.loop import ToolLoopConfig, run_tool_loop
 from sdft.toolcall.scoring import score_openclaw_solution
 from sdft.utils import load_model, load_tokenizer, pick_device
@@ -70,11 +71,24 @@ def run_eval(cfg: Config) -> dict[str, Any]:
     tokenizer = load_tokenizer(cfg.model)
     model = load_model(cfg.model, device)
     model.eval()
+    return run_eval_with_model(cfg, model, tokenizer, device)
 
-    rows = _load_eval_rows(cfg)
+
+def run_eval_with_model(
+    cfg: Config,
+    model,
+    tokenizer,
+    device: str,
+    *,
+    rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Run eval using a pre-loaded model (for ablation sweeps)."""
+    if rows is None:
+        rows = _load_eval_rows(cfg)
     print(f"loaded {len(rows)} eval examples")
 
     few_shot_k = cfg.openclaw_eval.few_shot_k
+    cot_line = cfg.toolcall.cot_line
     loop_cfg = ToolLoopConfig(
         max_rounds=cfg.toolcall.max_rounds,
         max_new_tokens=cfg.toolcall.max_new_tokens,
@@ -86,8 +100,11 @@ def run_eval(cfg: Config) -> dict[str, Any]:
         max_obs_chars=cfg.toolcall.max_obs_chars,
         sandbox_timeout_s=cfg.toolcall.sandbox_timeout_s,
         few_shot_k=few_shot_k,
+        cot_line=cot_line,
     )
     print(f"few_shot_k: {few_shot_k}")
+    if cot_line:
+        print(f"cot_line: {cot_line!r}")
 
     rng = random.Random(cfg.openclaw_eval.seed)
     results: list[dict[str, Any]] = []
@@ -101,7 +118,6 @@ def run_eval(cfg: Config) -> dict[str, Any]:
 
         for sample_idx in range(cfg.openclaw_eval.n_samples):
             if cfg.openclaw_eval.n_samples > 1:
-                # vary sampling slightly across passes when enabled
                 loop_cfg.temperature = max(cfg.toolcall.temperature, 0.01 if sample_idx else 0.0)
 
             loop_result = run_tool_loop(
@@ -146,7 +162,7 @@ def run_eval(cfg: Config) -> dict[str, Any]:
             f"tools={sample_details[0]['tool_call_count']} pred={sample_details[0]['pred']!r}",
             flush=True,
         )
-        rng.randint(0, 1)  # reserved for future shuffled decoding seeds
+        rng.randint(0, 1)
 
     pass_at_k = sum(1 for r in results if r["pass_at_k"]) / len(results) if results else 0.0
     mean_score = statistics.mean(r["mean_score"] for r in results) if results else 0.0
@@ -160,6 +176,7 @@ def run_eval(cfg: Config) -> dict[str, Any]:
         "num_examples": len(results),
         "n_samples": cfg.openclaw_eval.n_samples,
         "few_shot_k": few_shot_k,
+        "cot_line": cot_line,
         "toolcall_format": cfg.toolcall.format,
         "pass_at_k": pass_at_k,
         "mean_score": mean_score,
@@ -204,6 +221,16 @@ def main() -> None:
         default=None,
         help="number of tool-use demos to prepend (overrides --one-shot)",
     )
+    parser.add_argument(
+        "--cot",
+        action="store_true",
+        help="append default one-line CoT cue to system prompt",
+    )
+    parser.add_argument(
+        "--cot-line",
+        default=None,
+        help="custom one-line CoT cue (implies CoT when set)",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -219,6 +246,10 @@ def main() -> None:
         cfg.openclaw_eval.few_shot_k = args.few_shot_k
     elif args.one_shot:
         cfg.openclaw_eval.few_shot_k = 1
+    if args.cot_line is not None:
+        cfg.toolcall.cot_line = args.cot_line
+    elif args.cot:
+        cfg.toolcall.cot_line = DEFAULT_COT_LINE
 
     summary = run_eval(cfg)
     print(

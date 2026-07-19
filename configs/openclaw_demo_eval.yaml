@@ -1,5 +1,5 @@
-# Easy curated math demo eval (primary metric for tool-use SDFT).
-# Override model.name for base vs merged checkpoint.
+# Held-out OpenClaw tool-use eval (disjoint from SDFT train).
+# Canonical file: data/openclaw_eval_heldout.jsonl — see data/openclaw_split_manifest.json.
 
 model:
   name: LiquidAI/LFM2.5-230M
@@ -9,17 +9,18 @@ toolcall:
   max_rounds: 8
   max_new_tokens: 512
   temperature: 0.0
-  format: auto
+  format: lfm
   max_context_chars: 8192
   max_obs_chars: 1024
   sandbox_timeout_s: 30
 
 openclaw_eval:
   dataset: json
-  data_file: data/openclaw_demo.jsonl
+  data_file: data/openclaw_eval_heldout.jsonl
   split: train
   num_examples: null
   n_samples: 1
+  few_shot_k: 0
   strict_box_verify: true
   out_dir: outputs/benchmarks/openclaw-rl
   seed: 0

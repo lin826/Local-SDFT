@@ -1,0 +1,42 @@
+{
+  "train_file": "data/openclaw_tooluse.jsonl",
+  "train_n": 103,
+  "heldout_file": "data/openclaw_eval_heldout.jsonl",
+  "heldout_n": 29,
+  "heldout_ids": [
+    "dde2b45396bc7b7b",
+    "0ac207f7e732d0b1",
+    "91d7b67b48379679",
+    "f8623b1635945aab",
+    "906f4c669434a610",
+    "baf70b49773747c8",
+    "a5575c33c764888f",
+    "6c6f35c8e1148513",
+    "e60b245caeba4ce6",
+    "a4503554d44aac60",
+    "d5fe011f142b895c",
+    "54e38ff9c94b5ac4",
+    "d91a740572c60bac",
+    "cdc81d1b2691e0ee",
+    "aa0769a60be546db",
+    "d01d9ed434a4803e",
+    "bb6b6259dc42a0a6",
+    "980d09adee4a3840",
+    "e23f6b81a6b69350",
+    "f9e2a697cada5e78",
+    "62acb7bfbb6f0e52",
+    "612c3f2849d2dc7a",
+    "631afd749a97995b",
+    "9f5a23a64590bdbe",
+    "a67348e38f3bf31f",
+    "424108deb988ec35",
+    "a156bd36e8561a03",
+    "527a1eb6709cba4e",
+    "fd7753aa4477cb55"
+  ],
+  "overlap": 0,
+  "forbidden_few_shot": [
+    "What is 3 + 5?"
+  ],
+  "notes": "Held-out bank is a fixed disjoint problem list (different numbers). Train filtered against held-out + reserved few-shot. Deduped by normalized question."
+}

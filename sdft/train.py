@@ -20,6 +20,15 @@ from .utils import load_model, load_tokenizer, pick_device
 
 def load_sdft_dataset(path: str) -> Dataset:
     rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+    if not rows:
+        return Dataset.from_list([])
+
+    # Pre-rendered OpenClaw prefixes (string prompt) — matches tool-loop eval.
+    if isinstance(rows[0].get("prompt"), str):
+        return Dataset.from_list(
+            [{"prompt": row["prompt"], "completion": row["sdft_response"]} for row in rows]
+        )
+
     return Dataset.from_list(
         [
             {

@@ -76,6 +76,8 @@ class ToolCallConfig:
     # auto | openclaw (ReTool JSON + <interpreter>) | lfm (native apply_chat_template)
     format: str = "auto"
     system_prompt: str | None = None
+    # Fixed one-line CoT cue appended to system prompt (ablation flag).
+    cot_line: str | None = None
     max_context_chars: int = 12000
     max_obs_chars: int = 1024
     sandbox_timeout_s: int = 30

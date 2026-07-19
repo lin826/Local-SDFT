@@ -1,20 +1,29 @@
-{"question": "What is 2 to the power of 10?", "answer": "1024"}
-{"question": "What is 25% of 92?", "answer": "23"}
-{"question": "What is 20% of 71?", "answer": "14.2"}
-{"question": "What is 4 factorial?", "answer": "24"}
-{"question": "Evaluate 19^4.", "answer": "130321"}
-{"question": "Compute 72 - 40.", "answer": "32"}
-{"question": "What is 38 + 58?", "answer": "96"}
-{"question": "What is 10% of 38?", "answer": "3.8"}
-{"question": "Compute 95 - 33.", "answer": "62"}
-{"question": "What is 100 - 37?", "answer": "63"}
-{"question": "What is 13 + 88?", "answer": "101"}
-{"question": "Compute 45 - 17.", "answer": "28"}
-{"question": "Evaluate 8^4.", "answer": "4096"}
-{"question": "Compute 80 - 65.", "answer": "15"}
-{"question": "What is 52 times 92?", "answer": "4784"}
-{"question": "Compute 71 - 20.", "answer": "51"}
-{"question": "What is 81 times 34?", "answer": "2754"}
-{"question": "What is 10% of 43?", "answer": "4.3"}
-{"question": "What is 68 + 35?", "answer": "103"}
-{"question": "What is 50% of 55?", "answer": "27.5"}
+{"question": "What is 17 times 23?", "answer": "391"}
+{"question": "What is the sum of squares from 1 to 10?", "answer": "385"}
+{"question": "How many ways to choose 3 items from 10?", "answer": "120"}
+{"question": "What is 999 divided by 7?", "answer": "142"}
+{"question": "Compute the product 13 * 17 * 19.", "answer": "4199"}
+{"question": "Sum all even numbers from 2 to 50.", "answer": "650"}
+{"question": "What is 1234 + 5678?", "answer": "6912"}
+{"question": "How many divisors does 36 have?", "answer": "9"}
+{"question": "Evaluate 9^3.", "answer": "729"}
+{"question": "Evaluate 20^2.", "answer": "400"}
+{"question": "What is 31 + 47?", "answer": "78"}
+{"question": "What is 53 times 61?", "answer": "3233"}
+{"question": "What is 25% of 84?", "answer": "21"}
+{"question": "What is 8 factorial?", "answer": "40320"}
+{"question": "Compute 88 - 29.", "answer": "59"}
+{"question": "What is 11 to the power of 3?", "answer": "1331"}
+{"question": "Sum 1 through 20.", "answer": "210"}
+{"question": "Find 29 % 7.", "answer": "1"}
+{"question": "Divide 512 by 8.", "answer": "64"}
+{"question": "What is sqrt(144)?", "answer": "12"}
+{"question": "Evaluate (6 + 9) * 4.", "answer": "60"}
+{"question": "What is 41 times 19?", "answer": "779"}
+{"question": "How many ways to choose 2 items from 12?", "answer": "66"}
+{"question": "What is 777 + 888?", "answer": "1665"}
+{"question": "Sum all odd numbers from 1 to 25.", "answer": "169"}
+{"question": "What is 14 factorial?", "answer": "87178291200"}
+{"question": "Compute the product 7 * 11 * 13.", "answer": "1001"}
+{"question": "What is 50% of 96?", "answer": "48"}
+{"question": "Evaluate 15^2.", "answer": "225"}
