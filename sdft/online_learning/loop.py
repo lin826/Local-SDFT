@@ -15,7 +15,7 @@ from .generate_step import generate_sdft_response, turns_to_fewshot_examples
 from .inference import generate_preview
 from .paths import session_adapter_dir
 from .schema import OnlineTurn
-from .session import load_session, save_session
+from .session import resolve_session, save_session
 from .stats import turn_latency_from_phases
 from .tone import resolve_tone
 from .train_step import run_train_step
@@ -30,10 +30,15 @@ def run_online_turn(
     tags: list[str] | None = None,
     preview: bool = True,
     tone_override: str | None = None,
+    config_path: str | None = None,
     root: Path | None = None,
 ) -> OnlineTurn:
     """Classify feedback tone, LoRA-update, then infer the assistant reply."""
-    session = load_session(session_id, root=root)
+    session = resolve_session(
+        session_id,
+        config_path=config_path or "configs/online_learning.yaml",
+        root=root,
+    )
     cfg = load_config(session.config_path)
     adapter_dir = session_adapter_dir(session_id, root)
     phases = LatencyPhases()

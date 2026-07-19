@@ -20,8 +20,8 @@ from fastapi.templating import Jinja2Templates
 
 from sdft.alpacaeval_ablation import build_perf_chat_messages
 from sdft.config import load_config
-from sdft.online_learning import create_session, load_session, run_online_turn
-from sdft.online_learning.session import list_sessions
+from sdft.online_learning import build_session, load_session, run_online_turn
+from sdft.online_learning.session import list_sessions, resolve_session, save_session, session_persisted
 from sdft.records import (
     collect_record,
     collected_records_path,
@@ -403,20 +403,14 @@ async def index(request: Request) -> HTMLResponse:
 
 @app.get("/data", response_class=HTMLResponse)
 async def data_page(request: Request) -> HTMLResponse:
-    session_id = request.query_params.get("session")
-    if request.query_params.get("new"):
-        session = create_session(DEFAULT_ONLINE_CONFIG)
-        session_id = session.id
-    elif session_id:
+    session_param = request.query_params.get("session") or request.query_params.get("session_id")
+    if session_param:
         try:
-            session = load_session(session_id)
+            session = load_session(session_param)
         except FileNotFoundError:
-            session = create_session(DEFAULT_ONLINE_CONFIG)
-            session_id = session.id
+            session = build_session(DEFAULT_ONLINE_CONFIG)
     else:
-        recent = list_sessions(limit=1)
-        session = recent[0] if recent else create_session(DEFAULT_ONLINE_CONFIG)
-        session_id = session.id
+        session = build_session(DEFAULT_ONLINE_CONFIG)
 
     prefill = {
         "message": request.query_params.get("message")
@@ -436,6 +430,7 @@ async def data_page(request: Request) -> HTMLResponse:
         "data.html",
         {
             "session": session,
+            "session_persisted": session_persisted(session.id),
             "sessions": list_sessions(limit=10),
             "config_options": ONLINE_CONFIG_OPTIONS,
             "request": request,
@@ -470,6 +465,7 @@ def _run_online_turn_task(
     tags: list[str] | None,
     preview: bool,
     tone_override: str | None = None,
+    config_path: str | None = None,
 ) -> Any:
     return run_online_turn(
         session_id,
@@ -479,6 +475,7 @@ def _run_online_turn_task(
         tags=tags,
         preview=preview,
         tone_override=tone_override,
+        config_path=config_path,
     )
 
 
@@ -498,16 +495,13 @@ async def online_learning_turn(
     if config_path not in ONLINE_CONFIG_OPTIONS:
         config_path = DEFAULT_ONLINE_CONFIG
 
-    try:
-        session = load_session(session_id)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
+    session = resolve_session(session_id, config_path=config_path)
     if session.config_path != config_path:
         session.config_path = config_path
-        from sdft.online_learning.session import save_session as save_online_session
-
-        save_online_session(session)
+        cfg = load_config(config_path)
+        session.model = cfg.model.name
+        if session_persisted(session_id):
+            save_session(session)
 
     tone = tone_override.strip().lower() or None
     if tone and tone not in {"positive", "neutral", "negative"}:
@@ -522,6 +516,7 @@ async def online_learning_turn(
             tags=None,
             preview=preview.lower() in {"1", "true", "on", "yes"},
             tone_override=tone,
+            config_path=config_path,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

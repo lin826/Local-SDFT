@@ -10,11 +10,14 @@ from .paths import (
 from .schema import OnlineLearningSession, OnlineTurn, TurnLatency
 from .session import (
     adapter_ready,
+    build_session,
     create_session,
     list_sessions,
     list_sessions_with_adapter,
     load_session,
+    resolve_session,
     save_session,
+    session_persisted,
 )
 from .stats import aggregate_tone_counts, aggregate_turn_latencies, build_design_summary
 from .tone import classify_tone, resolve_tone
@@ -29,14 +32,17 @@ __all__ = [
     "build_train_examples",
     "classify_tone",
     "adapter_ready",
+    "build_session",
     "create_session",
     "list_sessions",
     "list_sessions_with_adapter",
     "load_session",
+    "resolve_session",
     "online_session_dir",
     "online_session_path",
     "resolve_tone",
     "run_online_turn",
     "save_session",
     "session_adapter_dir",
+    "session_persisted",
 ]

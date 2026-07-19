@@ -18,17 +18,18 @@ from .schema import OnlineLearningSession
 from .stats import aggregate_turn_latencies, build_design_summary
 
 
-def create_session(
+def build_session(
     config_path: str = "configs/online_learning.yaml",
     *,
     session_id: str | None = None,
     root: Path | None = None,
 ) -> OnlineLearningSession:
+    """Build an in-memory session; nothing is written until ``save_session``."""
     cfg = load_config(config_path)
     sid = session_id or new_session_id()
     adapter = str(session_adapter_dir(sid, root))
     now = utc_now_iso()
-    session = OnlineLearningSession(
+    return OnlineLearningSession(
         id=sid,
         created_at=now,
         updated_at=now,
@@ -43,9 +44,34 @@ def create_session(
             adapter_dir=adapter,
         ),
     )
-    online_session_dir(sid, root).mkdir(parents=True, exist_ok=True)
+
+
+def create_session(
+    config_path: str = "configs/online_learning.yaml",
+    *,
+    session_id: str | None = None,
+    root: Path | None = None,
+) -> OnlineLearningSession:
+    session = build_session(config_path, session_id=session_id, root=root)
+    online_session_dir(session.id, root).mkdir(parents=True, exist_ok=True)
     save_session(session, root=root)
     return session
+
+
+def session_persisted(session_id: str, *, root: Path | None = None) -> bool:
+    return online_session_path(session_id, root).is_file()
+
+
+def resolve_session(
+    session_id: str,
+    *,
+    config_path: str = "configs/online_learning.yaml",
+    root: Path | None = None,
+) -> OnlineLearningSession:
+    """Load a saved session or return an ephemeral in-memory session."""
+    if session_persisted(session_id, root=root):
+        return load_session(session_id, root=root)
+    return build_session(config_path, session_id=session_id, root=root)
 
 
 def load_session(session_id: str, *, root: Path | None = None) -> OnlineLearningSession:
@@ -65,6 +91,7 @@ def save_session(session: OnlineLearningSession, *, root: Path | None = None) ->
         adapter_dir=session.adapter_dir,
     )
     path = online_session_path(session.id, root)
+    path.parent.mkdir(parents=True, exist_ok=True)
     write_json(path, session.to_dict())
     return path
 

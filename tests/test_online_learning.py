@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from sdft.online_learning import (
     aggregate_tone_counts,
     aggregate_turn_latencies,
+    build_session,
     build_train_examples,
     classify_tone,
     create_session,
@@ -18,6 +19,8 @@ from sdft.online_learning import (
     resolve_tone,
     run_online_turn,
 )
+from sdft.online_learning.paths import online_session_path
+from sdft.online_learning.session import session_persisted
 from sdft.online_learning.schema import OnlineTurn, TurnLatency
 from sdft.online_learning.stats import turn_latency_from_phases
 from sdft.records.paths import collected_records_path
@@ -306,8 +309,47 @@ def test_list_sessions_with_adapter_filters_ready(tmp_path: Path, monkeypatch: p
     assert adapter_ready(adapter)
 
 
+def test_build_session_is_ephemeral(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    monkeypatch.setattr("sdft.online_learning.paths.project_root", lambda start=None: tmp_path.resolve())
+
+    session = build_session("configs/online_learning.yaml")
+    assert session.id.startswith("ol-")
+    assert not session_persisted(session.id)
+    assert not online_session_path(session.id).parent.exists()
+
+
+def test_data_page_ephemeral_until_first_turn(client: TestClient, tmp_path: Path):
+    resp = client.get("/data")
+    assert resp.status_code == 200
+    session_id = resp.text.split("session_id")[1].split('value="')[1].split('"')[0]
+    assert not session_persisted(session_id)
+
+    resp_new = client.get("/data?new=1")
+    assert resp_new.status_code == 200
+    new_session_id = resp_new.text.split("session_id")[1].split('value="')[1].split('"')[0]
+    assert new_session_id != session_id
+    assert not session_persisted(new_session_id)
+
+
+def test_data_page_does_not_reuse_recent_session(client: TestClient, tmp_path: Path):
+    saved = create_session("configs/online_learning.yaml")
+    page = client.get("/data")
+    assert page.status_code == 200
+    session_id = page.text.split("session_id")[1].split('value="')[1].split('"')[0]
+    assert session_id != saved.id
+
+
+def test_data_page_loads_saved_session(client: TestClient, tmp_path: Path):
+    saved = create_session("configs/online_learning.yaml")
+    page = client.get(f"/data?session={saved.id}")
+    assert page.status_code == 200
+    session_id = page.text.split("session_id")[1].split('value="')[1].split('"')[0]
+    assert session_id == saved.id
+
+
 def test_data_page_shows_online_learning_ui(client: TestClient):
-    resp = client.get("/data?new=1")
+    resp = client.get("/data")
     assert resp.status_code == 200
     body = resp.text
     assert "Online learning" in body
@@ -319,19 +361,24 @@ def test_data_page_shows_online_learning_ui(client: TestClient):
     assert "Gold output" not in body
     assert 'name="tags"' not in body
     assert "Export collected" not in body
+    assert "Session stats" not in body
 
 
 def test_online_turn_route_mocked(client: TestClient):
-    page = client.get("/data?new=1")
+    page = client.get("/data")
     assert page.status_code == 200
     session_id = page.text.split("session_id")[1].split('value="')[1].split('"')[0]
+    assert not session_persisted(session_id)
 
     def fake_run(session_id, **kwargs):
         from sdft.online_learning.schema import OnlineTurn, TurnLatency
-        from sdft.online_learning.session import load_session, save_session
+        from sdft.online_learning.session import resolve_session, save_session
         from sdft.records.paths import utc_now_iso
 
-        session = load_session(session_id)
+        session = resolve_session(
+            session_id,
+            config_path=kwargs.get("config_path") or "configs/online_learning.yaml",
+        )
         turn = OnlineTurn(
             turn_index=1,
             instruction=kwargs["instruction"],
@@ -376,6 +423,7 @@ def test_online_turn_route_mocked(client: TestClient):
     assert resp.status_code == 303
     assert f"session={session_id}" in resp.headers["location"]
     assert "turn=1" in resp.headers["location"]
+    assert session_persisted(session_id)
 
     detail = client.get(f"/data/{session_id}")
     assert detail.status_code == 200
