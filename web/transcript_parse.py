@@ -19,6 +19,8 @@ SegmentKind = Literal[
     "reasoning", "tool_call", "tool_result", "answer", "prose", "refusal"
 ]
 
+EMPTY_ASSISTANT_FALLBACK = "I'm sorry, but I can't assist with that."
+
 _THINK_LINE = re.compile(r"^Think\s*:", re.IGNORECASE | re.MULTILINE)
 _REFUSAL_START = re.compile(
     r"I'm sorry(?:,|\.)?\s+but I can't\b",
@@ -234,9 +236,18 @@ def _scan_special_spans(text: str) -> list[tuple[int, int, SegmentKind, str, str
     return spans
 
 
+def display_assistant_content(content: str | None) -> str:
+    """Return assistant text for UI, substituting the standard refusal when empty."""
+    if content is None or not str(content).strip():
+        return EMPTY_ASSISTANT_FALLBACK
+    return str(content)
+
+
 def parse_message_content(role: str, content: str) -> list[TranscriptSegment]:
     """Split one transcript message into renderable segments."""
     text = content or ""
+    if role == "assistant" and not text.strip():
+        return [TranscriptSegment(kind="prose", content=EMPTY_ASSISTANT_FALLBACK)]
     if role == "tool":
         match = _INTERPRETER.search(text)
         if match:

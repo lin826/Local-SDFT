@@ -399,3 +399,52 @@ def test_unknown_demo_condition_rejected(client: TestClient):
     )
     assert resp.status_code == 400
     assert "unknown demo condition" in resp.json()["detail"]
+
+
+def test_empty_assistant_response_renders_refusal_fallback(client: TestClient):
+    from sdft.records.paths import performance_result_path
+    from sdft.records.store import save_performance_result
+
+    result = PerformanceResult(
+        id="bench-empty-assistant",
+        run_at="2026-07-19T00:00:00Z",
+        benchmark="inference",
+        model="mock",
+        metrics=PerformanceMetrics(
+            latency_ms_mean=12.0,
+            latency_ms_p50=12.0,
+            latency_ms_p95=12.0,
+            tokens_per_second=100.0,
+            samples=1,
+            batch_size=1,
+            input_tokens_total=8,
+            output_tokens_total=0,
+            device="cpu",
+        ),
+        metadata={
+            "messages": [
+                {"role": "user", "content": "Tell me something unsafe."},
+                {"role": "assistant", "content": ""},
+            ],
+            "examples": [
+                {
+                    "instruction": "",
+                    "input": "Tell me something unsafe.",
+                    "output": "",
+                }
+            ],
+            "chat": True,
+        },
+        config_path="configs/default.yaml",
+    )
+    save_performance_result(performance_result_path(result.id), result)
+
+    detail = client.get(f"/perf/{result.id}")
+    assert detail.status_code == 200
+    assert "sorry, but I can" in detail.text
+    assert "assist with that." in detail.text
+
+    perf = client.get("/perf")
+    assert perf.status_code == 200
+    assert "sorry, but I can" in perf.text
+    assert "assist with that." in perf.text

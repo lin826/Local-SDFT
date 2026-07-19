@@ -113,7 +113,7 @@
             <span class="io-label">Output <span class="io-hint">(model reply)</span>{% if is_truncated %}<span class="badge badge-truncated" title="output_tokens_total ({{ result.metrics.output_tokens_total }}) reached max_new_tokens ({{ max_new_tokens }}) — the reply may be cut off.">possibly truncated</span>{% endif %}</span>
             <button type="button" class="copy-btn" data-copy-target="io-output-{{ loop.index0 }}">Copy</button>
           </div>
-          <pre class="io-text io-output" id="io-output-{{ loop.index0 }}">{{ ex.output or '—' }}</pre>
+          <pre class="io-text io-output" id="io-output-{{ loop.index0 }}">{{ ex.output | display_assistant }}</pre>
         </div>
       </div>
     </div>

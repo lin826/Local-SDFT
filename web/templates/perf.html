@@ -171,7 +171,7 @@
       {% endif %}
       <div class="io-field">
         <span class="io-label">Output</span>
-        <pre class="io-text io-output">{{ ex.output or '—' }}</pre>
+        <pre class="io-text io-output">{{ ex.output | display_assistant }}</pre>
       </div>
       {% if examples|length > 1 %}
       <p class="meta"><a href="/perf/{{ r.id }}">View all {{ examples|length }} examples →</a></p>

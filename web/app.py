@@ -43,7 +43,11 @@ from web.demo_conditions import (
     instruction_field_hint,
     instruction_field_locked,
 )
-from web.transcript_parse import highlight_boxed, parse_message_content
+from web.transcript_parse import (
+    display_assistant_content,
+    highlight_boxed,
+    parse_message_content,
+)
 
 WEB_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
@@ -52,6 +56,7 @@ templates.env.filters["parse_transcript"] = lambda content, role="assistant": [
     s.to_dict() for s in parse_message_content(role, content or "")
 ]
 templates.env.filters["highlight_boxed"] = highlight_boxed
+templates.env.filters["display_assistant"] = display_assistant_content
 
 app = FastAPI(title="Local-SDFT", description="Data collection and performance testing")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
@@ -62,6 +67,17 @@ CONFIG_OPTIONS = [
 ]
 DEFAULT_INSTRUCTION = "Answer helpfully and directly in plain text."
 ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}
+
+
+def _include_message_for_display(m: dict) -> bool:
+    if not isinstance(m, dict):
+        return False
+    role = m.get("role")
+    if role not in ALLOWED_CHAT_ROLES:
+        return False
+    if role == "assistant":
+        return True
+    return bool(str(m.get("content", "")).strip())
 
 
 def _index_entries(limit: int = 50) -> list[dict]:
@@ -192,9 +208,7 @@ def _chat_context_from_result(
         typed = [
             {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
             for m in messages
-            if isinstance(m, dict)
-            and m.get("role") in ALLOWED_CHAT_ROLES
-            and str(m.get("content", "")).strip()
+            if _include_message_for_display(m)
         ]
     config_path = str(result.config_path or meta.get("config_path") or DEFAULT_CONFIG)
     stored_instruction = _system_from_messages(typed) or instruction_fallback
@@ -271,7 +285,7 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
     typed = [
         {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
         for m in messages
-        if isinstance(m, dict) and m.get("role") in ALLOWED_CHAT_ROLES and str(m.get("content", "")).strip()
+        if _include_message_for_display(m)
     ]
     stored_instruction = _system_from_messages(typed)
     instruction_ctx = _instruction_ui_context(

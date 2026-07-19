@@ -7,11 +7,35 @@ from sdft.toolcall.format import (
     LFM_TOOL_CALL_END,
     LFM_TOOL_CALL_START,
 )
-from web.transcript_parse import highlight_boxed, parse_message_content
+from web.transcript_parse import (
+    EMPTY_ASSISTANT_FALLBACK,
+    display_assistant_content,
+    highlight_boxed,
+    parse_message_content,
+)
 
 
 def _kinds(role: str, content: str) -> list[str]:
     return [s.kind for s in parse_message_content(role, content)]
+
+
+def test_empty_assistant_content_shows_refusal_fallback():
+    for content in ("", "   ", "\n\t"):
+        segments = parse_message_content("assistant", content)
+        assert len(segments) == 1
+        assert segments[0].kind == "prose"
+        assert segments[0].content == EMPTY_ASSISTANT_FALLBACK
+
+
+def test_display_assistant_content_fallback():
+    assert display_assistant_content("") == EMPTY_ASSISTANT_FALLBACK
+    assert display_assistant_content("  ") == EMPTY_ASSISTANT_FALLBACK
+    assert display_assistant_content(None) == EMPTY_ASSISTANT_FALLBACK
+    assert display_assistant_content("Hello") == "Hello"
+
+
+def test_empty_user_message_stays_empty():
+    assert parse_message_content("user", "") == []
 
 
 def test_plain_prose_unchanged():
