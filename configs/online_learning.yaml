@@ -1,4 +1,4 @@
-# Online learning — incremental LoRA updates from web /data turns.
+# Online learning — tiny SDFT + LoRA updates from web /data turns.
 # Smaller LoRA rank and short sequences keep each update fast on MPS.
 
 model:
@@ -23,6 +23,7 @@ training:
   seed: 0
 
 generation:
+  num_shots: 2
   max_new_tokens: 128
 
 online_learning:

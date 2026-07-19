@@ -22,14 +22,16 @@ def _latency_stats(values: list[float]) -> dict[str, float | int]:
 
 
 def aggregate_turn_latencies(turns: list[OnlineTurn]) -> dict[str, Any]:
-    """Summarize infer / train / total latency across session turns."""
+    """Summarize generate / train / infer / total latency across session turns."""
+    generate = [t.latency.generate_ms for t in turns if t.latency.generate_ms is not None]
     infer = [t.latency.inference_ms for t in turns if t.latency.inference_ms is not None]
     train = [t.latency.train_ms for t in turns if t.latency.train_ms is not None]
     total = [t.latency.total_ms for t in turns if t.latency.total_ms is not None]
     return {
         "turn_count": len(turns),
-        "inference_ms": _latency_stats(infer),
+        "generate_ms": _latency_stats(generate),
         "train_ms": _latency_stats(train),
+        "inference_ms": _latency_stats(infer),
         "total_ms": _latency_stats(total),
     }
 
@@ -43,13 +45,13 @@ def build_design_summary(
     adapter_dir: str,
 ) -> dict[str, str]:
     return {
-        "purpose": "Online LoRA learning from /data turns",
+        "purpose": "Online LoRA learning from /data turns (tiny SDFT)",
         "session_id": session_id,
         "config_path": config_path,
         "model": model,
         "adapter_dir": adapter_dir,
         "turn_count": str(turn_count),
-        "update_recipe": "1–few SFT steps per turn with optional replay buffer",
+        "update_recipe": "SDFT teacher rewrite + 1–few LoRA steps on sdft_response (not user gold)",
     }
 
 
@@ -58,9 +60,12 @@ def turn_latency_from_phases(
     *,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    preview_input_tokens: int | None = None,
+    preview_output_tokens: int | None = None,
 ) -> TurnLatency:
     """Derive TurnLatency from LatencyPhases-style phase list."""
     by_name = {p["name"]: float(p["duration_ms"]) for p in phases}
+    generate = by_name.get("generate_sdft")
     infer = by_name.get("inference_preview")
     train = by_name.get("train_update")
     total = max((float(p["end_ms"]) for p in phases), default=0.0)
@@ -68,8 +73,9 @@ def turn_latency_from_phases(
         total = sum(float(p["duration_ms"]) for p in phases)
     return TurnLatency(
         total_ms=round(total, 3),
-        inference_ms=round(infer, 3) if infer is not None else None,
+        generate_ms=round(generate, 3) if generate is not None else None,
         train_ms=round(train, 3) if train is not None else None,
+        inference_ms=round(infer, 3) if infer is not None else None,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
     )

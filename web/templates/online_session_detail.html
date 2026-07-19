@@ -3,7 +3,7 @@
 {% set active = 'data' %}
 {% block content %}
 <h1 class="page-title">Online learning session</h1>
-<p class="lead"><code>{{ session.id }}</code> · {{ session.updated_at }} · {{ session.turn_count }} turn(s)</p>
+<p class="lead"><code>{{ session.id }}</code> · {{ session.updated_at }} · {{ session.turn_count }} turn(s) · tiny SDFT updates</p>
 
 <div class="pill-row">
   <span class="pill pill-accent">{{ session.model }}</span>
@@ -33,7 +33,12 @@
       <tr><th>Phase</th><th>Count</th><th>Mean</th><th>P50</th><th>P95</th></tr>
     </thead>
     <tbody>
-      {% for phase_name, label in [('inference_ms', 'Inference preview'), ('train_ms', 'Adapter update'), ('total_ms', 'Total turn')] %}
+      {% for phase_name, label in [
+        ('generate_ms', 'SDFT generate'),
+        ('train_ms', 'Adapter update'),
+        ('inference_ms', 'Post-update preview'),
+        ('total_ms', 'Total turn'),
+      ] %}
       {% set s = summary.get(phase_name) or {} %}
       <tr>
         <td>{{ label }}</td>
@@ -53,17 +58,18 @@
   {% if session.turns %}
   <table>
     <thead>
-      <tr><th>#</th><th>Instruction</th><th>Infer ms</th><th>Train ms</th><th>Total ms</th><th>Tokens</th><th>When</th></tr>
+      <tr><th>#</th><th>Instruction</th><th>Generate ms</th><th>Train ms</th><th>Infer ms</th><th>Total ms</th><th>Tokens</th><th>When</th></tr>
     </thead>
     <tbody>
       {% for t in session.turns %}
       <tr>
         <td>{{ t.turn_index }}</td>
         <td>{{ t.instruction[:60] }}{% if t.instruction|length > 60 %}…{% endif %}</td>
-        <td>{% if t.latency.inference_ms is not none %}{{ "%.1f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.generate_ms is not none %}{{ "%.1f"|format(t.latency.generate_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.train_ms is not none %}{{ "%.1f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.inference_ms is not none %}{{ "%.1f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
         <td><strong>{{ "%.1f"|format(t.latency.total_ms) }}</strong></td>
-        <td class="meta">{% if t.latency.output_tokens is not none %}{{ t.latency.output_tokens }} out{% else %}—{% endif %}</td>
+        <td class="meta">{% if t.latency.output_tokens is not none %}{{ t.latency.output_tokens }} sdft{% else %}—{% endif %}</td>
         <td class="meta">{{ t.created_at }}</td>
       </tr>
       {% endfor %}

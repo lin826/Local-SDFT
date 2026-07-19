@@ -6,14 +6,14 @@
 {% endblock %}
 {% block content %}
 <h1 class="page-title">Online learning</h1>
-<p class="lead">Submit Alpaca-style examples; each turn appends a record, runs a tiny LoRA update on the current adapter, and shows preview + latency. Adapter lives under <code>outputs/online-learning/{{ session.id }}/adapter/</code>.</p>
+<p class="lead">Submit Alpaca-style prompts; each turn runs a <strong>tiny SDFT</strong> step (model rewrites the target), LoRA-updates the adapter on that self-generated response, and optionally previews the updated adapter. User gold output is optional and stored for collection only — it is <em>not</em> used for the online update.</p>
 
-{% with page_id='online', tip='Each submit may take several seconds on MPS while the adapter updates. The form shows progress via HTMX.' %}
+{% with page_id='online', tip='Each submit may take several seconds on MPS while the model generates an SDFT target and updates the adapter. The form shows progress via HTMX.' %}
 {% set steps = [
   'Pick a YAML config (default: configs/online_learning.yaml) or start a fresh session.',
-  'Fill Instruction and Output (gold target). Optionally add Input context.',
-  'Submit — the server records the example, optionally previews with the current adapter, then runs 1–few SFT steps.',
-  'Review turn feedback (preview text, infer/train/total latency) and open the session detail page for aggregate stats.',
+  'Fill Instruction (required). Optionally add Input context and a gold Output for dataset collection.',
+  'Submit — the server SDFT-generates a target, runs 1–few LoRA steps on sdft_response, and optionally previews the updated adapter.',
+  'Review turn feedback (SDFT target, preview, generate/train/infer/total latency) and open the session detail page for aggregate stats.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
@@ -58,19 +58,19 @@
       <input id="input_text" name="input_text" type="text" placeholder="Context or constraints" value="{{ prefill.input_text if prefill else '' }}">
     </div>
     <div class="field">
-      <label for="output">Output (gold response)</label>
-      <textarea id="output" name="output" required placeholder="The target response the adapter should learn…">{{ prefill.output if prefill else '' }}</textarea>
+      <label for="output">Gold output (optional — collection only, not used for update)</label>
+      <textarea id="output" name="output" placeholder="Optional reference response for your dataset…">{{ prefill.output if prefill else '' }}</textarea>
     </div>
     <div class="field">
       <label for="tags">Tags (comma-separated, optional)</label>
       <input id="tags" name="tags" type="text" placeholder="geek-jokes">
     </div>
     <div class="field checkbox-field">
-      <label><input type="checkbox" name="preview" value="1" checked> Preview with current adapter before update</label>
+      <label><input type="checkbox" name="preview" value="1" checked> Preview with updated adapter after SDFT update</label>
     </div>
     <div class="actions">
       <button class="btn" type="submit" id="online-submit-btn">Submit &amp; update adapter</button>
-      <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter…</span>
+      <span id="online-spinner" class="htmx-indicator online-spinner">Running tiny SDFT update…</span>
     </div>
   </form>
 
@@ -79,19 +79,34 @@
     <h3>Turn {{ last_turn.turn_index }} complete</h3>
     <div class="metrics-strip">
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.total_ms) }}</strong><span>Total ms</span></div>
-      {% if last_turn.latency.inference_ms is not none %}
-      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
+      {% if last_turn.latency.generate_ms is not none %}
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.generate_ms) }}</strong><span>Generate ms</span></div>
       {% endif %}
       {% if last_turn.latency.train_ms is not none %}
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.train_ms) }}</strong><span>Train ms</span></div>
       {% endif %}
+      {% if last_turn.latency.inference_ms is not none %}
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
+      {% endif %}
       {% if last_turn.latency.output_tokens is not none %}
-      <div class="metric-chip"><strong>{{ last_turn.latency.output_tokens }}</strong><span>Preview tokens</span></div>
+      <div class="metric-chip"><strong>{{ last_turn.latency.output_tokens }}</strong><span>SDFT tokens</span></div>
       {% endif %}
     </div>
+    {% if last_turn.sdft_response %}
+    <div class="io-field" style="margin-top:1rem;">
+      <span class="io-label">SDFT target (trained on this)</span>
+      <pre class="io-text io-output">{{ last_turn.sdft_response }}</pre>
+    </div>
+    {% endif %}
+    {% if last_turn.output %}
+    <div class="io-field" style="margin-top:1rem;">
+      <span class="io-label">Gold output (collection only)</span>
+      <pre class="io-text io-output">{{ last_turn.output }}</pre>
+    </div>
+    {% endif %}
     {% if last_turn.preview %}
     <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">Adapter preview (before update)</span>
+      <span class="io-label">Adapter preview (after update)</span>
       <pre class="io-text io-output">{{ last_turn.preview }}</pre>
     </div>
     {% endif %}
@@ -100,7 +115,7 @@
     {% include "latency_gantt.html" %}
     {% endwith %}
     {% endif %}
-    <p class="meta">Gold output saved · record <code>{{ last_turn.record_id }}</code> · <a href="/data/{{ session.id }}">session detail</a></p>
+    <p class="meta">Record <code>{{ last_turn.record_id }}</code> · <a href="/data/{{ session.id }}">session detail</a></p>
   </div>
   {% endif %}
 </section>
@@ -110,7 +125,7 @@
   {% if session.turns %}
   <table>
     <thead>
-      <tr><th>#</th><th>Instruction</th><th>Total ms</th><th>Infer</th><th>Train</th><th>When</th></tr>
+      <tr><th>#</th><th>Instruction</th><th>Total ms</th><th>Generate</th><th>Train</th><th>Infer</th><th>When</th></tr>
     </thead>
     <tbody>
       {% for t in session.turns|reverse %}
@@ -118,8 +133,9 @@
         <td>{{ t.turn_index }}</td>
         <td>{{ t.instruction[:80] }}{% if t.instruction|length > 80 %}…{% endif %}</td>
         <td>{{ "%.0f"|format(t.latency.total_ms) }}</td>
-        <td>{% if t.latency.inference_ms is not none %}{{ "%.0f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.generate_ms is not none %}{{ "%.0f"|format(t.latency.generate_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.train_ms is not none %}{{ "%.0f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.inference_ms is not none %}{{ "%.0f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
         <td class="meta">{{ t.created_at }}</td>
       </tr>
       {% endfor %}

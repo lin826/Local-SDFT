@@ -653,7 +653,9 @@ details.advanced-details[open] summary {
 }
 
 .gantt-bar[data-phase="generate"],
-.phase-swatch[data-phase="generate"] {
+.gantt-bar[data-phase="generate_sdft"],
+.phase-swatch[data-phase="generate"],
+.phase-swatch[data-phase="generate_sdft"] {
   background: var(--success);
 }
 

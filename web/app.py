@@ -437,14 +437,14 @@ async def online_learning_turn(
     config_path: str = Form(DEFAULT_ONLINE_CONFIG),
     instruction: str = Form(...),
     input_text: str = Form(""),
-    output: str = Form(...),
+    output: str = Form(""),
     tags: str = Form(""),
     preview: str = Form(""),
 ):
     instruction = instruction.strip()
     output = output.strip()
-    if not instruction or not output:
-        raise HTTPException(status_code=400, detail="instruction and output are required")
+    if not instruction:
+        raise HTTPException(status_code=400, detail="instruction is required")
     if config_path not in ONLINE_CONFIG_OPTIONS:
         config_path = DEFAULT_ONLINE_CONFIG
 

@@ -1,4 +1,4 @@
-"""Tiny LoRA SFT step for one or more Alpaca-style examples."""
+"""Tiny LoRA SDFT step — train on model-generated ``sdft_response`` targets."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from trl import SFTConfig, SFTTrainer
 from sdft.config import Config
 from sdft.utils import load_model, load_tokenizer, pick_device
 
+from .generate_step import row_to_prompt
+
 
 def _adapter_ready(adapter_dir: Path) -> bool:
     return (adapter_dir / "adapter_config.json").is_file()
@@ -21,17 +23,18 @@ def _adapter_ready(adapter_dir: Path) -> bool:
 def _rows_to_dataset(rows: list[dict[str, str]]) -> Dataset:
     items: list[dict[str, Any]] = []
     for row in rows:
-        instruction = row.get("instruction", "").strip()
-        user_input = row.get("input", "").strip()
-        output = row.get("output", "").strip()
-        user_parts = [p for p in (instruction, user_input) if p]
-        user_content = "\n\n".join(user_parts)
+        user_content = row_to_prompt(row)
+        completion = row.get("sdft_response", "").strip()
+        if not user_content or not completion:
+            continue
         items.append(
             {
                 "prompt": [{"role": "user", "content": user_content}],
-                "completion": [{"role": "assistant", "content": output}],
+                "completion": [{"role": "assistant", "content": completion}],
             }
         )
+    if not items:
+        raise ValueError("no trainable rows with sdft_response")
     return Dataset.from_list(items)
 
 
@@ -42,7 +45,7 @@ def run_train_step(
     *,
     max_steps: int | None = None,
 ) -> None:
-    """Run a short LoRA update on ``examples``; creates or resumes ``adapter_dir``."""
+    """Run a short LoRA update on SDFT targets; creates or resumes ``adapter_dir``."""
     if not examples:
         raise ValueError("examples must not be empty")
 

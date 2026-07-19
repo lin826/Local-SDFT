@@ -13,8 +13,9 @@ class TurnLatency:
     """Wall-clock latency for one online-learning turn."""
 
     total_ms: float
-    inference_ms: float | None = None
+    generate_ms: float | None = None
     train_ms: float | None = None
+    inference_ms: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
 
@@ -29,12 +30,13 @@ class TurnLatency:
 
 @dataclass
 class OnlineTurn:
-    """One user-submitted example plus optional model preview and update timing."""
+    """One user prompt plus SDFT target, optional gold label, and update timing."""
 
     turn_index: int
     instruction: str
     input: str
     output: str
+    sdft_response: str
     record_id: str
     created_at: str
     latency: TurnLatency
@@ -51,9 +53,12 @@ class OnlineTurn:
     def from_dict(cls, raw: dict[str, Any]) -> OnlineTurn:
         latency_raw = raw.get("latency") or {}
         known = {f.name for f in cls.__dataclass_fields__.values()} - {"latency"}
+        data = {k: v for k, v in raw.items() if k in known}
+        if "sdft_response" not in data:
+            data["sdft_response"] = raw.get("sdft_response") or raw.get("preview") or ""
         return cls(
             latency=TurnLatency.from_dict(latency_raw),
-            **{k: v for k, v in raw.items() if k in known},
+            **data,
         )
 
 

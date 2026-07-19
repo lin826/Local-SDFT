@@ -45,38 +45,44 @@ def test_aggregate_turn_latencies_stats():
             instruction="a",
             input="",
             output="b",
+            sdft_response="sdft-b",
             record_id="rec-1",
             created_at="t1",
-            latency=TurnLatency(total_ms=3000, inference_ms=1000, train_ms=2000),
+            latency=TurnLatency(total_ms=3000, generate_ms=800, inference_ms=200, train_ms=2000),
         ),
         OnlineTurn(
             turn_index=2,
             instruction="c",
             input="",
             output="d",
+            sdft_response="sdft-d",
             record_id="rec-2",
             created_at="t2",
-            latency=TurnLatency(total_ms=5000, inference_ms=1500, train_ms=3500),
+            latency=TurnLatency(total_ms=5000, generate_ms=1200, inference_ms=300, train_ms=3500),
         ),
     ]
     summary = aggregate_turn_latencies(turns)
     assert summary["turn_count"] == 2
+    assert summary["generate_ms"]["count"] == 2
+    assert summary["generate_ms"]["mean"] == 1000.0
     assert summary["inference_ms"]["count"] == 2
-    assert summary["inference_ms"]["mean"] == 1250.0
+    assert summary["inference_ms"]["mean"] == 250.0
     assert summary["train_ms"]["p50"] == 2000.0
     assert summary["total_ms"]["p95"] == 5000.0
 
 
 def test_turn_latency_from_phases():
     phases = [
-        {"name": "inference_preview", "start_ms": 0, "end_ms": 100, "duration_ms": 100},
-        {"name": "train_update", "start_ms": 100, "end_ms": 2100, "duration_ms": 2000},
-        {"name": "record_collect", "start_ms": 2100, "end_ms": 2105, "duration_ms": 5},
+        {"name": "generate_sdft", "start_ms": 0, "end_ms": 800, "duration_ms": 800},
+        {"name": "train_update", "start_ms": 800, "end_ms": 2800, "duration_ms": 2000},
+        {"name": "inference_preview", "start_ms": 2800, "end_ms": 3000, "duration_ms": 200},
+        {"name": "record_collect", "start_ms": 3000, "end_ms": 3005, "duration_ms": 5},
     ]
     lat = turn_latency_from_phases(phases, input_tokens=12, output_tokens=34)
-    assert lat.inference_ms == 100.0
+    assert lat.generate_ms == 800.0
+    assert lat.inference_ms == 200.0
     assert lat.train_ms == 2000.0
-    assert lat.total_ms == 2105.0
+    assert lat.total_ms == 3005.0
     assert lat.input_tokens == 12
     assert lat.output_tokens == 34
 
@@ -89,16 +95,21 @@ def test_run_online_turn_persists_session_and_record(tmp_path: Path, monkeypatch
 
     session = create_session("configs/online_learning.yaml")
 
+    def fake_generate(cfg, *, instruction, user_input="", fewshot_examples=None, **kwargs):
+        return "sdft rewrite text", 10, 5
+
     def fake_preview(cfg, adapter_dir, instruction, user_input="", **kwargs):
-        return "preview text", 10, 5
+        return "preview text", 8, 4
 
     def fake_train(cfg, adapter_dir, examples, **kwargs):
         adapter_dir.mkdir(parents=True, exist_ok=True)
         (adapter_dir / "adapter_config.json").write_text("{}", encoding="utf-8")
+        assert all("sdft_response" in ex for ex in examples)
+        assert all("output" not in ex for ex in examples)
 
-    with patch("sdft.online_learning.loop.generate_preview", side_effect=fake_preview), patch(
-        "sdft.online_learning.loop.run_train_step", side_effect=fake_train
-    ):
+    with patch("sdft.online_learning.loop.generate_sdft_response", side_effect=fake_generate), patch(
+        "sdft.online_learning.loop.generate_preview", side_effect=fake_preview
+    ), patch("sdft.online_learning.loop.run_train_step", side_effect=fake_train):
         turn = run_online_turn(
             session.id,
             instruction="Tell a joke",
@@ -109,14 +120,19 @@ def test_run_online_turn_persists_session_and_record(tmp_path: Path, monkeypatch
     loaded = load_session(session.id)
     assert loaded.turn_count == 1
     assert loaded.latency_summary["turn_count"] == 1
+    assert loaded.latency_summary["generate_ms"]["count"] == 1
     assert loaded.latency_summary["train_ms"]["count"] == 1
+    assert turn.sdft_response == "sdft rewrite text"
+    assert turn.output == "Why did the PhD cross the road?"
     assert turn.preview == "preview text"
+    assert turn.latency.generate_ms is not None
     assert turn.latency.inference_ms is not None
     assert turn.latency.train_ms is not None
 
     records = load_collected_records(collected_records_path())
     assert len(records) == 1
     assert records[0].metadata["online_session_id"] == session.id
+    assert records[0].metadata["sdft_response"] == "sdft rewrite text"
     assert "latency" in records[0].metadata
     assert records[0].metadata["latency"]["total_ms"] > 0
 
@@ -126,9 +142,11 @@ def test_data_page_shows_online_learning_ui(client: TestClient):
     assert resp.status_code == 200
     body = resp.text
     assert "Online learning" in body
+    assert "tiny SDFT" in body
     assert 'action="/data/turn"' in body
     assert "configs/online_learning.yaml" in body
-    assert "Updating adapter" in body
+    assert "Running tiny SDFT update" in body
+    assert "collection only" in body
 
 
 def test_online_turn_route_mocked(client: TestClient):
@@ -146,14 +164,22 @@ def test_online_turn_route_mocked(client: TestClient):
             turn_index=1,
             instruction=kwargs["instruction"],
             input=kwargs.get("input_text") or kwargs.get("input") or "",
-            output=kwargs["output"],
+            output=kwargs.get("output") or "",
+            sdft_response="mock sdft target",
             preview="mock preview",
             record_id="rec-test-1",
             created_at=utc_now_iso(),
-            latency=TurnLatency(total_ms=1234, inference_ms=400, train_ms=800, output_tokens=7),
+            latency=TurnLatency(
+                total_ms=1234,
+                generate_ms=500,
+                inference_ms=400,
+                train_ms=300,
+                output_tokens=7,
+            ),
             latency_phases=[
-                {"name": "inference_preview", "start_ms": 0, "end_ms": 400, "duration_ms": 400},
-                {"name": "train_update", "start_ms": 400, "end_ms": 1200, "duration_ms": 800},
+                {"name": "generate_sdft", "start_ms": 0, "end_ms": 500, "duration_ms": 500},
+                {"name": "train_update", "start_ms": 500, "end_ms": 800, "duration_ms": 300},
+                {"name": "inference_preview", "start_ms": 800, "end_ms": 1200, "duration_ms": 400},
             ],
         )
         session.turns.append(turn)
@@ -167,7 +193,6 @@ def test_online_turn_route_mocked(client: TestClient):
                 "session_id": session_id,
                 "config_path": "configs/online_learning.yaml",
                 "instruction": "Hello",
-                "output": "World",
                 "preview": "1",
             },
             follow_redirects=False,
@@ -179,6 +204,7 @@ def test_online_turn_route_mocked(client: TestClient):
     detail = client.get(f"/data/{session_id}")
     assert detail.status_code == 200
     assert "Latency summary" in detail.text
+    assert "SDFT generate" in detail.text
     assert "Per-turn latencies" in detail.text
 
 
