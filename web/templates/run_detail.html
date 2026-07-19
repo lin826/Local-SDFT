@@ -28,6 +28,7 @@
   {% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the transcript below — those counters are token counts, not message text.' %}
   {% set steps = [
     'Header pills (top): benchmark, model, device, config, and headline speed.',
+    'Design summary: persisted metadata describing demo purpose, config, and eval surface.',
     'Transcript or Prompt · Reply: the conversation / Alpaca fields for this run.',
     'Metrics / Advanced (bottom): timing, throughput, and raw metadata only.',
     'Continue chat to resume multi-turn from this run’s messages.',
@@ -35,6 +36,20 @@
   {% include "howto.html" %}
   {% endwith %}
 </details>
+
+{% set design_summary = result.metadata.get('design_summary') if result.metadata else none %}
+{% if design_summary %}
+<section class="section" id="design-summary">
+  <h2>Design summary</h2>
+  <p class="lead" style="margin-bottom:1rem;">Persisted in this run’s JSON metadata under <code>design_summary</code>.</p>
+  <dl class="design-summary">
+    {% for key, value in design_summary.items() %}
+    <dt>{{ key.replace('_', ' ') }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}
 
 {% set examples = result.metadata.get('examples') if result.metadata else none %}
 {% set messages = result.metadata.get('messages') if result.metadata else none %}
@@ -167,7 +182,7 @@
 {% if result.metadata %}
 {% set meta_items = [] %}
 {% for key, value in result.metadata.items() %}
-{% if key not in ('examples', 'messages') %}
+{% if key not in ('examples', 'messages', 'design_summary') %}
 {% set _ = meta_items.append((key, value)) %}
 {% endif %}
 {% endfor %}

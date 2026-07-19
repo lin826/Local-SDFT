@@ -681,11 +681,27 @@ details.advanced-details[open] summary {
 }
 
 .field-hint {
-  font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
   color: var(--muted);
-  font-size: 0.85em;
+}
+
+.design-summary {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+}
+
+.design-summary dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.design-summary dd {
+  margin: 0;
 }
 
 #instruction[readonly] {

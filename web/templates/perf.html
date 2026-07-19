@@ -7,14 +7,14 @@
 {% endblock %}
 {% block content %}
 <h1 class="page-title">Performance tests</h1>
-<p class="lead"><strong>Chat inference</strong> supports OpenClaw ablation-style conditions (ZS / OS / CoT / SDFT) with live tool calling, plus plain multi-turn chat. Each Send waits for the model, then updates the chat panel in place. Results land in <code>outputs/benchmarks/</code>.</p>
+<p class="lead"><strong>Plain chat inference</strong> for Alpaca-style prompts — compare base LFM2.5-230M (<code>configs/default.yaml</code>) vs the AlpacaEval2 SDFT merge (<code>configs/lfm25_alpacaeval2_trained.yaml</code>). Each Send waits for the model, then updates the chat panel in place. Results land in <code>outputs/benchmarks/</code> with a design summary in metadata.</p>
 
-{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. The Send button shows “Generating…” while you wait; only the chat panel swaps (condition, config, and system stay put). Tool-loop conditions may run several rounds. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
+{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. The Send button shows “Generating…” while you wait; only the chat panel swaps. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
 {% set steps = [
-  'Pick a Demo condition (primary control) — ZS/OS/CoT/SDFT map to the ablation study; Plain chat skips tools.',
-  'Optionally adjust Config YAML (toolcall settings) or System / instruction (plain chat only).',
-  'Type a user message — math problems work well for tool conditions — and Send; the transcript updates without a full page reload.',
-  'Keep chatting: condition + config stick. Open a result ID for metrics + transcript.',
+  'Pick Config — default.yaml (baseline) or lfm25_alpacaeval2_trained.yaml (SDFT merge).',
+  'Optionally edit System / instruction (plain text guidance).',
+  'Type a user message — try Alpaca-style tasks like sewing or making apple juice — and Send.',
+  'Open a result ID to inspect the transcript, metrics, and design summary.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
@@ -23,10 +23,6 @@
 <p class="notice">Generate benchmark started in the background. Refresh this page shortly, then open the newest run ID.</p>
 {% elif request.query_params.get('instruction') and not chat.last_run_id %}
 <p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then Send.</p>
-{% endif %}
-
-{% if sdft_missing %}
-<p class="notice notice-warn">SDFT merged checkpoint not found at <code>{{ sdft_path }}</code>. SDFT-* conditions are disabled until you train and merge (see <code>docs/openclaw-tooluse-sdft.md</code>).</p>
 {% endif %}
 
 <section class="section" id="chat">
@@ -41,27 +37,8 @@
         hx-swap="outerHTML"
         hx-indicator="#chat-indicator"
         hx-disabled-elt="#chat-send">
+    <input type="hidden" name="demo_condition" value="plain">
     <div class="grid-2">
-      <div class="field">
-        <label for="demo_condition">Demo condition</label>
-        <select id="demo_condition" name="demo_condition">
-          {% for opt in condition_options %}
-          <option value="{{ opt.id }}"
-            data-toolcall="{{ 'true' if opt.toolcall else 'false' }}"
-            {% if opt.id == selected_condition %}selected{% endif %}
-            {% if opt.disabled %}disabled{% endif %}
-            title="{{ opt.description }}{% if opt.disabled %} — {{ opt.disabled_reason }}{% endif %}">
-            {{ opt.label }}{% if opt.disabled %} (unavailable){% endif %}
-          </option>
-          {% endfor %}
-        </select>
-        <p class="field-hint" id="condition-hint">
-          {% for opt in condition_options if opt.id == selected_condition %}{{ opt.description }}{% endfor %}
-        </p>
-      </div>
-      {% set selected_opt = condition_options | selectattr('id', 'equalto', selected_condition) | first %}
-      {% set selected_is_toolcall = selected_opt.toolcall if selected_opt else true %}
-      {% set display_instruction = (selected_opt.system_prompt if selected_is_toolcall and selected_opt and selected_opt.system_prompt else chat.instruction) %}
       <div class="field">
         <label for="config_path">Config</label>
         <select id="config_path" name="config_path">
@@ -69,17 +46,12 @@
           <option value="{{ cfg }}" {% if cfg == selected_config %}selected{% endif %}>{{ cfg }}</option>
           {% endfor %}
         </select>
-        <p class="field-hint">Tool-call settings from YAML; default for demos is <code>openclaw_demo_eval.yaml</code>.</p>
+        <p class="field-hint">Baseline: <code>default.yaml</code> · SDFT: <code>lfm25_alpacaeval2_trained.yaml</code></p>
       </div>
       <div class="field" style="grid-column: 1 / -1;" id="instruction-field-group">
         <label for="instruction">System / instruction</label>
-        <textarea id="instruction" name="instruction" rows="{{ 4 if selected_is_toolcall else 2 }}"
-                  placeholder="Overall task guidance for plain chat…"
-                  data-plain-default={{ chat.instruction|tojson }}
-                  {% if selected_is_toolcall %}readonly{% endif %}>{{ display_instruction }}</textarea>
-        <p class="field-hint" id="instruction-hint"{% if not selected_is_toolcall %} hidden{% endif %}>
-          Fixed LFM/OpenClaw tool system prompt (read-only). One-shot (OS) adds a demo in the transcript, not here.
-        </p>
+        <textarea id="instruction" name="instruction" rows="2"
+                  placeholder="Overall task guidance for plain chat…">{{ chat.instruction }}</textarea>
       </div>
     </div>
 
@@ -144,11 +116,12 @@
   {% for r in results %}
   {% set examples = r.metadata.get('examples') if r.metadata else none %}
   {% set messages = r.metadata.get('messages') if r.metadata else none %}
+  {% set design = r.metadata.get('design_summary') if r.metadata else none %}
   <article class="result-card">
     <div class="result-head">
       <div>
         <strong><a href="/perf/{{ r.id }}">{{ r.id }}</a></strong>
-        <span class="badge badge-completed">{{ r.benchmark }}{% if messages %} · chat{% endif %}{% if r.metadata and r.metadata.get('demo_condition') %} · {{ r.metadata.demo_condition }}{% endif %}</span>
+        <span class="badge badge-completed">{{ r.benchmark }}{% if messages %} · chat{% endif %}{% if design and design.get('variant') %} · {{ design.variant }}{% endif %}</span>
         <div class="meta">{{ r.model }} · {{ r.metrics.device }} · {{ r.run_at }}</div>
       </div>
     </div>
@@ -208,58 +181,8 @@
 
 <script>
 (function () {
-  var cond = document.getElementById('demo_condition');
-  var hint = document.getElementById('condition-hint');
-  var instructionInput = document.getElementById('instruction');
-  var instructionHint = document.getElementById('instruction-hint');
   var form = document.getElementById('chat-form');
   var btn = document.getElementById('chat-send');
-  var hints = {
-    {% for opt in condition_options %}
-    {{ opt.id|tojson }}: {{ opt.description|tojson }}{% if not loop.last %},{% endif %}
-    {% endfor %}
-  };
-  var systemPrompts = {
-    {% for opt in condition_options %}
-    {{ opt.id|tojson }}: {{ opt.system_prompt|tojson }}{% if not loop.last %},{% endif %}
-    {% endfor %}
-  };
-  var lastPlainInstruction = (instructionInput && instructionInput.getAttribute('data-plain-default')) || '';
-
-  function selectedIsToolcall() {
-    if (!cond) return false;
-    var opt = cond.options[cond.selectedIndex];
-    return opt && opt.getAttribute('data-toolcall') === 'true';
-  }
-
-  function syncInstructionField() {
-    if (!instructionInput || !cond) return;
-    var toolcall = selectedIsToolcall();
-    if (toolcall) {
-      if (!instructionInput.readOnly) {
-        lastPlainInstruction = instructionInput.value;
-      }
-      instructionInput.value = systemPrompts[cond.value] || '';
-      instructionInput.readOnly = true;
-      instructionInput.rows = 4;
-    } else {
-      instructionInput.readOnly = false;
-      instructionInput.value = lastPlainInstruction;
-      instructionInput.rows = 2;
-    }
-    if (instructionHint) {
-      if (toolcall) instructionHint.removeAttribute('hidden');
-      else instructionHint.setAttribute('hidden', '');
-    }
-  }
-
-  if (cond) {
-    syncInstructionField();
-    cond.addEventListener('change', function () {
-      if (hint) hint.textContent = hints[cond.value] || '';
-      syncInstructionField();
-    });
-  }
   // Non-HTMX fallback (no hx-post): disable Send while the full-page POST runs.
   if (form && btn && !form.hasAttribute('hx-post')) {
     form.addEventListener('submit', function () {

@@ -1,0 +1,44 @@
+# LFM2.5-230M merged after SDFT on yahma/alpaca-cleaned (AlpacaEval2 recipe).
+# Train/merge in the alpacaeval worktree, then symlink merged weights here:
+#   ln -s ../Local-SDFT-worktrees/feat-sdft-qwen35-0.8b-alpacaeval2/outputs/lfm25-230m-alpacaeval2-sdft-merged \
+#     outputs/lfm25-230m-alpacaeval2-sdft-merged
+# Web /perf baseline: configs/default.yaml · SDFT: this file.
+
+model:
+  name: outputs/lfm25-230m-alpacaeval2-sdft-merged
+  dtype: float32
+
+data:
+  dataset: yahma/alpaca-cleaned
+  split: train
+  prompt_fields: [instruction, input]
+  response_field: output
+  num_examples: 256
+  seed: 0
+
+generation:
+  num_shots: 2
+  batch_size: 8
+  max_new_tokens: 256
+  temperature: 0.0
+  top_p: 1.0
+  min_response_chars: 1
+  out_path: data/lfm25_230m_sdft.jsonl
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/lfm25-230m-alpacaeval2-sdft
+  epochs: 1
+  lr: 0.0001
+  batch_size: 4
+  grad_accum: 4
+  max_length: 1024
+  warmup_steps: 5
+  logging_steps: 10
+  save_strategy: epoch
+  seed: 0

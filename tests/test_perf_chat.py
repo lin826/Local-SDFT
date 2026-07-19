@@ -10,7 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from sdft.records.schema import PerformanceMetrics, PerformanceResult
-from web.app import app
+from web.app import CONFIG_OPTIONS, app
+from web.demo_conditions import build_design_summary
 
 
 def _fake_chat_result(messages: list[dict[str, str]], run_id: str = "bench-test-chat") -> PerformanceResult:
@@ -65,54 +66,46 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_perf_page_shows_chat_ui(client: TestClient):
     resp = client.get("/perf")
     assert resp.status_code == 200
-    assert b'action="/perf/chat"' in resp.content
-    assert b'hx-post="/perf/chat"' in resp.content
-    assert b'hx-target="#chat-panel"' in resp.content
-    assert b'id="chat-panel"' in resp.content
-    assert b"htmx.org" in resp.content
-    assert b"Chat inference" in resp.content
-    assert b"Demo condition" in resp.content
-    assert b"name=\"demo_condition\"" in resp.content
-    assert b'data-toolcall="true"' in resp.content
-    assert b'data-toolcall="false"' in resp.content
-    assert b'id="instruction-field-group"' in resp.content
-    assert b"syncInstructionField()" in resp.content
-    assert b"Start generate" in resp.content
-    assert b"without a full page reload" in resp.content
+    body = resp.content
+    assert b'action="/perf/chat"' in body
+    assert b'hx-post="/perf/chat"' in body
+    assert b'hx-target="#chat-panel"' in body
+    assert b'id="chat-panel"' in body
+    assert b"htmx.org" in body
+    assert b"Plain chat inference" in body
+    assert b'name="demo_condition"' in body
+    assert b'value="plain"' in body
+    assert b"configs/lfm25_alpacaeval2_trained.yaml" in body
+    assert b"configs/default.yaml" in body
+    assert b"openclaw" not in body.lower()
+    assert b'data-toolcall=' not in body
+    assert b"syncInstructionField()" not in body
+    assert b"Start generate" in body
+    assert b"without a full page reload" not in body  # removed OpenClaw-specific howto line
 
 
-def test_perf_page_plain_condition_enables_instruction(client: TestClient):
-    resp = client.get("/perf?condition=plain")
-    assert resp.status_code == 200
-    body = resp.text
-    idx = body.index('id="instruction"')
-    tag = body[idx : body.index(">", idx) + 1]
-    assert "readonly" not in tag
-    assert 'id="instruction-hint"' in body
-    hint = body[body.index('id="instruction-hint"') : body.index('id="instruction-hint"') + 80]
-    assert "hidden" in hint
+def test_config_options_include_alpacaeval_sdft():
+    assert "configs/default.yaml" in CONFIG_OPTIONS
+    assert "configs/lfm25_alpacaeval2_trained.yaml" in CONFIG_OPTIONS
+    assert "configs/openclaw_demo_eval.yaml" not in CONFIG_OPTIONS
 
 
-def test_perf_page_tool_condition_shows_fixed_system_prompt(client: TestClient):
-    from sdft.toolcall.format import DEFAULT_LFM_JSON_SYSTEM
-    from web.demo_conditions import effective_system_prompt, get_condition
+def test_build_design_summary_variants():
+    base = build_design_summary(
+        demo_condition="plain",
+        config_path="configs/default.yaml",
+        model_path="LiquidAI/LFM2.5-230M",
+    )
+    assert "base LFM2.5-230M" in base["variant"]
+    assert "no GPT-4 judge" in base["eval_surface"]
 
-    resp = client.get("/perf")
-    assert resp.status_code == 200
-    body = resp.text
-    idx = body.index('id="instruction"')
-    tag = body[idx : body.index(">", idx) + 1]
-    assert "readonly" in tag
-    zs_prompt = effective_system_prompt(get_condition("ZS"))
-    assert zs_prompt == DEFAULT_LFM_JSON_SYSTEM
-    # Textarea HTML-escapes <>; content is still the fixed LFM system prompt.
-    assert "tool_call_start" in body
-    assert "code_interpreter" in body
-    assert "When you have the final answer, respond in plain text." in body
-    assert "Think: call the interpreter, then box the answer." in body  # CoT map entry
-    assert "Fixed LFM/OpenClaw tool system prompt" in body
-    assert "One-shot (OS)" in body
-    assert "field-hidden" not in body
+    sdft = build_design_summary(
+        demo_condition="plain",
+        config_path="configs/lfm25_alpacaeval2_trained.yaml",
+        model_path="outputs/lfm25-230m-alpacaeval2-sdft-merged",
+    )
+    assert "SDFT merge" in sdft["variant"]
+    assert sdft["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
 
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
@@ -150,6 +143,34 @@ def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
     assert "sent=1" in resp.headers["HX-Push-Url"]
 
 
+def test_chat_persists_design_summary(client: TestClient):
+    saved: dict[str, PerformanceResult] = {}
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        return _fake_chat_result(messages, run_id="bench-design-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result",
+        side_effect=lambda r: saved.setdefault(r.id, r),
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/lfm25_alpacaeval2_trained.yaml",
+                "demo_condition": "plain",
+                "instruction": "",
+                "user_message": "How do I sew a button?",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    meta = saved["bench-design-1"].metadata
+    assert "design_summary" in meta
+    assert meta["design_summary"]["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
+    assert "SDFT merge" in meta["design_summary"]["variant"]
+
+
 def test_multi_turn_chat_transcript(client: TestClient):
     call_count = {"n": 0}
     saved: dict[str, PerformanceResult] = {}
@@ -184,7 +205,6 @@ def test_multi_turn_chat_transcript(client: TestClient):
         loc1 = r1.headers["location"]
         assert "continue=bench-turn-1" in loc1
         assert "sent=1" in loc1
-        assert "condition=plain" in loc1
 
         page1 = client.get(loc1)
         assert page1.status_code == 200
@@ -232,6 +252,28 @@ def test_multi_turn_chat_transcript(client: TestClient):
         assert roles == ["system", "user", "assistant", "user", "assistant"]
 
 
+def test_run_detail_shows_design_summary(client: TestClient):
+    from sdft.records.store import save_performance_result
+    from sdft.records.paths import performance_result_path
+
+    result = _fake_chat_result(
+        [{"role": "user", "content": "How do I make apple juice?"}],
+        run_id="bench-detail-design",
+    )
+    result.metadata["design_summary"] = build_design_summary(
+        demo_condition="plain",
+        config_path="configs/default.yaml",
+        model_path="LiquidAI/LFM2.5-230M",
+    )
+    save_performance_result(performance_result_path(result.id), result)
+
+    detail = client.get(f"/perf/{result.id}")
+    assert detail.status_code == 200
+    assert "Design summary" in detail.text
+    assert "apple juice" in detail.text or "AlpacaEval-style" in detail.text
+    assert "eval surface" in detail.text.lower()
+
+
 def test_generate_still_background(client: TestClient):
     with patch("web.app.run_benchmark") as mocked:
         r = client.post(
@@ -248,56 +290,16 @@ def test_generate_still_background(client: TestClient):
         assert mocked.call_count <= 1
 
 
-def test_sdft_condition_rejected_without_checkpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("web.app.merged_checkpoint_available", lambda: False)
+def test_unknown_demo_condition_rejected(client: TestClient):
     resp = client.post(
         "/perf/chat",
         data={
-            "config_path": "configs/openclaw_demo_eval.yaml",
-            "demo_condition": "SDFT-ZS",
+            "config_path": "configs/default.yaml",
+            "demo_condition": "ZS",
             "instruction": "",
-            "user_message": "What is 2+2?",
+            "user_message": "Hello",
             "messages_json": "[]",
         },
     )
     assert resp.status_code == 400
-    assert "SDFT checkpoint missing" in resp.json()["detail"]
-
-
-def test_toolcall_condition_uses_measure_toolcall_chat(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    captured: dict[str, object] = {}
-
-    def fake_toolcall(cfg, messages, **kwargs):
-        captured["kwargs"] = kwargs
-        captured["model"] = cfg.model.name
-        return _fake_chat_result(messages, run_id="bench-tool-zs")
-
-    monkeypatch.setattr("web.app.measure_toolcall_chat", fake_toolcall)
-    monkeypatch.setattr(
-        "web.app.persist_performance_result",
-        lambda result: None,
-    )
-
-    with patch("web.app.load_config") as load_cfg:
-        from sdft.config import load_config as real_load
-
-        cfg = real_load("configs/openclaw_demo_eval.yaml")
-        load_cfg.return_value = cfg
-
-        r = client.post(
-            "/perf/chat",
-            data={
-                "config_path": "configs/openclaw_demo_eval.yaml",
-                "demo_condition": "OS+CoT",
-                "instruction": "ignored",
-                "user_message": "What is 3+5?",
-                "messages_json": "[]",
-            },
-            follow_redirects=False,
-        )
-    assert r.status_code == 303
-    assert "condition=OS%2BCoT" in r.headers["location"] or "condition=OS+CoT" in r.headers["location"]
-    assert captured["kwargs"]["few_shot_k"] == 1
-    assert captured["kwargs"]["cot_line"] is not None
-    assert captured["kwargs"]["demo_condition"] == "OS+CoT"
-    assert captured["model"] == "LiquidAI/LFM2.5-230M"
+    assert "unknown demo condition" in resp.json()["detail"]

@@ -20,7 +20,7 @@
   <p class="notice chat-inline-notice">
     Continuing from
     <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>
-    {% if selected_condition %} · condition <strong>{{ selected_condition }}</strong>{% endif %}
+    {% if chat.config_path %} · config <code>{{ chat.config_path }}</code>{% endif %}
   </p>
   {% endif %}
 

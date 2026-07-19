@@ -1,20 +1,13 @@
-"""OpenClaw ablation-style demo conditions for the /perf chat UI."""
+"""Plain-chat demo conditions for the /perf chat UI."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from sdft.records.paths import project_root
-from sdft.toolcall.format import (
-    DEFAULT_COT_LINE,
-    DEFAULT_LFM_JSON_SYSTEM,
-    with_cot_line,
-)
-
-DEFAULT_OPENCLAW_CONFIG = "configs/openclaw_demo_eval.yaml"
-DEFAULT_MERGED_REL = "outputs/openclaw-tooluse-merged"
+DEFAULT_CONFIG = "configs/default.yaml"
+DEFAULT_DEMO_CONDITION = "plain"
+SDFT_ALPACA_CONFIG = "configs/lfm25_alpacaeval2_trained.yaml"
 
 
 @dataclass(frozen=True)
@@ -22,107 +15,16 @@ class DemoCondition:
     id: str
     label: str
     description: str
-    toolcall: bool
-    few_shot_k: int
-    cot_line: str | None
-    sdft: bool
     config_path: str
 
-    @property
-    def requires_merged_checkpoint(self) -> bool:
-        return self.sdft
 
-
-def merged_checkpoint_path(root: Path | None = None) -> Path:
-    return project_root(root) / DEFAULT_MERGED_REL
-
-
-def merged_checkpoint_available(root: Path | None = None) -> bool:
-    path = merged_checkpoint_path(root)
-    return path.is_dir() and any(path.iterdir())
-
-
-# Aligned with scripts/run_openclaw_ablation.py CONDITIONS (+ plain chat for geek jokes).
+# Web /perf exposes plain multi-turn chat only (OpenClaw ablations stay CLI-side).
 DEMO_CONDITIONS: tuple[DemoCondition, ...] = (
     DemoCondition(
         id="plain",
         label="Plain chat",
-        description="Multi-turn chat without tool loop (geek jokes / Alpaca-style).",
-        toolcall=False,
-        few_shot_k=0,
-        cot_line=None,
-        sdft=False,
-        config_path="configs/default.yaml",
-    ),
-    DemoCondition(
-        id="ZS",
-        label="ZS (zero-shot tools)",
-        description="Tool-use system prompt only; no one-shot demo.",
-        toolcall=True,
-        few_shot_k=0,
-        cot_line=None,
-        sdft=False,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="OS",
-        label="OS (one-shot demo)",
-        description="Prepend one canned tool-use demonstration.",
-        toolcall=True,
-        few_shot_k=1,
-        cot_line=None,
-        sdft=False,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="CoT",
-        label="CoT (cue only)",
-        description="One-line chain-of-thought cue in the system prompt.",
-        toolcall=True,
-        few_shot_k=0,
-        cot_line=DEFAULT_COT_LINE,
-        sdft=False,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="OS+CoT",
-        label="OS + CoT",
-        description="One-shot demo plus CoT cue.",
-        toolcall=True,
-        few_shot_k=1,
-        cot_line=DEFAULT_COT_LINE,
-        sdft=False,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="SDFT-ZS",
-        label="SDFT-ZS",
-        description="Merged SDFT checkpoint; zero-shot tools.",
-        toolcall=True,
-        few_shot_k=0,
-        cot_line=None,
-        sdft=True,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="SDFT+OS",
-        label="SDFT + OS",
-        description="Merged SDFT checkpoint with one-shot demo.",
-        toolcall=True,
-        few_shot_k=1,
-        cot_line=None,
-        sdft=True,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
-    ),
-    DemoCondition(
-        id="SDFT+OS+CoT",
-        label="SDFT + OS + CoT",
-        description="Merged SDFT checkpoint with one-shot demo and CoT cue.",
-        toolcall=True,
-        few_shot_k=1,
-        cot_line=DEFAULT_COT_LINE,
-        sdft=True,
-        config_path=DEFAULT_OPENCLAW_CONFIG,
+        description="Multi-turn Alpaca-style chat; pick base (default.yaml) or SDFT merge via Config.",
+        config_path=DEFAULT_CONFIG,
     ),
 )
 
@@ -136,45 +38,35 @@ def get_condition(condition_id: str) -> DemoCondition:
     return cond
 
 
-def effective_system_prompt(condition: DemoCondition) -> str | None:
-    """System text the tool loop uses for this condition (LFM JSON + optional CoT).
-
-    Few-shot (OS) demos are conversation prefixes, not part of the system prompt.
-    """
-    if not condition.toolcall:
-        return None
-    return with_cot_line(DEFAULT_LFM_JSON_SYSTEM, condition.cot_line)
-
-
-def condition_options(root: Path | None = None) -> list[dict[str, Any]]:
-    """Serialize conditions for the template (includes SDFT availability)."""
-    merged_ok = merged_checkpoint_available(root)
-    merged_path = str(merged_checkpoint_path(root))
-    out: list[dict[str, Any]] = []
-    for c in DEMO_CONDITIONS:
-        disabled = c.requires_merged_checkpoint and not merged_ok
-        out.append(
-            {
-                "id": c.id,
-                "label": c.label,
-                "description": c.description,
-                "toolcall": c.toolcall,
-                "few_shot_k": c.few_shot_k,
-                "sdft": c.sdft,
-                "system_prompt": effective_system_prompt(c),
-                "disabled": disabled,
-                "disabled_reason": (
-                    f"Merged checkpoint not found at {merged_path}. "
-                    "Run train + merge (see docs/openclaw-tooluse-sdft.md)."
-                    if disabled
-                    else ""
-                ),
-            }
-        )
-    return out
+def condition_options() -> list[dict[str, Any]]:
+    """Serialize conditions for the template."""
+    return [
+        {
+            "id": c.id,
+            "label": c.label,
+            "description": c.description,
+        }
+        for c in DEMO_CONDITIONS
+    ]
 
 
-def resolve_model_name(condition: DemoCondition, root: Path | None = None) -> str:
-    if condition.sdft:
-        return str(merged_checkpoint_path(root))
-    return "LiquidAI/LFM2.5-230M"
+def build_design_summary(
+    *,
+    demo_condition: str,
+    config_path: str,
+    model_path: str,
+) -> dict[str, str]:
+    """Human-readable run context persisted in benchmark JSON metadata."""
+    is_sdft = config_path == SDFT_ALPACA_CONFIG or "sdft-merged" in model_path
+    variant = "LFM2.5-230M SDFT merge (AlpacaEval2 recipe)" if is_sdft else "base LFM2.5-230M"
+    return {
+        "purpose": (
+            "AlpacaEval-style local plain chat: compare base vs SDFT-merged LFM2.5-230M "
+            "on open-ended instructions (e.g. sewing, apple juice)."
+        ),
+        "demo_condition": demo_condition,
+        "config_path": config_path,
+        "model_path": model_path,
+        "variant": variant,
+        "eval_surface": "Local generation in /perf chat; no GPT-4 judge required.",
+    }
