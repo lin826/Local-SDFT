@@ -30,6 +30,7 @@
     'Header pills (top): benchmark, model, device, config, and headline speed.',
     'Design summary: persisted metadata describing demo purpose, config, and eval surface.',
     'Transcript or Prompt · Reply: the conversation / Alpaca fields for this run.',
+    'Latency phases: Gantt + table of wall-clock spans (model_load, generate, …).',
     'Metrics / Advanced (bottom): timing, throughput, and raw metadata only.',
     'Continue chat to resume multi-turn from this run’s messages.',
   ] %}
@@ -149,6 +150,15 @@
 </section>
 {% endif %}
 
+{% set latency_phases = result.metadata.get('latency_phases') if result.metadata else none %}
+{% if latency_phases %}
+<section class="section" id="latency-phases">
+  {% with phases=latency_phases %}
+  {% include "latency_gantt.html" %}
+  {% endwith %}
+</section>
+{% endif %}
+
 <section class="section">
   <h2>Metrics</h2>
   <p class="meta" style="margin-bottom:0.75rem;">Timing and throughput only — not the prompt/reply text.</p>
@@ -182,7 +192,7 @@
 {% if result.metadata %}
 {% set meta_items = [] %}
 {% for key, value in result.metadata.items() %}
-{% if key not in ('examples', 'messages', 'design_summary') %}
+{% if key not in ('examples', 'messages', 'design_summary', 'latency_phases') %}
 {% set _ = meta_items.append((key, value)) %}
 {% endif %}
 {% endfor %}

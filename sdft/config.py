@@ -84,6 +84,15 @@ class ToolCallConfig:
 
 
 @dataclass
+class OnlineLearningConfig:
+    train_steps: int = 2
+    replay_buffer_size: int = 8
+    preview_before_train: bool = True
+    preview_max_new_tokens: int = 128
+    session_root: str = "outputs/online-learning"
+
+
+@dataclass
 class OpenClawEvalConfig:
     dataset: str = "zhuzilin/aime-2024"
     data_file: str | None = None
@@ -105,6 +114,7 @@ class Config:
     lora: LoraConfig = field(default_factory=LoraConfig)
     training: TrainConfig = field(default_factory=TrainConfig)
     toolcall: ToolCallConfig = field(default_factory=ToolCallConfig)
+    online_learning: OnlineLearningConfig = field(default_factory=OnlineLearningConfig)
     openclaw_eval: OpenClawEvalConfig = field(default_factory=OpenClawEvalConfig)
 
 

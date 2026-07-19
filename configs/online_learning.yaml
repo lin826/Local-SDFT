@@ -1,0 +1,33 @@
+# Online learning — incremental LoRA updates from web /data turns.
+# Smaller LoRA rank and short sequences keep each update fast on MPS.
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/online-learning/_adapter_scratch
+  lr: 0.0001
+  batch_size: 1
+  grad_accum: 1
+  max_length: 512
+  warmup_steps: 0
+  logging_steps: 1
+  save_strategy: "no"
+  seed: 0
+
+generation:
+  max_new_tokens: 128
+
+online_learning:
+  train_steps: 2
+  replay_buffer_size: 8
+  preview_before_train: true
+  preview_max_new_tokens: 128
+  session_root: outputs/online-learning

@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import statistics
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import torch
 
@@ -31,6 +32,42 @@ def _percentile(values: list[float], pct: float) -> float:
     ordered = sorted(values)
     idx = max(0, min(len(ordered) - 1, int(round((pct / 100) * (len(ordered) - 1)))))
     return ordered[idx]
+
+
+def _ms(seconds: float) -> float:
+    return round(seconds * 1000.0, 3)
+
+
+class LatencyPhases:
+    """Wall-clock phase timer; ``start_ms`` / ``end_ms`` are relative to construction."""
+
+    def __init__(self, t0: float | None = None) -> None:
+        self.t0 = time.perf_counter() if t0 is None else t0
+        self.phases: list[dict[str, Any]] = []
+
+    @contextmanager
+    def span(self, name: str) -> Iterator[None]:
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            end = time.perf_counter()
+            self.phases.append(
+                {
+                    "name": name,
+                    "start_ms": _ms(start - self.t0),
+                    "end_ms": _ms(end - self.t0),
+                    "duration_ms": _ms(end - start),
+                }
+            )
+
+    def to_list(self) -> list[dict[str, Any]]:
+        return list(self.phases)
+
+    def total_ms(self) -> float:
+        if not self.phases:
+            return 0.0
+        return max(float(p["end_ms"]) for p in self.phases)
 
 
 @torch.inference_mode()
@@ -300,16 +337,20 @@ def measure_toolcall_chat(
     cot_line: str | None = None,
     demo_condition: str | None = None,
     device: str | None = None,
+    latency_phases: LatencyPhases | None = None,
 ) -> PerformanceResult:
     """Run one chat turn through the OpenClaw-style tool loop (ablation demo path)."""
     cleaned = _validate_chat_messages(messages)
     history = [m for m in cleaned[:-1] if m["role"] != "system"]
     last_user = cleaned[-1]["content"]
+    phases = latency_phases or LatencyPhases()
 
     device = device or pick_device()
-    tokenizer = load_tokenizer(cfg.model)
-    model = load_model(cfg.model, device)
-    model.eval()
+    with phases.span("tokenizer_load"):
+        tokenizer = load_tokenizer(cfg.model)
+    with phases.span("model_load"):
+        model = load_model(cfg.model, device)
+        model.eval()
 
     loop_cfg = ToolLoopConfig(
         max_rounds=cfg.toolcall.max_rounds,
@@ -325,29 +366,31 @@ def measure_toolcall_chat(
         cot_line=cot_line,
     )
 
-    t0 = time.perf_counter()
-    loop_result = run_tool_loop(
-        model,
-        tokenizer,
-        last_user,
-        cfg=loop_cfg,
-        device=device,
-        history_messages=history or None,
-    )
-    elapsed_ms = (time.perf_counter() - t0) * 1000
+    with phases.span("generate"):
+        loop_result = run_tool_loop(
+            model,
+            tokenizer,
+            last_user,
+            cfg=loop_cfg,
+            device=device,
+            history_messages=history or None,
+        )
+    generate_ms = float(phases.phases[-1]["duration_ms"])
 
-    assistant_text = loop_result.response_text.strip()
-    full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
+    with phases.span("decode"):
+        assistant_text = loop_result.response_text.strip()
+        full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
 
-    prompt_text = tokenizer.apply_chat_template(
-        cleaned,
-        tokenize=False,
-        add_generation_prompt=True,
-    )
-    input_tokens = len(tokenizer.encode(prompt_text, add_special_tokens=False))
-    output_tokens = len(tokenizer.encode(assistant_text, add_special_tokens=False))
+        prompt_text = tokenizer.apply_chat_template(
+            cleaned,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        input_tokens = len(tokenizer.encode(prompt_text, add_special_tokens=False))
+        output_tokens = len(tokenizer.encode(assistant_text, add_special_tokens=False))
+
     total_tokens = input_tokens + output_tokens
-    total_s = elapsed_ms / 1000 if elapsed_ms > 0 else 0.0
+    total_s = generate_ms / 1000 if generate_ms > 0 else 0.0
     tps = total_tokens / total_s if total_s > 0 else 0.0
 
     meta: dict[str, Any] = {
@@ -363,6 +406,7 @@ def measure_toolcall_chat(
         "cot_line": cot_line,
         "toolcall_format": str(cfg.toolcall.format),
         "model_path": cfg.model.name,
+        "latency_phases": phases.to_list(),
     }
     if demo_condition:
         meta["demo_condition"] = demo_condition
@@ -373,9 +417,9 @@ def measure_toolcall_chat(
         benchmark="inference",
         model=cfg.model.name,
         metrics=PerformanceMetrics(
-            latency_ms_mean=elapsed_ms,
-            latency_ms_p50=elapsed_ms,
-            latency_ms_p95=elapsed_ms,
+            latency_ms_mean=generate_ms,
+            latency_ms_p50=generate_ms,
+            latency_ms_p95=generate_ms,
             tokens_per_second=tps,
             samples=1,
             batch_size=1,
@@ -395,48 +439,58 @@ def measure_chat(
     *,
     max_new_tokens: int | None = None,
     device: str | None = None,
+    latency_phases: LatencyPhases | None = None,
 ) -> PerformanceResult:
     """Run one synchronous multi-turn chat completion.
 
     ``messages`` is OpenAI-style ``[{role, content}, ...]`` and must end with a
     user turn. The assistant reply is appended in ``metadata["messages"]``.
     An Alpaca-style last-turn summary is also stored under ``metadata["examples"]``.
+
+    Wall-clock sub-phases are stored in ``metadata["latency_phases"]``. The
+    published ``latency_ms_*`` metrics still reflect only the ``generate`` span
+    (``model.generate``), matching the previous single-timer behavior.
     """
     cleaned = _validate_chat_messages(messages)
     if max_new_tokens is None:
         max_new_tokens = cfg.generation.max_new_tokens
+    phases = latency_phases or LatencyPhases()
 
     device = device or pick_device()
-    tokenizer = load_tokenizer(cfg.model)
-    tokenizer.padding_side = "left"
-    model = load_model(cfg.model, device)
-    model.eval()
+    with phases.span("tokenizer_load"):
+        tokenizer = load_tokenizer(cfg.model)
+        tokenizer.padding_side = "left"
+    with phases.span("model_load"):
+        model = load_model(cfg.model, device)
+        model.eval()
 
-    prompt_text = tokenizer.apply_chat_template(
-        cleaned,
-        tokenize=False,
-        add_generation_prompt=True,
-    )
-    enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
-    enc = enc.to(device)
-    input_tokens = int(enc["input_ids"].numel())
+    with phases.span("prompt_build"):
+        prompt_text = tokenizer.apply_chat_template(
+            cleaned,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
+        enc = enc.to(device)
+        input_tokens = int(enc["input_ids"].numel())
 
-    t0 = time.perf_counter()
-    out = model.generate(
-        **enc,
-        max_new_tokens=max_new_tokens,
-        do_sample=False,
-        pad_token_id=tokenizer.pad_token_id,
-    )
-    elapsed_ms = (time.perf_counter() - t0) * 1000
+    with phases.span("generate"):
+        out = model.generate(
+            **enc,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    generate_ms = float(phases.phases[-1]["duration_ms"])
 
-    new_tokens = out[:, enc["input_ids"].shape[1] :]
-    output_tokens = int(new_tokens.numel())
-    assistant_text = tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
+    with phases.span("decode"):
+        new_tokens = out[:, enc["input_ids"].shape[1] :]
+        output_tokens = int(new_tokens.numel())
+        assistant_text = tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
 
     full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
     total_tokens = input_tokens + output_tokens
-    total_s = elapsed_ms / 1000 if elapsed_ms > 0 else 0.0
+    total_s = generate_ms / 1000 if generate_ms > 0 else 0.0
     tps = total_tokens / total_s if total_s > 0 else 0.0
 
     return PerformanceResult(
@@ -445,9 +499,9 @@ def measure_chat(
         benchmark="inference",
         model=cfg.model.name,
         metrics=PerformanceMetrics(
-            latency_ms_mean=elapsed_ms,
-            latency_ms_p50=elapsed_ms,
-            latency_ms_p95=elapsed_ms,
+            latency_ms_mean=generate_ms,
+            latency_ms_p50=generate_ms,
+            latency_ms_p95=generate_ms,
             tokens_per_second=tps,
             samples=1,
             batch_size=1,
@@ -462,6 +516,7 @@ def measure_chat(
             "max_new_tokens": max_new_tokens,
             "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
             "chat": True,
+            "latency_phases": phases.to_list(),
         },
     )
 
@@ -605,15 +660,24 @@ def run_benchmark(
     root: Path | None = None,
 ) -> PerformanceResult:
     """Run a named benchmark and optionally persist results."""
-    cfg = load_config(config_path)
+    chat_phases = LatencyPhases() if messages is not None else None
+    if chat_phases is not None:
+        with chat_phases.span("config_load"):
+            cfg = load_config(config_path)
+    else:
+        cfg = load_config(config_path)
+
     if benchmark == "generate":
         result = measure_generation(cfg, num_examples=num_examples)
     elif benchmark == "inference":
         if messages is not None:
+            assert chat_phases is not None
             if toolcall_kwargs:
-                result = measure_toolcall_chat(cfg, messages, **toolcall_kwargs)
+                result = measure_toolcall_chat(
+                    cfg, messages, **toolcall_kwargs, latency_phases=chat_phases
+                )
             else:
-                result = measure_chat(cfg, messages)
+                result = measure_chat(cfg, messages, latency_phases=chat_phases)
         else:
             sample_prompts = prompts or [
                 "Explain self-distillation fine-tuning in one sentence."
@@ -633,7 +697,17 @@ def run_benchmark(
 
     result.config_path = str(config_path)
     if persist:
-        persist_performance_result(result, root=root)
+        if chat_phases is not None:
+            with chat_phases.span("persist"):
+                result.metadata["latency_phases"] = chat_phases.to_list()
+                persist_performance_result(result, root=root)
+            # Rewrite JSON so the on-disk result includes the completed persist span.
+            result.metadata["latency_phases"] = chat_phases.to_list()
+            save_performance_result(performance_result_path(result.id, root), result)
+        else:
+            persist_performance_result(result, root=root)
+    elif chat_phases is not None:
+        result.metadata["latency_phases"] = chat_phases.to_list()
     return result
 
 

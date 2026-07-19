@@ -39,6 +39,12 @@
     {% endif %}
   </div>
 
+  {% if chat.latency_phases %}
+  {% with phases=chat.latency_phases %}
+  {% include "latency_gantt.html" %}
+  {% endwith %}
+  {% endif %}
+
   <textarea name="messages_json" class="visually-hidden" aria-hidden="true" readonly tabindex="-1">{{ chat.messages_json }}</textarea>
 
   <div class="chat-composer">

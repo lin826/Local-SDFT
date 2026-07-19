@@ -1,29 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Collect Data · Local-SDFT{% endblock %}
+{% block title %}Online learning · Local-SDFT{% endblock %}
 {% set active = 'data' %}
+{% block head %}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+{% endblock %}
 {% block content %}
-<h1 class="page-title">Collect data</h1>
-<p class="lead">Add Alpaca-style examples. POSTs call <code>collect_record(..., source="web")</code> and append to <code>data/collected/records.jsonl</code>.</p>
+<h1 class="page-title">Online learning</h1>
+<p class="lead">Submit Alpaca-style examples; each turn appends a record, runs a tiny LoRA update on the current adapter, and shows preview + latency. Adapter lives under <code>outputs/online-learning/{{ session.id }}/adapter/</code>.</p>
 
-{% with page_id='data', tip='After export, set data_files in a YAML config to the exported file, then run uv run python -m sdft.generate.' %}
+{% with page_id='online', tip='Each submit may take several seconds on MPS while the adapter updates. The form shows progress via HTMX.' %}
 {% set steps = [
-  'Fill Instruction and Output (required). Optionally add Input context and comma-separated Tags.',
-  'Click Save example — the row is appended to data/collected/records.jsonl with source=web.',
-  'Review the table at the bottom to confirm what you have collected so far.',
-  'When ready for training, enter an Export name and click Export to write a clean JSONL under data/collected/.',
+  'Pick a YAML config (default: configs/online_learning.yaml) or start a fresh session.',
+  'Fill Instruction and Output (gold target). Optionally add Input context.',
+  'Submit — the server records the example, optionally previews with the current adapter, then runs 1–few SFT steps.',
+  'Review turn feedback (preview text, infer/train/total latency) and open the session detail page for aggregate stats.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
 
 {% if request.query_params.get('exported') %}
 <p class="notice">Exported {{ request.query_params.get('exported') }} rows to <code>data/collected/{{ request.query_params.get('path') }}</code>.</p>
-{% elif prefill and (prefill.instruction or prefill.output) %}
-<p class="notice">Prefilled from a benchmark run’s Save as example link — review before saving.</p>
 {% endif %}
 
-<section class="section">
-  <h2>Add training example</h2>
-  <form method="post" action="/data/entry">
+<div class="pill-row" style="margin-bottom:1rem;">
+  <span class="pill pill-accent">Session <code>{{ session.id }}</code></span>
+  <span class="pill pill-muted">{{ session.turn_count }} turn(s)</span>
+  <span class="pill pill-muted">{{ session.config_path }}</span>
+  <a class="pill pill-muted" href="/data/{{ session.id }}">View stats</a>
+  <a class="pill pill-muted" href="/data?new=1">New session</a>
+</div>
+
+<section class="section" id="online-turn-panel">
+  <h2>Submit turn</h2>
+  <form
+    id="online-turn-form"
+    method="post"
+    action="/data/turn"
+    hx-post="/data/turn"
+    hx-swap="none"
+    hx-indicator="#online-spinner"
+  >
+    <input type="hidden" name="session_id" value="{{ session.id }}">
+    <div class="field">
+      <label for="config_path">Config</label>
+      <select id="config_path" name="config_path">
+        {% for cfg in config_options %}
+        <option value="{{ cfg }}" {% if cfg == session.config_path %}selected{% endif %}>{{ cfg }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="field">
       <label for="instruction">Instruction</label>
       <input id="instruction" name="instruction" type="text" placeholder="Tell a geek joke about PhD life" value="{{ prefill.instruction if prefill else '' }}" required>
@@ -34,50 +59,85 @@
     </div>
     <div class="field">
       <label for="output">Output (gold response)</label>
-      <textarea id="output" name="output" required placeholder="The model's target response…">{{ prefill.output if prefill else '' }}</textarea>
+      <textarea id="output" name="output" required placeholder="The target response the adapter should learn…">{{ prefill.output if prefill else '' }}</textarea>
     </div>
     <div class="field">
       <label for="tags">Tags (comma-separated, optional)</label>
       <input id="tags" name="tags" type="text" placeholder="geek-jokes">
     </div>
+    <div class="field checkbox-field">
+      <label><input type="checkbox" name="preview" value="1" checked> Preview with current adapter before update</label>
+    </div>
     <div class="actions">
-      <button class="btn" type="submit">Save example</button>
+      <button class="btn" type="submit" id="online-submit-btn">Submit &amp; update adapter</button>
+      <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter…</span>
     </div>
   </form>
+
+  {% if last_turn %}
+  <div class="online-turn-result">
+    <h3>Turn {{ last_turn.turn_index }} complete</h3>
+    <div class="metrics-strip">
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.total_ms) }}</strong><span>Total ms</span></div>
+      {% if last_turn.latency.inference_ms is not none %}
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
+      {% endif %}
+      {% if last_turn.latency.train_ms is not none %}
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.train_ms) }}</strong><span>Train ms</span></div>
+      {% endif %}
+      {% if last_turn.latency.output_tokens is not none %}
+      <div class="metric-chip"><strong>{{ last_turn.latency.output_tokens }}</strong><span>Preview tokens</span></div>
+      {% endif %}
+    </div>
+    {% if last_turn.preview %}
+    <div class="io-field" style="margin-top:1rem;">
+      <span class="io-label">Adapter preview (before update)</span>
+      <pre class="io-text io-output">{{ last_turn.preview }}</pre>
+    </div>
+    {% endif %}
+    {% if last_turn.latency_phases %}
+    {% with phases=last_turn.latency_phases %}
+    {% include "latency_gantt.html" %}
+    {% endwith %}
+    {% endif %}
+    <p class="meta">Gold output saved · record <code>{{ last_turn.record_id }}</code> · <a href="/data/{{ session.id }}">session detail</a></p>
+  </div>
+  {% endif %}
 </section>
 
 <section class="section">
-  <h2>Export for training</h2>
-  <form method="post" action="/data/export" class="inline-form">
+  <h2>Session turns ({{ session.turn_count }})</h2>
+  {% if session.turns %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Instruction</th><th>Total ms</th><th>Infer</th><th>Train</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for t in session.turns|reverse %}
+      <tr>
+        <td>{{ t.turn_index }}</td>
+        <td>{{ t.instruction[:80] }}{% if t.instruction|length > 80 %}…{% endif %}</td>
+        <td>{{ "%.0f"|format(t.latency.total_ms) }}</td>
+        <td>{% if t.latency.inference_ms is not none %}{{ "%.0f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.train_ms is not none %}{{ "%.0f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
+        <td class="meta">{{ t.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No turns yet — submit your first example above.</p>
+  {% endif %}
+</section>
+
+<details class="section advanced-details">
+  <summary>Export collected records (batch offline training)</summary>
+  <form method="post" action="/data/export" class="inline-form" style="margin-top:0.75rem;">
     <div class="field">
       <label for="export_name">Export name</label>
       <input id="export_name" name="export_name" type="text" value="geek-jokes-export">
     </div>
     <button class="btn btn-secondary" type="submit">Export to data/collected/</button>
   </form>
-  <p class="meta" style="margin-top:0.75rem;">Then point a YAML <code>data_files</code> at the export and run <code>uv run python -m sdft.generate</code>.</p>
-</section>
-
-<section class="section">
-  <h2>Collected records ({{ records|length }})</h2>
-  {% if records %}
-  <table>
-    <thead>
-      <tr><th>Instruction</th><th>Input</th><th>Output</th><th>Source</th></tr>
-    </thead>
-    <tbody>
-      {% for row in records %}
-      <tr>
-        <td>{{ row.instruction }}</td>
-        <td>{{ row.input or '—' }}</td>
-        <td>{{ row.output[:160] }}{% if row.output|length > 160 %}…{% endif %}</td>
-        <td class="meta">{{ row.source }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="empty">No collected records yet.</p>
-  {% endif %}
-</section>
+</details>
 {% endblock %}

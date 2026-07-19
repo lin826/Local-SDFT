@@ -3,12 +3,12 @@
 {% set active = 'home' %}
 {% block content %}
 <h1 class="page-title">SDFT data &amp; performance</h1>
-<p class="lead">Collect training examples and run generate/inference benchmarks via the shared <code>sdft.records</code> contract.</p>
+<p class="lead">Collect training examples via online LoRA learning and run generate/inference benchmarks via the shared <code>sdft.records</code> contract.</p>
 
-{% with page_id='home', tip='This page is read-only status. Use Collect Data to add examples and Performance to run benches.' %}
+{% with page_id='home', tip='This page is read-only status. Use Online learning for incremental adapter updates and Performance to run benches.' %}
 {% set steps = [
   'Check how many collected examples and recent benchmark runs you already have.',
-  'Open Collect Data to add Alpaca-style training examples, then export them when ready.',
+  'Open Online learning to submit examples and fine-tune a LoRA adapter in near-real-time.',
   'Open Performance to start a generate or inference benchmark against a YAML config.',
   'Click a benchmark ID in the table below to inspect detailed metrics.',
 ] %}
@@ -20,7 +20,7 @@
     <h2>Collected examples</h2>
     <p>{{ collected_count }} record(s) in <code>data/collected/records.jsonl</code></p>
     <div class="actions">
-      <a class="btn" href="/data">Collect data</a>
+      <a class="btn" href="/data">Online learning</a>
     </div>
   </section>
 

@@ -1,0 +1,55 @@
+{# Inline HTML/CSS Gantt for metadata["latency_phases"].
+   Expects: phases (list of {name, start_ms, end_ms, duration_ms}). #}
+{% if phases %}
+{% set total_ms = phases | map(attribute='end_ms') | max %}
+{% if total_ms <= 0 %}{% set total_ms = 1 %}{% endif %}
+<section class="latency-gantt" aria-label="Latency phases">
+  <h3 class="latency-gantt-title">Latency phases</h3>
+  <p class="latency-gantt-lead">Wall-clock spans relative to request start · {{ "%.0f"|format(total_ms) }} ms total</p>
+  <div class="gantt" style="--gantt-total: {{ total_ms }};">
+    <div class="gantt-axis" aria-hidden="true">
+      <span>0</span>
+      <span>{{ "%.0f"|format(total_ms / 2) }} ms</span>
+      <span>{{ "%.0f"|format(total_ms) }} ms</span>
+    </div>
+    {% for p in phases %}
+    {% set left_pct = (p.start_ms / total_ms * 100) if total_ms else 0 %}
+    {% set width_raw = (p.duration_ms / total_ms * 100) if total_ms else 0 %}
+    {% set width_pct = [width_raw, 0.4]|max if (p.duration_ms > 0 and width_raw < 0.4) else width_raw %}
+    <div class="gantt-row">
+      <div class="gantt-label" title="{{ p.name }}">{{ p.name }}</div>
+      <div class="gantt-track">
+        <div
+          class="gantt-bar"
+          data-phase="{{ p.name }}"
+          style="left: {{ '%.2f'|format(left_pct) }}%; width: {{ '%.2f'|format(width_pct) }}%;"
+          title="{{ p.name }}: {{ '%.1f'|format(p.duration_ms) }} ms ({{ '%.1f'|format(p.start_ms) }}–{{ '%.1f'|format(p.end_ms) }})"
+        >
+          <span class="gantt-bar-text">{{ "%.0f"|format(p.duration_ms) }} ms</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <table class="latency-phase-table">
+    <thead>
+      <tr>
+        <th scope="col">Phase</th>
+        <th scope="col">Start</th>
+        <th scope="col">End</th>
+        <th scope="col">Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in phases %}
+      <tr>
+        <td><span class="phase-swatch" data-phase="{{ p.name }}"></span>{{ p.name }}</td>
+        <td>{{ "%.1f"|format(p.start_ms) }} ms</td>
+        <td>{{ "%.1f"|format(p.end_ms) }} ms</td>
+        <td><strong>{{ "%.1f"|format(p.duration_ms) }} ms</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}

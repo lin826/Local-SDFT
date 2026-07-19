@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ session.id }} · Online learning{% endblock %}
+{% set active = 'data' %}
+{% block content %}
+<h1 class="page-title">Online learning session</h1>
+<p class="lead"><code>{{ session.id }}</code> · {{ session.updated_at }} · {{ session.turn_count }} turn(s)</p>
+
+<div class="pill-row">
+  <span class="pill pill-accent">{{ session.model }}</span>
+  <span class="pill pill-muted">{{ session.config_path }}</span>
+  <span class="pill pill-muted">{{ session.adapter_dir }}</span>
+</div>
+
+{% if session.design_summary %}
+<section class="section" id="design-summary">
+  <h2>Design summary</h2>
+  <dl class="design-summary">
+    {% for key, value in session.design_summary.items() %}
+    <dt>{{ key.replace('_', ' ') }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}
+
+{% set summary = session.latency_summary %}
+{% if summary and summary.turn_count %}
+<section class="section" id="latency-summary">
+  <h2>Latency summary</h2>
+  <p class="lead" style="margin-bottom:1rem;">Aggregated over {{ summary.turn_count }} turn(s): mean / p50 / p95 (ms).</p>
+  <table>
+    <thead>
+      <tr><th>Phase</th><th>Count</th><th>Mean</th><th>P50</th><th>P95</th></tr>
+    </thead>
+    <tbody>
+      {% for phase_name, label in [('inference_ms', 'Inference preview'), ('train_ms', 'Adapter update'), ('total_ms', 'Total turn')] %}
+      {% set s = summary.get(phase_name) or {} %}
+      <tr>
+        <td>{{ label }}</td>
+        <td>{{ s.get('count', 0) }}</td>
+        <td>{{ "%.1f"|format(s.get('mean', 0)) }}</td>
+        <td>{{ "%.1f"|format(s.get('p50', 0)) }}</td>
+        <td>{{ "%.1f"|format(s.get('p95', 0)) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="section">
+  <h2>Per-turn latencies</h2>
+  {% if session.turns %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Instruction</th><th>Infer ms</th><th>Train ms</th><th>Total ms</th><th>Tokens</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for t in session.turns %}
+      <tr>
+        <td>{{ t.turn_index }}</td>
+        <td>{{ t.instruction[:60] }}{% if t.instruction|length > 60 %}…{% endif %}</td>
+        <td>{% if t.latency.inference_ms is not none %}{{ "%.1f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.train_ms is not none %}{{ "%.1f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
+        <td><strong>{{ "%.1f"|format(t.latency.total_ms) }}</strong></td>
+        <td class="meta">{% if t.latency.output_tokens is not none %}{{ t.latency.output_tokens }} out{% else %}—{% endif %}</td>
+        <td class="meta">{{ t.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No turns recorded.</p>
+  {% endif %}
+</section>
+
+<div class="actions">
+  <a class="btn" href="/data?session={{ session.id }}">Continue learning</a>
+  <a class="btn btn-secondary" href="/data">Online learning home</a>
+</div>
+{% endblock %}

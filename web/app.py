@@ -18,6 +18,8 @@ from fastapi.templating import Jinja2Templates
 
 from sdft.alpacaeval_ablation import build_perf_chat_messages
 from sdft.config import load_config
+from sdft.online_learning import create_session, load_session, run_online_turn
+from sdft.online_learning.session import list_sessions
 from sdft.records import (
     collect_record,
     collected_records_path,
@@ -72,6 +74,11 @@ CONFIG_OPTIONS = [
     DEFAULT_CONFIG,
     "configs/lfm25_alpacaeval2_trained.yaml",
 ]
+ONLINE_CONFIG_OPTIONS = [
+    "configs/online_learning.yaml",
+    DEFAULT_CONFIG,
+]
+DEFAULT_ONLINE_CONFIG = ONLINE_CONFIG_OPTIONS[0]
 DEFAULT_INSTRUCTION = "Answer helpfully and directly in plain text."
 ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}
 
@@ -348,17 +355,130 @@ async def index(request: Request) -> HTMLResponse:
 
 @app.get("/data", response_class=HTMLResponse)
 async def data_page(request: Request) -> HTMLResponse:
-    records = load_collected_records(collected_records_path())
+    session_id = request.query_params.get("session")
+    if request.query_params.get("new"):
+        session = create_session(DEFAULT_ONLINE_CONFIG)
+        session_id = session.id
+    elif session_id:
+        try:
+            session = load_session(session_id)
+        except FileNotFoundError:
+            session = create_session(DEFAULT_ONLINE_CONFIG)
+            session_id = session.id
+    else:
+        recent = list_sessions(limit=1)
+        session = recent[0] if recent else create_session(DEFAULT_ONLINE_CONFIG)
+        session_id = session.id
+
     prefill = {
         "instruction": request.query_params.get("instruction", ""),
         "input_text": request.query_params.get("input_text", ""),
         "output": request.query_params.get("output", ""),
     }
+    last_turn = None
+    turn_q = request.query_params.get("turn")
+    if turn_q and session.turns:
+        try:
+            idx = int(turn_q)
+            last_turn = next((t for t in session.turns if t.turn_index == idx), session.turns[-1])
+        except ValueError:
+            last_turn = session.turns[-1]
+
     return templates.TemplateResponse(
         request,
         "data.html",
-        {"records": list(reversed(records)), "request": request, "prefill": prefill},
+        {
+            "session": session,
+            "sessions": list_sessions(limit=10),
+            "config_options": ONLINE_CONFIG_OPTIONS,
+            "request": request,
+            "prefill": prefill,
+            "last_turn": last_turn,
+        },
     )
+
+
+@app.get("/data/{session_id}", response_class=HTMLResponse)
+async def online_session_detail(request: Request, session_id: str) -> HTMLResponse:
+    try:
+        session = load_session(session_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return templates.TemplateResponse(
+        request,
+        "online_session_detail.html",
+        {"session": session},
+    )
+
+
+def _run_online_turn_task(
+    session_id: str,
+    *,
+    instruction: str,
+    input_text: str,
+    output: str,
+    tags: list[str] | None,
+    preview: bool,
+) -> Any:
+    return run_online_turn(
+        session_id,
+        instruction=instruction,
+        input=input_text,
+        output=output,
+        tags=tags,
+        preview=preview,
+    )
+
+
+@app.post("/data/turn")
+async def online_learning_turn(
+    request: Request,
+    session_id: str = Form(...),
+    config_path: str = Form(DEFAULT_ONLINE_CONFIG),
+    instruction: str = Form(...),
+    input_text: str = Form(""),
+    output: str = Form(...),
+    tags: str = Form(""),
+    preview: str = Form(""),
+):
+    instruction = instruction.strip()
+    output = output.strip()
+    if not instruction or not output:
+        raise HTTPException(status_code=400, detail="instruction and output are required")
+    if config_path not in ONLINE_CONFIG_OPTIONS:
+        config_path = DEFAULT_ONLINE_CONFIG
+
+    try:
+        session = load_session(session_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if session.config_path != config_path:
+        session.config_path = config_path
+        from sdft.online_learning.session import save_session as save_online_session
+
+        save_online_session(session)
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    try:
+        turn = await asyncio.to_thread(
+            _run_online_turn_task,
+            session_id,
+            instruction=instruction,
+            input_text=input_text,
+            output=output,
+            tags=tag_list or None,
+            preview=preview.lower() in {"1", "true", "on", "yes"},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    redirect_url = f"/data?session={session_id}&turn={turn.turn_index}"
+    if request.headers.get("HX-Request", "").lower() == "true":
+        response = RedirectResponse(url=redirect_url, status_code=303)
+        response.headers["HX-Redirect"] = redirect_url
+        return response
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.post("/data/entry")

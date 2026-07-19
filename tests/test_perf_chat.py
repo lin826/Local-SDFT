@@ -52,9 +52,31 @@ def _fake_chat_result(messages: list[dict[str, str]], run_id: str = "bench-test-
             "max_new_tokens": 64,
             "turn_count": sum(1 for m in messages if m["role"] == "user"),
             "chat": True,
+            "latency_phases": [
+                {"name": "config_load", "start_ms": 0.0, "end_ms": 5.0, "duration_ms": 5.0},
+                {"name": "tokenizer_load", "start_ms": 5.0, "end_ms": 40.0, "duration_ms": 35.0},
+                {"name": "model_load", "start_ms": 40.0, "end_ms": 1240.0, "duration_ms": 1200.0},
+                {"name": "prompt_build", "start_ms": 1240.0, "end_ms": 1248.0, "duration_ms": 8.0},
+                {"name": "generate", "start_ms": 1248.0, "end_ms": 1260.0, "duration_ms": 12.0},
+                {"name": "decode", "start_ms": 1260.0, "end_ms": 1261.0, "duration_ms": 1.0},
+                {"name": "persist", "start_ms": 1261.0, "end_ms": 1265.0, "duration_ms": 4.0},
+            ],
         },
         config_path="configs/default.yaml",
     )
+
+
+def _fake_measure_chat_with_phases(cfg, messages, **kwargs):
+    """Mock measure_chat that advances a shared LatencyPhases clock."""
+    run_id = kwargs.pop("_run_id", "bench-test-chat")
+    result = _fake_chat_result(messages, run_id=run_id)
+    phases = kwargs.get("latency_phases")
+    if phases is not None:
+        for name in ("tokenizer_load", "model_load", "prompt_build", "generate", "decode"):
+            with phases.span(name):
+                pass
+        result.metadata["latency_phases"] = phases.to_list()
+    return result
 
 
 @pytest.fixture()
@@ -145,10 +167,12 @@ def test_build_design_summary_variants():
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
     def fake_measure_chat(cfg, messages, **kwargs):
-        return _fake_chat_result(messages, run_id="bench-htmx-1")
+        return _fake_measure_chat_with_phases(cfg, messages, _run_id="bench-htmx-1", **kwargs)
 
     with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
         "web.app.persist_performance_result", lambda r: None
+    ), patch(
+        "web.app.save_performance_result", lambda path, r: None
     ):
         resp = client.post(
             "/perf/chat",
@@ -176,6 +200,10 @@ def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
     assert resp.headers.get("HX-Push-Url")
     assert "continue=bench-htmx-1" in resp.headers["HX-Push-Url"]
     assert "sent=1" in resp.headers["HX-Push-Url"]
+    assert 'class="latency-gantt"' in body
+    assert 'data-phase="model_load"' in body
+    assert 'data-phase="generate"' in body
+    assert "Latency phases" in body
 
 
 def test_chat_persists_design_summary(client: TestClient):
@@ -337,6 +365,9 @@ def test_run_detail_shows_design_summary(client: TestClient):
     assert "Design summary" in detail.text
     assert "apple juice" in detail.text or "AlpacaEval-style" in detail.text
     assert "eval surface" in detail.text.lower()
+    assert 'class="latency-gantt"' in detail.text
+    assert 'data-phase="model_load"' in detail.text
+    assert "1200" in detail.text  # model_load duration
 
 
 def test_generate_still_background(client: TestClient):
@@ -495,3 +526,62 @@ def test_empty_assistant_response_renders_refusal_fallback(client: TestClient):
     assert perf.status_code == 200
     assert "sorry, but I can" in perf.text
     assert "assist with that." in perf.text
+
+
+def test_latency_phases_structure():
+    import time
+
+    from sdft.records.benchmark import LatencyPhases
+
+    clock = LatencyPhases()
+    with clock.span("tokenizer_load"):
+        time.sleep(0.001)
+    with clock.span("model_load"):
+        time.sleep(0.001)
+    phases = clock.to_list()
+    assert [p["name"] for p in phases] == ["tokenizer_load", "model_load"]
+    for p in phases:
+        assert set(p) == {"name", "start_ms", "end_ms", "duration_ms"}
+        assert p["end_ms"] >= p["start_ms"]
+        assert p["duration_ms"] >= 0
+        assert abs((p["end_ms"] - p["start_ms"]) - p["duration_ms"]) < 0.01
+    assert phases[0]["start_ms"] >= 0
+    assert phases[1]["start_ms"] >= phases[0]["end_ms"] - 0.5
+
+
+def test_chat_persists_latency_phases(client: TestClient):
+    saved: dict[str, PerformanceResult] = {}
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        return _fake_measure_chat_with_phases(cfg, messages, _run_id="bench-phases-1", **kwargs)
+
+    def capture_persist(r):
+        saved[r.id] = r
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", side_effect=capture_persist
+    ), patch(
+        "web.app.save_performance_result",
+        side_effect=lambda path, r: saved.setdefault(r.id, r),
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "",
+                "user_message": "phase check",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    phases = saved["bench-phases-1"].metadata["latency_phases"]
+    names = [p["name"] for p in phases]
+    assert names[0] == "config_load"
+    assert "model_load" in names
+    assert "generate" in names
+    assert names[-1] == "persist"
+    for p in phases:
+        assert {"name", "start_ms", "end_ms", "duration_ms"} <= set(p)
+

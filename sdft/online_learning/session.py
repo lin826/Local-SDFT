@@ -1,0 +1,91 @@
+"""Load/save online-learning session JSON."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from sdft.config import load_config
+from sdft.records.paths import utc_now_iso
+from sdft.records.store import read_json, write_json
+
+from .paths import (
+    new_session_id,
+    online_session_dir,
+    online_session_path,
+    session_adapter_dir,
+)
+from .schema import OnlineLearningSession
+from .stats import aggregate_turn_latencies, build_design_summary
+
+
+def create_session(
+    config_path: str = "configs/online_learning.yaml",
+    *,
+    session_id: str | None = None,
+    root: Path | None = None,
+) -> OnlineLearningSession:
+    cfg = load_config(config_path)
+    sid = session_id or new_session_id()
+    adapter = str(session_adapter_dir(sid, root))
+    now = utc_now_iso()
+    session = OnlineLearningSession(
+        id=sid,
+        created_at=now,
+        updated_at=now,
+        config_path=config_path,
+        adapter_dir=adapter,
+        model=cfg.model.name,
+        design_summary=build_design_summary(
+            session_id=sid,
+            config_path=config_path,
+            model=cfg.model.name,
+            turn_count=0,
+            adapter_dir=adapter,
+        ),
+    )
+    online_session_dir(sid, root).mkdir(parents=True, exist_ok=True)
+    save_session(session, root=root)
+    return session
+
+
+def load_session(session_id: str, *, root: Path | None = None) -> OnlineLearningSession:
+    path = online_session_path(session_id, root)
+    if not path.is_file():
+        raise FileNotFoundError(f"online session {session_id!r} not found")
+    return OnlineLearningSession.from_dict(read_json(path))
+
+
+def save_session(session: OnlineLearningSession, *, root: Path | None = None) -> Path:
+    session.latency_summary = aggregate_turn_latencies(session.turns)
+    session.design_summary = build_design_summary(
+        session_id=session.id,
+        config_path=session.config_path,
+        model=session.model,
+        turn_count=session.turn_count,
+        adapter_dir=session.adapter_dir,
+    )
+    path = online_session_path(session.id, root)
+    write_json(path, session.to_dict())
+    return path
+
+
+def list_sessions(*, root: Path | None = None, limit: int = 20) -> list[OnlineLearningSession]:
+    from .paths import online_sessions_root
+
+    base = online_sessions_root(root)
+    if not base.is_dir():
+        return []
+    sessions: list[OnlineLearningSession] = []
+    for child in sorted(base.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not child.is_dir():
+            continue
+        path = child / "session.json"
+        if not path.is_file():
+            continue
+        try:
+            sessions.append(OnlineLearningSession.from_dict(read_json(path)))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if len(sessions) >= limit:
+            break
+    return sessions
