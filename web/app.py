@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from sdft.alpacaeval_ablation import build_perf_chat_messages
 from sdft.config import load_config
 from sdft.records import (
     collect_record,
@@ -32,16 +33,22 @@ from sdft.records import (
     persist_performance_result,
     run_benchmark,
 )
+from sdft.records.benchmark import LatencyPhases
+from sdft.records.store import save_performance_result
 
 from web.demo_conditions import (
     DEFAULT_CONFIG,
     DEFAULT_DEMO_CONDITION,
+    DEFAULT_PROMPT_STRATEGY,
     build_design_summary,
     config_ignores_user_instruction,
     fixed_system_instruction,
     get_condition,
+    get_prompt_strategy,
+    instruction_display_text,
     instruction_field_hint,
     instruction_field_locked,
+    prompt_strategy_options,
 )
 from web.transcript_parse import (
     display_assistant_content,
@@ -126,28 +133,23 @@ def _system_from_messages(messages: list[dict[str, str]]) -> str:
     return next((m["content"] for m in messages if m["role"] == "system"), "")
 
 
-def _effective_instruction(config_path: str, instruction: str) -> str:
-    """Return system text sent to the model (fixed config prompt or user text)."""
-    fixed = fixed_system_instruction(config_path)
-    if fixed:
-        return fixed
-    if config_ignores_user_instruction(config_path):
-        return ""
-    return instruction.strip()
-
-
 def _instruction_ui_context(
     config_path: str,
     *,
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
     stored_instruction: str = "",
 ) -> dict[str, Any]:
     """Instruction textarea state for /perf (display text + whether user input is ignored)."""
-    locked = instruction_field_locked(config_path)
+    locked = instruction_field_locked(config_path, prompt_strategy)
     if locked:
         return {
-            "instruction": fixed_system_instruction(config_path),
+            "instruction": instruction_display_text(
+                config_path,
+                prompt_strategy=prompt_strategy,
+                stored_instruction=stored_instruction,
+            ),
             "instruction_ignored": True,
-            "instruction_hint": instruction_field_hint(config_path),
+            "instruction_hint": instruction_field_hint(config_path, prompt_strategy),
         }
     text = stored_instruction.strip() or DEFAULT_INSTRUCTION
     return {
@@ -161,19 +163,29 @@ def _build_chat_messages(
     instruction: str,
     history: list[dict[str, str]],
     user_message: str,
+    *,
+    config_path: str,
+    prompt_strategy: str,
 ) -> list[dict[str, str]]:
-    """Assemble model input: optional system + prior turns + new user message."""
-    messages: list[dict[str, str]] = []
-    instr = instruction.strip()
-    if instr:
-        messages.append({"role": "system", "content": instr})
-    for m in history:
-        role = m["role"]
-        if role == "system":
-            continue
-        messages.append({"role": role, "content": m["content"]})
-    messages.append({"role": "user", "content": user_message.strip()})
-    return messages
+    """Assemble model input for /perf chat."""
+    fixed = fixed_system_instruction(config_path)
+    if fixed or config_path not in CONFIG_OPTIONS:
+        messages: list[dict[str, str]] = []
+        instr = (fixed or instruction).strip()
+        if instr:
+            messages.append({"role": "system", "content": instr})
+        for m in history:
+            role = m["role"]
+            if role == "system":
+                continue
+            messages.append({"role": role, "content": m["content"]})
+        messages.append({"role": "user", "content": user_message.strip()})
+        return messages
+    return build_perf_chat_messages(
+        get_prompt_strategy(prompt_strategy),
+        history,
+        user_message,
+    )
 
 
 def _attach_run_metadata(
@@ -182,16 +194,19 @@ def _attach_run_metadata(
     demo_condition: str,
     config_path: str,
     model_path: str,
+    prompt_strategy: str,
 ) -> None:
     result.config_path = config_path
     result.metadata = result.metadata or {}
     result.metadata["config_path"] = config_path
     result.metadata["demo_condition"] = demo_condition
+    result.metadata["prompt_strategy"] = prompt_strategy
     result.metadata["model_path"] = model_path
     result.metadata["design_summary"] = build_design_summary(
         demo_condition=demo_condition,
         config_path=config_path,
         model_path=model_path,
+        prompt_strategy=prompt_strategy,
     )
 
 
@@ -214,6 +229,7 @@ def _chat_context_from_result(
     stored_instruction = _system_from_messages(typed) or instruction_fallback
     instruction_ctx = _instruction_ui_context(
         config_path,
+        prompt_strategy=str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
         stored_instruction=stored_instruction,
     )
     history = _history_without_system(typed)
@@ -224,10 +240,12 @@ def _chat_context_from_result(
         "last_run_id": result.id,
         "composer_prefill": "",
         "demo_condition": str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION),
+        "prompt_strategy": str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
         "config_path": config_path,
         "metrics": result.metrics,
         "max_new_tokens": meta.get("max_new_tokens"),
         "output_tokens_total": getattr(result.metrics, "output_tokens_total", None),
+        "latency_phases": meta.get("latency_phases") or [],
     }
 
 
@@ -240,10 +258,12 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         "messages_json": "[]",
         "last_run_id": None,
         "demo_condition": DEFAULT_DEMO_CONDITION,
+        "prompt_strategy": DEFAULT_PROMPT_STRATEGY,
         "config_path": DEFAULT_CONFIG,
         "metrics": None,
         "max_new_tokens": None,
         "output_tokens_total": None,
+        "latency_phases": [],
     }
     if not run_id:
         return empty
@@ -267,6 +287,7 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
                 history.append({"role": "assistant", "content": str(ex["output"])})
             instruction_ctx = _instruction_ui_context(
                 config_path,
+                prompt_strategy=str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
                 stored_instruction=stored_instruction if ex.get("input") else "",
             )
             return {
@@ -275,10 +296,12 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
                 "messages_json": json.dumps(history, ensure_ascii=False),
                 "last_run_id": run_id,
                 "demo_condition": demo_condition,
+                "prompt_strategy": str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
                 "config_path": config_path,
                 "metrics": result.metrics,
                 "max_new_tokens": meta.get("max_new_tokens"),
                 "output_tokens_total": result.metrics.output_tokens_total,
+                "latency_phases": meta.get("latency_phases") or [],
             }
         return {**empty, "last_run_id": run_id}
 
@@ -288,8 +311,10 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         if _include_message_for_display(m)
     ]
     stored_instruction = _system_from_messages(typed)
+    prompt_strategy = str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY)
     instruction_ctx = _instruction_ui_context(
         config_path,
+        prompt_strategy=prompt_strategy,
         stored_instruction=stored_instruction,
     )
     history = _history_without_system(typed)
@@ -299,10 +324,12 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         "messages_json": json.dumps(history, ensure_ascii=False),
         "last_run_id": run_id,
         "demo_condition": demo_condition,
+        "prompt_strategy": prompt_strategy,
         "config_path": config_path,
         "metrics": result.metrics,
         "max_new_tokens": meta.get("max_new_tokens"),
         "output_tokens_total": result.metrics.output_tokens_total,
+        "latency_phases": meta.get("latency_phases") or [],
     }
 
 
@@ -372,13 +399,18 @@ async def perf_page(request: Request) -> HTMLResponse:
     q_instruction = request.query_params.get("instruction")
     q_input = request.query_params.get("input", "")
     q_config = request.query_params.get("config_path")
+    q_strategy = request.query_params.get("prompt_strategy", DEFAULT_PROMPT_STRATEGY)
     if q_config:
         chat["config_path"] = q_config
+    if q_strategy:
+        chat["prompt_strategy"] = q_strategy
     if q_instruction and not continue_id:
         seed: list[dict[str, str]] = []
         selected_for_seed = chat.get("config_path", DEFAULT_CONFIG)
+        selected_strategy = chat.get("prompt_strategy", DEFAULT_PROMPT_STRATEGY)
         instruction_ctx = _instruction_ui_context(
             selected_for_seed,
+            prompt_strategy=selected_strategy,
             stored_instruction=q_instruction,
         )
         if q_input.strip():
@@ -388,6 +420,7 @@ async def perf_page(request: Request) -> HTMLResponse:
                 "messages_json": "[]",
                 "last_run_id": None,
                 "demo_condition": DEFAULT_DEMO_CONDITION,
+                "prompt_strategy": selected_strategy,
                 "config_path": selected_for_seed,
             }
             # Prefill composer via placeholder template var
@@ -400,18 +433,33 @@ async def perf_page(request: Request) -> HTMLResponse:
                 "last_run_id": None,
                 "composer_prefill": "",
                 "demo_condition": DEFAULT_DEMO_CONDITION,
+                "prompt_strategy": selected_strategy,
                 "config_path": selected_for_seed,
             }
     else:
         chat.setdefault("composer_prefill", "")
         if "instruction_ignored" not in chat:
-            chat.update(_instruction_ui_context(chat.get("config_path", DEFAULT_CONFIG)))
+            chat.update(
+                _instruction_ui_context(
+                    chat.get("config_path", DEFAULT_CONFIG),
+                    prompt_strategy=chat.get("prompt_strategy", DEFAULT_PROMPT_STRATEGY),
+                )
+            )
 
     selected_config = chat.get("config_path") or request.query_params.get(
         "config_path", CONFIG_OPTIONS[0]
     )
     if selected_config not in CONFIG_OPTIONS:
         selected_config = CONFIG_OPTIONS[0]
+
+    selected_strategy = chat.get("prompt_strategy") or request.query_params.get(
+        "prompt_strategy", DEFAULT_PROMPT_STRATEGY
+    )
+    try:
+        get_prompt_strategy(str(selected_strategy))
+    except ValueError:
+        selected_strategy = DEFAULT_PROMPT_STRATEGY
+    chat["prompt_strategy"] = selected_strategy
 
     return templates.TemplateResponse(
         request,
@@ -420,9 +468,11 @@ async def perf_page(request: Request) -> HTMLResponse:
             "results": _load_results(20),
             "index": _index_entries(20),
             "config_options": CONFIG_OPTIONS,
+            "prompt_strategy_options": prompt_strategy_options(),
             "request": request,
             "chat": chat,
             "selected_config": selected_config,
+            "selected_prompt_strategy": selected_strategy,
         },
     )
 
@@ -454,25 +504,43 @@ def _run_chat_inference(
     *,
     config_path: str,
     condition_id: str,
+    prompt_strategy: str,
     instruction: str,
     history: list[dict[str, str]],
     user_message: str,
 ) -> Any:
     """Sync plain multi-turn chat inference."""
+    phases = LatencyPhases()
     condition = get_condition(condition_id)
     effective_config = config_path if config_path in CONFIG_OPTIONS else condition.config_path
-    effective_instruction = _effective_instruction(effective_config, instruction)
-    messages = _build_chat_messages(effective_instruction, history, user_message)
+    try:
+        get_prompt_strategy(prompt_strategy)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
+    messages = _build_chat_messages(
+        instruction,
+        history,
+        user_message,
+        config_path=effective_config,
+        prompt_strategy=prompt_strategy,
+    )
 
-    cfg = load_config(effective_config)
-    result = measure_chat(cfg, messages)
+    with phases.span("config_load"):
+        cfg = load_config(effective_config)
+    result = measure_chat(cfg, messages, latency_phases=phases)
     _attach_run_metadata(
         result,
         demo_condition=condition.id,
         config_path=effective_config,
         model_path=cfg.model.name,
+        prompt_strategy=prompt_strategy,
     )
-    persist_performance_result(result)
+    with phases.span("persist"):
+        result.metadata["latency_phases"] = phases.to_list()
+        persist_performance_result(result)
+    # Rewrite so on-disk JSON includes the completed persist span.
+    result.metadata["latency_phases"] = phases.to_list()
+    save_performance_result(performance_result_path(result.id), result)
     return result
 
 
@@ -481,6 +549,7 @@ async def run_perf_chat(
     request: Request,
     config_path: str = Form(DEFAULT_CONFIG),
     demo_condition: str = Form(DEFAULT_DEMO_CONDITION),
+    prompt_strategy: str = Form(DEFAULT_PROMPT_STRATEGY),
     instruction: str = Form(""),
     user_message: str = Form(...),
     messages_json: str = Form("[]"),
@@ -493,6 +562,7 @@ async def run_perf_chat(
     history = _parse_messages_json(messages_json)
     try:
         get_condition(demo_condition)
+        get_prompt_strategy(prompt_strategy)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -500,12 +570,14 @@ async def run_perf_chat(
         _run_chat_inference,
         config_path=config_path,
         condition_id=demo_condition,
+        prompt_strategy=prompt_strategy,
         instruction=instruction,
         history=history,
         user_message=user_message,
     )
     cfg_q = quote(config_path, safe="")
-    continue_url = f"/perf?continue={result.id}&config_path={cfg_q}&sent=1"
+    strat_q = quote(prompt_strategy, safe="")
+    continue_url = f"/perf?continue={result.id}&config_path={cfg_q}&prompt_strategy={strat_q}&sent=1"
 
     if request.headers.get("HX-Request", "").lower() == "true":
         chat = _chat_context_from_result(result, instruction_fallback=instruction)

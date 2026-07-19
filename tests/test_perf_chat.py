@@ -83,12 +83,14 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert b'value="plain"' in body
     assert b"configs/lfm25_alpacaeval2_trained.yaml" in body
     assert b"configs/default.yaml" in body
+    assert b'name="prompt_strategy"' in body
+    assert b"Prompt strategy" in body
     assert b"openclaw" not in body.lower()
     assert b'data-toolcall=' not in body
     assert b"syncInstructionField()" not in body
     assert b"Start generate" in body
     assert b"without a full page reload" not in body  # removed OpenClaw-specific howto line
-    assert NO_SYSTEM_INSTRUCTION_HINT.encode() in body
+    assert b"AlpacaEval-faithful ZS" in body
     idx = body.index(b'id="instruction"')
     tag_end = body.index(b">", idx) + 1
     close = body.index(b"</textarea>", tag_end)
@@ -128,7 +130,8 @@ def test_build_design_summary_variants():
     )
     assert "base LFM2.5-230M" in base["variant"]
     assert "no GPT-4 judge" in base["eval_surface"]
-    assert "none (AlpacaEval-faithful" in base["system_instruction"]
+    assert "AlpacaEval-faithful ZS" in base["system_instruction"]
+    assert base["prompt_strategy"] == "ZS"
 
     sdft = build_design_summary(
         demo_condition="plain",
@@ -137,7 +140,7 @@ def test_build_design_summary_variants():
     )
     assert "SDFT merge" in sdft["variant"]
     assert sdft["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
-    assert "none (AlpacaEval-faithful" in sdft["system_instruction"]
+    assert "AlpacaEval-faithful ZS" in sdft["system_instruction"]
 
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
@@ -201,7 +204,7 @@ def test_chat_persists_design_summary(client: TestClient):
     assert "design_summary" in meta
     assert meta["design_summary"]["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
     assert "SDFT merge" in meta["design_summary"]["variant"]
-    assert "none (AlpacaEval-faithful" in meta["design_summary"]["system_instruction"]
+    assert "AlpacaEval-faithful ZS" in meta["design_summary"]["system_instruction"]
 
 
 def test_chat_ignores_user_instruction_for_alpacaeval_configs(client: TestClient):
@@ -272,7 +275,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
         body1 = page1.text
         assert "Tell a joke about grading." in body1
         assert "echo:Tell a joke about grading." in body1
-        assert NO_SYSTEM_INSTRUCTION_HINT in body1
+        assert "AlpacaEval-faithful ZS" in body1
         assert "You are a witty PhD comic narrator." not in body1
 
         history = [
@@ -384,6 +387,50 @@ def test_fixed_system_instruction_shown_readonly_and_used(client: TestClient, mo
     assert captured
     assert captured[0][0] == {"role": "system", "content": fixed_text}
     assert captured[0][1] == {"role": "user", "content": "Hello fixed"}
+
+
+def test_unknown_prompt_strategy_rejected(client: TestClient):
+    resp = client.post(
+        "/perf/chat",
+        data={
+            "config_path": "configs/default.yaml",
+            "demo_condition": "plain",
+            "prompt_strategy": "NOT_AN_ARM",
+            "instruction": "",
+            "user_message": "Hello",
+            "messages_json": "[]",
+        },
+    )
+    assert resp.status_code == 400
+    assert "unknown ablation arm" in resp.json()["detail"]
+
+
+def test_cot_strategy_appends_cue_to_user_message(client: TestClient):
+    captured: list[list[dict[str, str]]] = []
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        captured.append(list(messages))
+        return _fake_chat_result(messages, run_id="bench-cot-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "prompt_strategy": "CoT",
+                "instruction": "",
+                "user_message": "How do I sew a button?",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    assert captured
+    assert captured[0][0]["role"] == "user"
+    assert "Let's think step by step." in captured[0][0]["content"]
 
 
 def test_unknown_demo_condition_rejected(client: TestClient):
