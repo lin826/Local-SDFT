@@ -15,9 +15,21 @@ from sdft.toolcall.format import (
     _match_answer_boxed,
 )
 
-SegmentKind = Literal["reasoning", "tool_call", "tool_result", "answer", "prose"]
+SegmentKind = Literal[
+    "reasoning", "tool_call", "tool_result", "answer", "prose", "refusal"
+]
 
 _THINK_LINE = re.compile(r"^Think\s*:", re.IGNORECASE | re.MULTILINE)
+_REFUSAL_START = re.compile(
+    r"I'm sorry(?:,|\.)?\s+but I can't\b",
+    re.IGNORECASE,
+)
+_REFUSAL_NOISE_MARKERS = re.compile(
+    r"can't perform|cannot perform|can't actually|do not have access|don't have access"
+    r"|only allow|sandbox|safe environment|available tools"
+    r"|Let me know if you'd like help|Let me know how else I can assist",
+    re.IGNORECASE,
+)
 
 _LFM_TOOL_CALL = re.compile(
     rf"{re.escape(LFM_TOOL_CALL_START)}.*?{re.escape(LFM_TOOL_CALL_END)}",
@@ -59,6 +71,129 @@ def _is_reasoning(text: str) -> bool:
         return True
     first = stripped.split("\n", 1)[0].strip()
     return first.lower().startswith("think:")
+
+
+def _is_refusal_noise(text: str) -> bool:
+    """True for repeated capability/tool sandbox apologies, not real answers."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if _match_answer_boxed(stripped) is not None:
+        return False
+    if not _REFUSAL_START.search(stripped):
+        return False
+    return bool(_REFUSAL_NOISE_MARKERS.search(stripped))
+
+
+def _split_refusal_loops(text: str) -> tuple[str, list[str]]:
+    """Split helpful text from trailing repeated refusal/apology loops."""
+    stripped = text.strip()
+    if not stripped:
+        return "", []
+
+    match = _REFUSAL_START.search(stripped)
+    if not match:
+        return stripped, []
+
+    clean = stripped[: match.start()].rstrip()
+    rest = stripped[match.start() :]
+    chunks = re.split(
+        r"(?=I'm sorry(?:,|\.)?\s+but I can't\b)",
+        rest,
+        flags=re.IGNORECASE,
+    )
+    refusals = [chunk.strip() for chunk in chunks if chunk.strip() and _is_refusal_noise(chunk)]
+    return clean, refusals
+
+
+def _split_reasoning_prefix(text: str) -> tuple[str | None, str]:
+    """Return a leading ``Think:`` line and the remainder when present."""
+    stripped = text.strip()
+    if not stripped:
+        return None, ""
+    first_line, _, rest = stripped.partition("\n")
+    if not first_line.strip().lower().startswith("think:"):
+        return None, stripped
+    if not rest.strip():
+        return first_line.strip(), ""
+    return first_line.strip(), rest.strip()
+
+
+def _refusal_segment(refusals: list[str]) -> TranscriptSegment | None:
+    if not refusals:
+        return None
+    sample = refusals[0]
+    count = len(refusals)
+    label = f"Skipped refusals ({count})" if count > 1 else "Skipped refusal"
+    return TranscriptSegment(kind="refusal", content=sample, label=label)
+
+
+def _kind_for_clean_text(
+    text: str,
+    *,
+    saw_tool: bool,
+    is_final: bool,
+    default: SegmentKind = "prose",
+) -> SegmentKind:
+    if _match_answer_boxed(text) is not None:
+        return "answer"
+    gap_kind = _classify_gap(text, saw_tool=saw_tool, is_final=is_final)
+    if gap_kind == "answer":
+        return "answer"
+    if gap_kind == "reasoning":
+        return default
+    return default
+
+
+def _expand_text_block(
+    text: str,
+    *,
+    saw_tool: bool = False,
+    is_final: bool = False,
+    split_reasoning: bool = False,
+    default_kind: SegmentKind = "prose",
+) -> list[TranscriptSegment]:
+    """Split one text block into reasoning, answer/prose, and folded refusals."""
+    stripped = text.strip()
+    if not stripped:
+        return []
+
+    segments: list[TranscriptSegment] = []
+    work = stripped
+    if split_reasoning and default_kind != "reasoning":
+        reasoning, rest = _split_reasoning_prefix(stripped)
+        if reasoning:
+            segments.append(TranscriptSegment(kind="reasoning", content=reasoning))
+            work = rest
+
+    if not work:
+        return segments
+
+    clean, refusals = _split_refusal_loops(work)
+    if clean:
+        kind = _kind_for_clean_text(
+            clean,
+            saw_tool=saw_tool,
+            is_final=is_final,
+            default=default_kind,
+        )
+        segments.append(
+            TranscriptSegment(
+                kind=kind,
+                content=clean,
+                boxed=_match_answer_boxed(clean) if kind == "answer" else None,
+            )
+        )
+
+    refusal = _refusal_segment(refusals)
+    if refusal:
+        segments.append(refusal)
+
+    if segments:
+        return segments
+
+    refusal_only = _refusal_segment(refusals)
+    return [refusal_only] if refusal_only else []
 
 
 def _classify_gap(text: str, *, saw_tool: bool, is_final: bool) -> SegmentKind | None:
@@ -134,28 +269,25 @@ def parse_message_content(role: str, content: str) -> list[TranscriptSegment]:
         stripped = text.strip()
         if not stripped:
             return []
-        kind: SegmentKind = "answer" if _match_answer_boxed(stripped) else "prose"
-        return [
-            TranscriptSegment(
-                kind=kind,
-                content=stripped,
-                boxed=_match_answer_boxed(stripped) if kind == "answer" else None,
-            )
-        ]
+        return _expand_text_block(
+            stripped,
+            split_reasoning=True,
+            is_final=True,
+        )
 
     segments: list[TranscriptSegment] = []
     cursor = 0
     saw_tool = False
     for start, end, kind, label, span_content in spans:
         gap = text[cursor:start]
-        gap_kind = _classify_gap(gap, saw_tool=saw_tool, is_final=False)
-        if gap_kind:
-            gap_text = gap.strip()
-            segments.append(
-                TranscriptSegment(
-                    kind=gap_kind,
-                    content=gap_text,
-                    boxed=_match_answer_boxed(gap_text) if gap_kind == "answer" else None,
+        if gap.strip():
+            segments.extend(
+                _expand_text_block(
+                    gap,
+                    saw_tool=saw_tool,
+                    is_final=False,
+                    split_reasoning=not saw_tool,
+                    default_kind="reasoning",
                 )
             )
 
@@ -171,14 +303,13 @@ def parse_message_content(role: str, content: str) -> list[TranscriptSegment]:
         cursor = end
 
     tail = text[cursor:]
-    tail_kind = _classify_gap(tail, saw_tool=saw_tool, is_final=True)
-    if tail_kind:
-        tail_text = tail.strip()
-        segments.append(
-            TranscriptSegment(
-                kind=tail_kind,
-                content=tail_text,
-                boxed=_match_answer_boxed(tail_text) if tail_kind == "answer" else None,
+    if tail.strip():
+        segments.extend(
+            _expand_text_block(
+                tail,
+                saw_tool=saw_tool,
+                is_final=True,
+                split_reasoning=False,
             )
         )
 

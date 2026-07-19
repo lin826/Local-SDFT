@@ -19,6 +19,11 @@
     <summary>{{ seg.label or 'Interpreter' }}</summary>
     <pre class="chat-segment-text">{{ seg.content }}</pre>
   </details>
+  {% elif seg.kind == 'refusal' %}
+  <details class="chat-segment chat-segment-tool chat-segment-refusal">
+    <summary>{{ seg.label or 'Skipped refusals' }}</summary>
+    <pre class="chat-segment-text">{{ seg.content }}</pre>
+  </details>
   {% elif seg.kind == 'answer' %}
   <div class="chat-segment chat-segment-answer">
     <span class="chat-segment-label">Answer</span>

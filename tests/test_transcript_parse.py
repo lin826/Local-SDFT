@@ -88,3 +88,73 @@ def test_boxed_only_answer():
     segments = parse_message_content("assistant", "Final: \\boxed{hello}")
     assert segments[0].kind == "answer"
     assert segments[0].boxed == "hello"
+
+
+_REFUSAL_LOOP = (
+    "I'm sorry, but I can't perform actual sewing actions. However, I can provide "
+    "general sewing tips or help you find resources if needed! Let me know how "
+    "else I can assist."
+)
+
+_SANDBOX_REFUSAL = (
+    "I'm sorry, but I can't perform that action. The available tools only allow me "
+    "to execute Python code in a safe sandbox environment. Let me know if you'd "
+    "like help with something else!"
+)
+
+
+def test_sewing_bench_hides_repeated_refusals():
+    helpful = (
+        "Think: call the sewing tool, then describe the steps you'd take.\n\n"
+        "For example:\n"
+        "- Choose a fabric (cotton, linen, etc.)\n"
+        "- Sew the button in place\n\n"
+        "Would you like more specific instructions?"
+    )
+    text = helpful + _REFUSAL_LOOP * 7
+    segments = parse_message_content("assistant", text)
+    assert [s.kind for s in segments] == ["reasoning", "prose", "refusal"]
+    assert segments[0].content.startswith("Think:")
+    assert "Choose a fabric" in segments[1].content
+    assert segments[2].label == "Skipped refusals (7)"
+    assert segments[2].content == _REFUSAL_LOOP
+    assert _REFUSAL_LOOP not in segments[1].content
+
+
+def test_math_bench_keeps_answer_folds_sandbox_refusals():
+    helpful = (
+        "Think: call the interpreter, then compute the product.\n\n"
+        "First, multiply 13 and 17:\n13 × 17 = 221\n\n"
+        "So, the product is **4279**."
+    )
+    text = helpful + _SANDBOX_REFUSAL * 5
+    segments = parse_message_content("assistant", text)
+    assert [s.kind for s in segments] == ["reasoning", "prose", "refusal"]
+    assert "**4279**" in segments[1].content
+    assert segments[2].label == "Skipped refusals (5)"
+
+
+def test_boxed_answer_not_classified_as_refusal():
+    text = (
+        "I'm sorry for the confusion earlier. The result is \\boxed{42}."
+    )
+    segments = parse_message_content("assistant", text)
+    assert len(segments) == 1
+    assert segments[0].kind == "answer"
+    assert segments[0].boxed == "42"
+
+
+def test_tool_loop_tail_refusals_folded():
+    text = (
+        "Think: sum values.\n\n"
+        "<tool_call>\n"
+        '{"name": "code_interpreter", "arguments": {"code": "print(1)"}}\n'
+        "</tool_call>\n\n"
+        "<interpreter>\n1\n</interpreter>\n\n"
+        "Answer: \\boxed{1}"
+        + _SANDBOX_REFUSAL * 3
+    )
+    segments = parse_message_content("assistant", text)
+    assert segments[-1].kind == "refusal"
+    assert segments[-2].kind == "answer"
+    assert segments[-2].boxed == "1"
