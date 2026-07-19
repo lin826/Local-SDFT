@@ -1,7 +1,6 @@
-# Geek-jokes (PHD comics) variant of the default SDFT config.
-# Build data/geek_jokes.jsonl from phdcomics.com most popular (200 comics):
-#   uv run python scripts/scrape_phdcomics.py
-# Post-train benchmark: configs/geek_jokes_trained.yaml + sdft.cli bench geek_jokes
+# Geek-jokes benchmark: 200 PHD Comics (most popular) held-out eval prompts.
+# Uses the same Alpaca JSONL as training; benchmark runner scores generation latency
+# and writes sample completions under outputs/benchmarks/.
 
 model:
   name: LiquidAI/LFM2.5-230M
@@ -17,13 +16,13 @@ data:
   seed: 0
 
 generation:
-  num_shots: 2
-  batch_size: 8
-  max_new_tokens: 256
+  num_shots: 0
+  batch_size: 4
+  max_new_tokens: 128
   temperature: 0.0
   top_p: 1.0
   min_response_chars: 1
-  out_path: data/geek_jokes_sdft.jsonl
+  out_path: data/geek_jokes_bench_generations.jsonl
 
 lora:
   r: 16

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Overview · Local-SDFT{% endblock %}
+{% set active = 'home' %}
+{% block content %}
+<h1 class="page-title">SDFT data &amp; performance</h1>
+<p class="lead">Collect training examples and run generate/inference benchmarks via the shared <code>sdft.records</code> contract.</p>
+
+<div class="grid-2">
+  <section class="section">
+    <h2>Collected examples</h2>
+    <p>{{ collected_count }} record(s) in <code>data/collected/records.jsonl</code></p>
+    <div class="actions">
+      <a class="btn" href="/data">Collect data</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Benchmarks</h2>
+    {% if bench_index %}
+      <p>Latest: <code>{{ bench_index[0].id }}</code> · {{ bench_index[0].benchmark }} · {{ "%.1f"|format(bench_index[0].tokens_per_second) }} tok/s</p>
+    {% else %}
+      <p class="empty">No runs in <code>outputs/benchmarks/index.jsonl</code> yet.</p>
+    {% endif %}
+    <div class="actions">
+      <a class="btn" href="/perf">Run benchmarks</a>
+    </div>
+  </section>
+</div>
+
+<section class="section">
+  <h2>Recent benchmarks</h2>
+  {% if bench_index %}
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Kind</th><th>tok/s</th><th>Latency ms</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for row in bench_index %}
+      <tr>
+        <td><a href="/perf/{{ row.id }}"><code>{{ row.id }}</code></a></td>
+        <td>{{ row.benchmark }}</td>
+        <td>{{ "%.1f"|format(row.tokens_per_second) }}</td>
+        <td>{{ "%.1f"|format(row.latency_ms_mean) }}</td>
+        <td class="meta">{{ row.run_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No benchmark results yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

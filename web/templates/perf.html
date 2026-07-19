@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Performance · Local-SDFT{% endblock %}
+{% set active = 'perf' %}
+{% block content %}
+<h1 class="page-title">Performance tests</h1>
+<p class="lead">Starts <code>sdft.records.run_benchmark</code> in the background (loads the model). Results land in <code>outputs/benchmarks/</code>.</p>
+
+{% if request.query_params.get('started') %}
+<p class="notice">Benchmark started in the background. Refresh this page shortly to see results.</p>
+{% endif %}
+
+<section class="section">
+  <h2>Run benchmark</h2>
+  <form method="post" action="/perf/run">
+    <div class="grid-2">
+      <div class="field">
+        <label for="benchmark">Benchmark</label>
+        <select id="benchmark" name="benchmark">
+          <option value="inference">inference (single-turn)</option>
+          <option value="generate">generate (SDFT teacher pass)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="config_path">Config</label>
+        <select id="config_path" name="config_path">
+          {% for cfg in config_options %}
+          <option value="{{ cfg }}">{{ cfg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="num_examples">Examples (generate)</label>
+        <input id="num_examples" name="num_examples" type="number" value="4" min="1" max="64">
+      </div>
+      <div class="field">
+        <label for="prompt">Prompt (inference)</label>
+        <input id="prompt" name="prompt" type="text" value="Explain self-distillation fine-tuning in one sentence.">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">Start benchmark</button>
+    </div>
+  </form>
+</section>
+
+<section class="section">
+  <h2>Index (<code>outputs/benchmarks/index.jsonl</code>)</h2>
+  {% if index %}
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Kind</th><th>Model</th><th>tok/s</th><th>Latency</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for row in index %}
+      <tr>
+        <td><a href="/perf/{{ row.id }}"><code>{{ row.id }}</code></a></td>
+        <td>{{ row.benchmark }}</td>
+        <td class="meta">{{ row.model }}</td>
+        <td>{{ "%.1f"|format(row.tokens_per_second) }}</td>
+        <td>{{ "%.1f"|format(row.latency_ms_mean) }} ms</td>
+        <td class="meta">{{ row.run_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Index is empty.</p>
+  {% endif %}
+</section>
+
+<section class="section">
+  <h2>Loaded results</h2>
+  {% if results %}
+  {% for r in results %}
+  <article class="result-card">
+    <div class="result-head">
+      <div>
+        <strong><a href="/perf/{{ r.id }}">{{ r.id }}</a></strong>
+        <span class="badge badge-completed">{{ r.benchmark }}</span>
+        <div class="meta">{{ r.model }} · {{ r.metrics.device }} · {{ r.run_at }}</div>
+      </div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><strong>{{ "%.1f"|format(r.metrics.tokens_per_second) }}</strong><span>tokens_per_second</span></div>
+      <div class="metric"><strong>{{ "%.1f"|format(r.metrics.latency_ms_mean) }}</strong><span>latency_ms_mean</span></div>
+      <div class="metric"><strong>{{ "%.1f"|format(r.metrics.latency_ms_p50) }}</strong><span>latency_ms_p50</span></div>
+      <div class="metric"><strong>{{ "%.1f"|format(r.metrics.latency_ms_p95) }}</strong><span>latency_ms_p95</span></div>
+      <div class="metric"><strong>{{ r.metrics.samples }}</strong><span>samples</span></div>
+    </div>
+  </article>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No benchmark JSON files yet. Start a run above (heavy — downloads/loads the model).</p>
+  {% endif %}
+</section>
+{% endblock %}

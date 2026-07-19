@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Collect Data · Local-SDFT{% endblock %}
+{% set active = 'data' %}
+{% block content %}
+<h1 class="page-title">Collect data</h1>
+<p class="lead">Add Alpaca-style examples. POSTs call <code>collect_record(..., source="web")</code> and append to <code>data/collected/records.jsonl</code>.</p>
+
+{% if request.query_params.get('exported') %}
+<p class="notice">Exported {{ request.query_params.get('exported') }} rows to <code>data/collected/{{ request.query_params.get('path') }}</code>.</p>
+{% endif %}
+
+<section class="section">
+  <h2>Add training example</h2>
+  <form method="post" action="/data/entry">
+    <div class="field">
+      <label for="instruction">Instruction</label>
+      <input id="instruction" name="instruction" type="text" placeholder="Tell a geek joke about PhD life" required>
+    </div>
+    <div class="field">
+      <label for="input_text">Input (optional)</label>
+      <input id="input_text" name="input_text" type="text" placeholder="Context or constraints">
+    </div>
+    <div class="field">
+      <label for="output">Output (gold response)</label>
+      <textarea id="output" name="output" required placeholder="The model's target response…"></textarea>
+    </div>
+    <div class="field">
+      <label for="tags">Tags (comma-separated, optional)</label>
+      <input id="tags" name="tags" type="text" placeholder="geek-jokes">
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">Save example</button>
+    </div>
+  </form>
+</section>
+
+<section class="section">
+  <h2>Export for training</h2>
+  <form method="post" action="/data/export" class="inline-form">
+    <div class="field">
+      <label for="export_name">Export name</label>
+      <input id="export_name" name="export_name" type="text" value="geek-jokes-export">
+    </div>
+    <button class="btn btn-secondary" type="submit">Export to data/collected/</button>
+  </form>
+  <p class="meta" style="margin-top:0.75rem;">Then point a YAML <code>data_files</code> at the export and run <code>uv run python -m sdft.generate</code>.</p>
+</section>
+
+<section class="section">
+  <h2>Collected records ({{ records|length }})</h2>
+  {% if records %}
+  <table>
+    <thead>
+      <tr><th>Instruction</th><th>Input</th><th>Output</th><th>Source</th></tr>
+    </thead>
+    <tbody>
+      {% for row in records %}
+      <tr>
+        <td>{{ row.instruction }}</td>
+        <td>{{ row.input or '—' }}</td>
+        <td>{{ row.output[:160] }}{% if row.output|length > 160 %}…{% endif %}</td>
+        <td class="meta">{{ row.source }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No collected records yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

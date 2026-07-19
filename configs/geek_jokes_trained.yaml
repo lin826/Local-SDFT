@@ -1,10 +1,11 @@
-# Geek-jokes (PHD comics) variant of the default SDFT config.
-# Build data/geek_jokes.jsonl from phdcomics.com most popular (200 comics):
-#   uv run python scripts/scrape_phdcomics.py
-# Post-train benchmark: configs/geek_jokes_trained.yaml + sdft.cli bench geek_jokes
+# Geek-jokes config pointing at the merged post-training checkpoint.
+# Train with configs/geek_jokes.yaml, then merge:
+#   uv run python -m sdft.train --config configs/geek_jokes.yaml
+#   uv run python -m sdft.merge --config configs/geek_jokes.yaml
+# Merged weights land in outputs/geek-jokes-lfm25-230m-merged by default.
 
 model:
-  name: LiquidAI/LFM2.5-230M
+  name: outputs/geek-jokes-lfm25-230m-merged
   dtype: float32
 
 data:
@@ -19,7 +20,7 @@ data:
 generation:
   num_shots: 2
   batch_size: 8
-  max_new_tokens: 256
+  max_new_tokens: 128
   temperature: 0.0
   top_p: 1.0
   min_response_chars: 1
