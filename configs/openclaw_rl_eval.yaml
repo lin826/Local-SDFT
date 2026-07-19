@@ -1,0 +1,24 @@
+# OpenClaw-RL ReTool evaluation for LFM2.5-230M (tool calling + AIME-style scoring).
+# Sections map to sdft/config.py.
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+toolcall:
+  max_rounds: 8
+  max_new_tokens: 512
+  temperature: 0.0
+  format: auto          # auto | openclaw | lfm
+  max_context_chars: 8192
+  max_obs_chars: 1024
+  sandbox_timeout_s: 30
+
+openclaw_eval:
+  dataset: zhuzilin/aime-2024
+  split: train
+  num_examples: 2       # smoke default; set null for full 30-problem AIME-2024
+  n_samples: 1
+  strict_box_verify: true
+  out_dir: outputs/benchmarks/openclaw-rl
+  seed: 0

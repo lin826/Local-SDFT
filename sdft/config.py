@@ -68,12 +68,40 @@ class TrainConfig:
 
 
 @dataclass
+class ToolCallConfig:
+    max_rounds: int = 16
+    max_new_tokens: int = 512
+    temperature: float = 0.0
+    top_p: float = 1.0
+    # auto | openclaw (ReTool JSON + <interpreter>) | lfm (native apply_chat_template)
+    format: str = "auto"
+    system_prompt: str | None = None
+    max_context_chars: int = 12000
+    max_obs_chars: int = 1024
+    sandbox_timeout_s: int = 30
+
+
+@dataclass
+class OpenClawEvalConfig:
+    dataset: str = "zhuzilin/aime-2024"
+    data_file: str | None = None
+    split: str = "train"
+    num_examples: int | None = 2
+    n_samples: int = 1
+    strict_box_verify: bool = True
+    out_dir: str = "outputs/benchmarks/openclaw-rl"
+    seed: int = 0
+
+
+@dataclass
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     data: DataConfig = field(default_factory=DataConfig)
     generation: GenerateConfig = field(default_factory=GenerateConfig)
     lora: LoraConfig = field(default_factory=LoraConfig)
     training: TrainConfig = field(default_factory=TrainConfig)
+    toolcall: ToolCallConfig = field(default_factory=ToolCallConfig)
+    openclaw_eval: OpenClawEvalConfig = field(default_factory=OpenClawEvalConfig)
 
 
 def _apply(section: Any, values: dict[str, Any], path: str) -> None:

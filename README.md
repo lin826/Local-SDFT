@@ -65,6 +65,16 @@ uv run python -m sdft.merge --adapter outputs/smoke --out outputs/smoke-merged
 Utility: `uv run python -m sdft.inspect` prints the model's LoRA-targetable
 module names.
 
+### OpenClaw-RL tool-calling eval
+
+See [docs/openclaw-rl-eval.md](docs/openclaw-rl-eval.md) for the ReTool-style
+tool loop and AIME-2024 benchmark adapter. Quick smoke:
+
+```bash
+uv sync --extra toolcall
+bash scripts/run_openclaw_rl_eval.sh
+```
+
 ## LoRA targets for the LFM2 architecture
 
 LFM2.5-230M is a hybrid: **6 attention blocks + 8 short-convolution blocks**.
