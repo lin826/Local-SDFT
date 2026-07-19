@@ -2,6 +2,9 @@
 """Scrape top PHD Comics from most_popular.php and build geek-jokes JSONL.
 
 Caches HTML under data/phdcomics/raw/ for resume. Rate-limited and polite.
+
+Training rows use setup/punchline jokes derived from comic titles — not the fake
+journal abstracts. See ``scripts/phdcomics_joke_builder.py`` for the field convention.
 """
 
 from __future__ import annotations
@@ -9,18 +12,23 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
 from html import unescape
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from phdcomics_joke_builder import to_training_row  # noqa: E402
+
 USER_AGENT = "Local-SDFT/1.0 (+https://github.com/local-sdft; research scraper)"
 REQUEST_DELAY_S = 1.5
 MAX_RETRIES = 3
 RETRY_BACKOFF_S = 5.0
 
-ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data" / "phdcomics"
 RAW_DIR = DATA_DIR / "raw"
 PAGES_DIR = RAW_DIR / "pages"
@@ -29,10 +37,6 @@ MANIFEST_PATH = DATA_DIR / "manifest.json"
 COMICS_JSONL = DATA_DIR / "comics.jsonl"
 GEEK_JOKES_PATH = ROOT / "data" / "geek_jokes.jsonl"
 MOST_POPULAR_URL = "https://phdcomics.com/comics/most_popular.php"
-
-INSTRUCTION = (
-    "Tell a geek joke about PhD or grad school life inspired by this PHD comic caption."
-)
 
 
 def _fetch(url: str, dest: Path | None = None) -> str:
@@ -139,25 +143,6 @@ def parse_journal_page(html: str) -> dict:
         abstract = _clean_text(re.sub(r"<[^>]+>", " ", m.group(1)))
 
     return {"journal_title": title, "abstract": abstract}
-
-
-def build_output_text(record: dict) -> str:
-    """Best available reference text for Alpaca ``output``."""
-    if record.get("journal_abstract"):
-        return record["journal_abstract"]
-    title = record.get("page_title") or record.get("title") or ""
-    if record.get("image_alt") and record["image_alt"].lower() not in title.lower():
-        return f"{title} — {record['image_alt']}"
-    return title
-
-
-def to_training_row(record: dict) -> dict[str, str]:
-    caption = record.get("page_title") or record.get("title") or ""
-    return {
-        "instruction": INSTRUCTION,
-        "input": caption,
-        "output": build_output_text(record),
-    }
 
 
 def load_manifest() -> dict:

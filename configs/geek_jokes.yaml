@@ -1,6 +1,8 @@
 # Geek-jokes (PHD comics) variant of the default SDFT config.
 # Build data/geek_jokes.jsonl from phdcomics.com most popular (200 comics):
-#   uv run python scripts/scrape_phdcomics.py
+#   uv run python scripts/scrape_phdcomics.py --listing-only
+# Rows: instruction + "Give a joke about …" input + setup/punchline output
+# (see scripts/phdcomics_joke_builder.py — not journal abstracts).
 # Post-train benchmark: configs/geek_jokes_trained.yaml + sdft.cli bench geek_jokes
 
 model:
