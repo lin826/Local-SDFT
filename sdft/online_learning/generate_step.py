@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from sdft.config import Config
-from sdft.data import build_teacher_messages, sample_fewshots
+from sdft.data import build_teacher_messages
 from sdft.utils import load_model, load_tokenizer, pick_device
 
 if TYPE_CHECKING:
@@ -52,8 +52,12 @@ def generate_sdft_response(
     rng = random.Random(cfg.data.seed)
 
     target_prompt = row_to_prompt({"instruction": instruction, "input": user_input})
-    target_idx = len(fewshot_examples)
-    fewshots = sample_fewshots(fewshot_examples, target_idx, gen.num_shots, rng) if fewshot_examples else []
+    if fewshot_examples:
+        pool = list(range(len(fewshot_examples)))
+        idxs = rng.sample(pool, min(gen.num_shots, len(pool)))
+        fewshots = [fewshot_examples[i] for i in idxs]
+    else:
+        fewshots = []
 
     tokenizer = load_tokenizer(cfg.model)
     tokenizer.padding_side = "left"
