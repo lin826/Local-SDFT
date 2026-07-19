@@ -2,19 +2,16 @@
 {% from "chat_message.html" import chat_message_body %}
 {% block title %}Performance · Local-SDFT{% endblock %}
 {% set active = 'perf' %}
-{% block head %}
-<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-{% endblock %}
 {% block content %}
 <h1 class="page-title">Performance tests</h1>
-<p class="lead"><strong>Plain chat inference</strong> for Alpaca-style prompts — compare base LFM2.5-230M vs the AlpacaEval2 SDFT merge, and try eval-time ablations (ZS / few-shot / CoT) via <strong>Prompt strategy</strong>. Each Send waits for the model, then updates the chat panel in place. Results land in <code>outputs/benchmarks/</code> with a design summary in metadata.</p>
+<p class="lead"><strong>Plain chat inference</strong> for Alpaca-style prompts — compare base LFM2.5-230M vs the AlpacaEval2 SDFT merge, and try eval-time ablations (ZS / few-shot / CoT) via <strong>Prompt strategy</strong>. Each Send streams tokens into the chat as they generate, then shows latency phases. Results land in <code>outputs/benchmarks/</code> with a design summary in metadata.</p>
 
-{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. The Send button shows “Generating…” while you wait; only the chat panel swaps. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
+{% with page_id='perf', tip='Chat loads the model on each Send — the first token can take a while. Keep the tab open while tokens stream. Conversation history is posted with the form (no server session). Without JS, Send falls back to a full synchronous POST. Generate jobs run in the background.' %}
 {% set steps = [
-  'Pick Config — default.yaml (baseline) or lfm25_alpacaeval2_trained.yaml (SDFT merge).',
+  'Pick Config — default.yaml (baseline), lfm25_alpacaeval2_trained.yaml (SDFT merge), or a recent Online session adapter from /data.',
   'Pick Prompt strategy — ZS (AlpacaEval-faithful), FS1/FS3, CoT, FS+CoT, or optional SysHelpful.',
   'System / instruction is read-only for ablation arms (shows CoT line or fixed system text when used).',
-  'Type a user message — try Alpaca-style tasks like sewing or making apple juice — and Send.',
+  'Type a user message — try Alpaca-style tasks like sewing or making apple juice — and Send; watch tokens appear live.',
   'Open a result ID to inspect the transcript, metrics, and design summary.',
 ] %}
 {% include "howto.html" %}
@@ -33,21 +30,17 @@
   </div>
 
   <form method="post" action="/perf/chat" id="chat-form"
-        hx-post="/perf/chat"
-        hx-target="#chat-panel"
-        hx-swap="outerHTML"
-        hx-indicator="#chat-indicator"
-        hx-disabled-elt="#chat-send">
+        data-stream-url="/perf/chat/stream">
     <input type="hidden" name="demo_condition" value="plain">
     <div class="grid-2">
       <div class="field">
         <label for="config_path">Config</label>
         <select id="config_path" name="config_path">
           {% for cfg in config_options %}
-          <option value="{{ cfg }}" {% if cfg == selected_config %}selected{% endif %}>{{ cfg }}</option>
+          <option value="{{ cfg.value }}" {% if cfg.value == selected_config %}selected{% endif %}>{{ cfg.label }}</option>
           {% endfor %}
         </select>
-        <p class="field-hint">Baseline: <code>default.yaml</code> · SDFT: <code>lfm25_alpacaeval2_trained.yaml</code></p>
+        <p class="field-hint">Baseline: <code>default.yaml</code> · SDFT: <code>lfm25_alpacaeval2_trained.yaml</code>{% if config_options|selectattr('kind', 'equalto', 'online')|list %} · Online: adapters from <a href="/data">/data</a>{% endif %}</p>
       </div>
       <div class="field">
         <label for="prompt_strategy">Prompt strategy</label>
@@ -87,8 +80,8 @@
       <div class="field">
         <label for="gen_config_path">Config</label>
         <select id="gen_config_path" name="config_path">
-          {% for cfg in config_options %}
-          <option value="{{ cfg }}">{{ cfg }}</option>
+          {% for cfg in config_options if cfg.kind == 'base' %}
+          <option value="{{ cfg.value }}">{{ cfg.label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -200,14 +193,130 @@
 <script>
 (function () {
   var form = document.getElementById('chat-form');
-  var btn = document.getElementById('chat-send');
-  // Non-HTMX fallback (no hx-post): disable Send while the full-page POST runs.
-  if (form && btn && !form.hasAttribute('hx-post')) {
-    form.addEventListener('submit', function () {
-      btn.disabled = true;
-      btn.textContent = 'Waiting for model…';
-    });
+  if (!form) return;
+
+  function ensureThread() {
+    var panel = form.querySelector('.chat-panel');
+    if (!panel) return null;
+    var empty = panel.querySelector('.chat-empty');
+    if (empty) empty.remove();
+    var thread = panel.querySelector('.chat-thread');
+    if (!thread) {
+      thread = document.createElement('div');
+      thread.className = 'chat-thread';
+      panel.appendChild(thread);
+    }
+    return thread;
   }
+
+  function appendBubble(role, text, streaming) {
+    var thread = ensureThread();
+    if (!thread) return null;
+    var bubble = document.createElement('div');
+    bubble.className = 'chat-bubble chat-' + role + (streaming ? ' chat-streaming' : '');
+    bubble.innerHTML =
+      '<span class="chat-role">' + role + '</span>' +
+      '<div class="chat-message-body"><pre class="chat-content"></pre></div>';
+    var pre = bubble.querySelector('.chat-content');
+    pre.textContent = text || '';
+    thread.appendChild(bubble);
+    var panel = form.querySelector('.chat-panel');
+    if (panel) panel.scrollTop = panel.scrollHeight;
+    return { bubble: bubble, pre: pre };
+  }
+
+  function setStreaming(active) {
+    var btn = document.getElementById('chat-send');
+    var ind = document.getElementById('chat-indicator');
+    if (btn) {
+      btn.disabled = !!active;
+      btn.textContent = active ? 'Streaming…' : 'Send';
+    }
+    if (ind) ind.classList.toggle('is-active', !!active);
+  }
+
+  async function readSSE(response, onEvent) {
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      var sep;
+      while ((sep = buffer.indexOf('\n\n')) >= 0) {
+        var block = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        var event = 'message';
+        var dataLines = [];
+        block.split('\n').forEach(function (line) {
+          if (line.indexOf('event:') === 0) event = line.slice(6).trim();
+          else if (line.indexOf('data:') === 0) dataLines.push(line.slice(5).trim());
+        });
+        if (!dataLines.length) continue;
+        var data = JSON.parse(dataLines.join('\n'));
+        onEvent(event, data);
+      }
+    }
+  }
+
+  form.addEventListener('submit', function (e) {
+    var streamUrl = form.getAttribute('data-stream-url');
+    if (!streamUrl || !window.fetch || !window.ReadableStream) return;
+
+    e.preventDefault();
+    var ta = document.getElementById('user_message');
+    var text = (ta && ta.value || '').trim();
+    if (!text) return;
+
+    var fd = new FormData(form);
+    appendBubble('user', text, false);
+    var live = appendBubble('assistant', '', true);
+    if (ta) ta.value = '';
+    setStreaming(true);
+
+    fetch(streamUrl, { method: 'POST', body: fd, headers: { Accept: 'text/event-stream' } })
+      .then(function (resp) {
+        if (!resp.ok) {
+          return resp.text().then(function (body) {
+            throw new Error(body || ('HTTP ' + resp.status));
+          });
+        }
+        return readSSE(resp, function (event, data) {
+          if (event === 'token' && live && live.pre) {
+            live.pre.textContent += data.text || '';
+            var panel = form.querySelector('.chat-panel');
+            if (panel) panel.scrollTop = panel.scrollHeight;
+          } else if (event === 'done') {
+            var panel = document.getElementById('chat-panel');
+            if (panel && data.html) {
+              panel.outerHTML = data.html;
+            }
+            if (data.continue_url && window.history && window.history.pushState) {
+              window.history.pushState({}, '', data.continue_url);
+            }
+          } else if (event === 'error') {
+            throw new Error(data.detail || 'stream error');
+          }
+        });
+      })
+      .catch(function (err) {
+        if (live && live.pre && !live.pre.textContent) {
+          live.pre.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+        } else if (live && live.bubble) {
+          live.bubble.classList.add('chat-stream-error');
+          var note = document.createElement('p');
+          note.className = 'notice chat-inline-notice';
+          note.textContent = 'Stream failed: ' + (err && err.message ? err.message : String(err));
+          live.bubble.parentNode.insertBefore(note, live.bubble.nextSibling);
+        }
+        console.error(err);
+      })
+      .finally(function () {
+        setStreaming(false);
+        if (live && live.bubble) live.bubble.classList.remove('chat-streaming');
+      });
+  });
 })();
 </script>
 {% endblock %}

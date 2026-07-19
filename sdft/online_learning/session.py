@@ -69,6 +69,25 @@ def save_session(session: OnlineLearningSession, *, root: Path | None = None) ->
     return path
 
 
+def adapter_ready(adapter_dir: Path | str) -> bool:
+    """True when a PEFT LoRA adapter has been saved under ``adapter_dir``."""
+    path = Path(adapter_dir)
+    return path.is_dir() and (path / "adapter_config.json").is_file()
+
+
+def list_sessions_with_adapter(
+    *, root: Path | None = None, limit: int = 10
+) -> list[OnlineLearningSession]:
+    """Online sessions with a saved adapter, newest first (cap ``limit``)."""
+    ready: list[OnlineLearningSession] = []
+    for session in list_sessions(root=root, limit=max(limit * 5, 50)):
+        if adapter_ready(session.adapter_dir):
+            ready.append(session)
+        if len(ready) >= limit:
+            break
+    return ready
+
+
 def list_sessions(*, root: Path | None = None, limit: int = 20) -> list[OnlineLearningSession]:
     from .paths import online_sessions_root
 

@@ -286,6 +286,26 @@ def test_run_online_turn_update_then_infer(tmp_path: Path, monkeypatch: pytest.M
     assert "trained_on" in records[1].metadata
 
 
+def test_list_sessions_with_adapter_filters_ready(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    monkeypatch.setattr("sdft.online_learning.paths.project_root", lambda start=None: tmp_path.resolve())
+
+    from sdft.online_learning.session import adapter_ready, list_sessions_with_adapter, save_session
+
+    session = create_session("configs/online_learning.yaml")
+    assert list_sessions_with_adapter(limit=10) == []
+
+    adapter = Path(session.adapter_dir)
+    adapter.mkdir(parents=True, exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    save_session(session)
+
+    ready = list_sessions_with_adapter(limit=10)
+    assert len(ready) == 1
+    assert ready[0].id == session.id
+    assert adapter_ready(adapter)
+
+
 def test_data_page_shows_online_learning_ui(client: TestClient):
     resp = client.get("/data?new=1")
     assert resp.status_code == 200

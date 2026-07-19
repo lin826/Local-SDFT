@@ -100,6 +100,8 @@ def get_prompt_strategy(strategy_id: str) -> AblationSettings:
 
 def config_ignores_user_instruction(config_path: str) -> bool:
     """True when /perf chat should omit a custom system message (AE-faithful configs)."""
+    if config_path.startswith("online:"):
+        return True
     return config_path in CONFIGS_IGNORE_USER_INSTRUCTION
 
 
@@ -179,18 +181,24 @@ def build_design_summary(
     config_path: str,
     model_path: str,
     prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
+    online_session_id: str | None = None,
+    adapter_dir: str | None = None,
 ) -> dict[str, str]:
     """Human-readable run context persisted in benchmark JSON metadata."""
-    is_sdft = config_path == SDFT_ALPACA_CONFIG or "sdft-merged" in model_path
-    variant = "LFM2.5-230M SDFT merge (AlpacaEval2 recipe)" if is_sdft else "base LFM2.5-230M"
+    if online_session_id:
+        variant = f"LFM2.5-230M online LoRA ({online_session_id})"
+    elif config_path == SDFT_ALPACA_CONFIG or "sdft-merged" in model_path:
+        variant = "LFM2.5-230M SDFT merge (AlpacaEval2 recipe)"
+    else:
+        variant = "base LFM2.5-230M"
     settings = get_prompt_strategy(prompt_strategy)
-    if config_path in CONFIGS_IGNORE_USER_INSTRUCTION:
+    if config_path in CONFIGS_IGNORE_USER_INSTRUCTION or online_session_id:
         system_instruction = prompt_strategy_field_hint(settings)
     elif fixed_system_instruction(config_path):
         system_instruction = f"fixed in config: {fixed_system_instruction(config_path)}"
     else:
         system_instruction = "user-provided in /perf chat"
-    return {
+    summary = {
         "purpose": (
             "AlpacaEval-style local plain chat: compare base vs SDFT-merged LFM2.5-230M "
             "and eval-time prompt ablations (ZS / FS / CoT) on open-ended instructions."
@@ -203,3 +211,8 @@ def build_design_summary(
         "eval_surface": "Local generation in /perf chat; no GPT-4 judge required.",
         "system_instruction": system_instruction,
     }
+    if online_session_id:
+        summary["online_session_id"] = online_session_id
+    if adapter_dir:
+        summary["adapter_dir"] = adapter_dir
+    return summary

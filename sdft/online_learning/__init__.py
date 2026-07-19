@@ -8,7 +8,14 @@ from .paths import (
     session_adapter_dir,
 )
 from .schema import OnlineLearningSession, OnlineTurn, TurnLatency
-from .session import create_session, list_sessions, load_session, save_session
+from .session import (
+    adapter_ready,
+    create_session,
+    list_sessions,
+    list_sessions_with_adapter,
+    load_session,
+    save_session,
+)
 from .stats import aggregate_tone_counts, aggregate_turn_latencies, build_design_summary
 from .tone import classify_tone, resolve_tone
 
@@ -21,8 +28,10 @@ __all__ = [
     "build_design_summary",
     "build_train_examples",
     "classify_tone",
+    "adapter_ready",
     "create_session",
     "list_sessions",
+    "list_sessions_with_adapter",
     "load_session",
     "online_session_dir",
     "online_session_path",

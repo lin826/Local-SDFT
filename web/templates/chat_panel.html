@@ -52,7 +52,7 @@
     <textarea id="user_message" name="user_message" rows="3" required placeholder="e.g. What is the sum of the first 10 positive integers?">{{ chat.composer_prefill }}</textarea>
     <div class="actions chat-actions">
       <button class="btn" type="submit" id="chat-send">Send</button>
-      <span id="chat-indicator" class="htmx-indicator chat-generating" aria-live="polite">Generating…</span>
+      <span id="chat-indicator" class="chat-generating" aria-live="polite">Generating…</span>
       {% if chat.last_run_id %}
       <a class="btn btn-secondary" href="/perf/{{ chat.last_run_id }}">View last run</a>
       {% endif %}

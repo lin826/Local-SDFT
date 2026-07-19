@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from sdft.online_learning import create_session
 from sdft.records.schema import PerformanceMetrics, PerformanceResult
 from web.app import CONFIG_OPTIONS, app
 from web.demo_conditions import (
@@ -91,15 +92,76 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         yield c
 
 
+def test_perf_online_adapter_option_and_chat(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Online session adapters appear in /perf Config and load via measure_chat."""
+    from sdft.online_learning.session import save_session
+    from web.perf_models import online_config_value
+
+    monkeypatch.setattr("sdft.online_learning.paths.project_root", lambda start=None: tmp_path.resolve())
+    session = create_session("configs/online_learning.yaml")
+    adapter = Path(session.adapter_dir)
+    adapter.mkdir(parents=True, exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    save_session(session)
+
+    online_value = online_config_value(session.id)
+    page = client.get("/perf")
+    assert page.status_code == 200
+    assert f"Online: {session.id}".encode() in page.content
+    assert online_value.encode() in page.content
+
+    captured: dict[str, object] = {}
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        captured["adapter_dir"] = kwargs.get("adapter_dir")
+        captured["model_name"] = kwargs.get("model_name")
+        captured["base_model"] = cfg.model.name
+        return _fake_chat_result(messages, run_id="bench-online-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": online_value,
+                "demo_condition": "plain",
+                "instruction": "ignored",
+                "user_message": "Try online adapter",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    assert captured["adapter_dir"] == adapter
+    assert captured["base_model"] == session.model
+    assert str(captured["model_name"]) == str(adapter)
+
+
+def test_perf_infer_link_from_session_detail(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from sdft.online_learning.session import save_session
+    from web.perf_models import online_config_value
+
+    monkeypatch.setattr("sdft.online_learning.paths.project_root", lambda start=None: tmp_path.resolve())
+    session = create_session("configs/online_learning.yaml")
+    adapter = Path(session.adapter_dir)
+    adapter.mkdir(parents=True, exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    save_session(session)
+
+    detail = client.get(f"/data/{session.id}")
+    assert detail.status_code == 200
+    assert b"Infer on Performance" in detail.content
+    assert online_config_value(session.id).encode() in detail.content
+
+
 def test_perf_page_shows_chat_ui(client: TestClient):
     resp = client.get("/perf")
     assert resp.status_code == 200
     body = resp.content
     assert b'action="/perf/chat"' in body
-    assert b'hx-post="/perf/chat"' in body
-    assert b'hx-target="#chat-panel"' in body
+    assert b'data-stream-url="/perf/chat/stream"' in body
     assert b'id="chat-panel"' in body
-    assert b"htmx.org" in body
     assert b"Plain chat inference" in body
     assert b'name="demo_condition"' in body
     assert b'value="plain"' in body
@@ -113,6 +175,7 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert b"Start generate" in body
     assert b"without a full page reload" not in body  # removed OpenClaw-specific howto line
     assert b"AlpacaEval-faithful ZS" in body
+    assert b"streams tokens" in body or b"Streaming" in body
     idx = body.index(b'id="instruction"')
     tag_end = body.index(b">", idx) + 1
     close = body.index(b"</textarea>", tag_end)
@@ -121,6 +184,179 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     tag = body[idx:tag_end]
     assert b"readonly" in tag
     assert b'name="instruction"' not in tag
+
+
+def test_format_sse_framing():
+    from web.app import format_sse
+
+    raw = format_sse("token", {"text": "hi"})
+    assert raw.startswith("event: token\n")
+    assert 'data: {"text": "hi"}' in raw
+    assert raw.endswith("\n\n")
+
+
+def _parse_sse_events(body: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    for block in body.split("\n\n"):
+        block = block.strip()
+        if not block:
+            continue
+        event = "message"
+        data_lines: list[str] = []
+        for line in block.split("\n"):
+            if line.startswith("event:"):
+                event = line[6:].strip()
+            elif line.startswith("data:"):
+                data_lines.append(line[5:].strip())
+        if data_lines:
+            events.append((event, json.loads("\n".join(data_lines))))
+    return events
+
+
+def test_chat_stream_sse_tokens_and_done(client: TestClient):
+    """POST /perf/chat/stream yields token events then done with panel HTML (mocked)."""
+
+    def fake_iter_measure_chat(cfg, messages, **kwargs):
+        phases = kwargs.get("latency_phases")
+        if phases is not None:
+            for name in ("tokenizer_load", "model_load", "prompt_build", "generate", "decode"):
+                with phases.span(name):
+                    pass
+        yield ("token", "Hel")
+        yield ("token", "lo!")
+        result = _fake_chat_result(messages, run_id="bench-stream-1")
+        result.metadata["messages"][-1]["content"] = "Hello!"
+        if phases is not None:
+            result.metadata["latency_phases"] = phases.to_list()
+        yield ("result", result)
+
+    with patch("web.app.iter_measure_chat", side_effect=fake_iter_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ), patch(
+        "web.app.save_performance_result", lambda path, r: None
+    ), patch(
+        "web.app.load_config",
+        return_value=type(
+            "Cfg",
+            (),
+            {"model": type("M", (), {"name": "mock"})()},
+        )(),
+    ):
+        resp = client.post(
+            "/perf/chat/stream",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "",
+                "user_message": "Hi stream",
+                "messages_json": "[]",
+            },
+        )
+
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers.get("content-type", "")
+    events = _parse_sse_events(resp.text)
+    kinds = [k for k, _ in events]
+    assert kinds[:2] == ["token", "token"]
+    assert events[0][1]["text"] == "Hel"
+    assert events[1][1]["text"] == "lo!"
+    assert kinds[-1] == "done"
+    done = events[-1][1]
+    assert done["run_id"] == "bench-stream-1"
+    assert 'id="chat-panel"' in done["html"]
+    assert "Hello!" in done["html"]
+    assert 'class="latency-gantt"' in done["html"]
+    assert "continue=bench-stream-1" in done["continue_url"]
+
+
+def test_chat_stream_error_event(client: TestClient):
+    def boom(*args, **kwargs):
+        raise RuntimeError("mock generate failed")
+        yield  # make this a generator  # noqa: unreachable
+
+    with patch("web.app.iter_measure_chat", side_effect=boom), patch(
+        "web.app.load_config",
+        return_value=type(
+            "Cfg",
+            (),
+            {"model": type("M", (), {"name": "mock"})()},
+        )(),
+    ):
+        resp = client.post(
+            "/perf/chat/stream",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "",
+                "user_message": "fail please",
+                "messages_json": "[]",
+            },
+        )
+
+    assert resp.status_code == 200
+    events = _parse_sse_events(resp.text)
+    assert any(k == "error" for k, _ in events)
+    err = next(d for k, d in events if k == "error")
+    assert "mock generate failed" in err["detail"]
+
+
+def test_iter_measure_chat_yields_tokens_with_mock_streamer(monkeypatch):
+    """Unit-test streamer helper without a real model/GPU."""
+    from sdft.records import benchmark as bench
+    from sdft.config import Config, GenerateConfig, ModelConfig, DataConfig
+
+    class FakeStreamer:
+        def __iter__(self):
+            yield "tok"
+            yield "en"
+
+    class FakeTok:
+        padding_side = "right"
+        pad_token_id = 0
+
+        def apply_chat_template(self, *a, **k):
+            return "<prompt>"
+
+        def __call__(self, text, return_tensors=None, add_special_tokens=False):
+            import torch
+
+            class Enc(dict):
+                def to(self, device):
+                    return self
+
+            return Enc(input_ids=torch.tensor([[1, 2, 3]]))
+
+        def encode(self, text, add_special_tokens=False):
+            return list(range(max(1, len(text))))
+
+    class FakeModel:
+        def eval(self):
+            return self
+
+        def generate(self, **kwargs):
+            return None
+
+    monkeypatch.setattr(bench, "load_tokenizer", lambda model: FakeTok())
+    monkeypatch.setattr(bench, "load_model", lambda model, device: FakeModel())
+    monkeypatch.setattr(bench, "pick_device", lambda: "cpu")
+    monkeypatch.setattr(bench, "TextIteratorStreamer", lambda *a, **k: FakeStreamer())
+
+    cfg = Config(
+        model=ModelConfig(name="mock"),
+        data=DataConfig(dataset="dummy"),
+        generation=GenerateConfig(max_new_tokens=8),
+    )
+    events = list(
+        bench.iter_measure_chat(
+            cfg,
+            [{"role": "user", "content": "hi"}],
+        )
+    )
+    assert events[0] == ("token", "tok")
+    assert events[1] == ("token", "en")
+    assert events[2][0] == "result"
+    assert events[2][1].metadata["messages"][-1]["content"] == "token"
+    assert events[2][1].metrics.output_tokens_total == 5  # len("token")
 
 
 def test_config_options_ignore_user_instruction():
@@ -163,6 +399,17 @@ def test_build_design_summary_variants():
     assert "SDFT merge" in sdft["variant"]
     assert sdft["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
     assert "AlpacaEval-faithful ZS" in sdft["system_instruction"]
+
+    online = build_design_summary(
+        demo_condition="plain",
+        config_path="online:ol-test123",
+        model_path="outputs/online-learning/ol-test123/adapter",
+        online_session_id="ol-test123",
+        adapter_dir="outputs/online-learning/ol-test123/adapter",
+    )
+    assert "online LoRA" in online["variant"]
+    assert online["online_session_id"] == "ol-test123"
+    assert online["adapter_dir"].endswith("/adapter")
 
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):

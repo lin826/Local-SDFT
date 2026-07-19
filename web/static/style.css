@@ -909,6 +909,11 @@ details.advanced-details[open] summary {
   color: var(--muted);
   font-size: 0.9rem;
   align-self: center;
+  display: none;
+}
+
+.chat-generating.is-active {
+  display: inline;
 }
 
 .htmx-indicator {
@@ -923,6 +928,18 @@ button.htmx-request,
 button:disabled#chat-send {
   opacity: 0.65;
   cursor: wait;
+}
+
+.chat-bubble.chat-streaming .chat-content::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--muted);
+  animation: chat-caret 1s steps(1) infinite;
+}
+
+@keyframes chat-caret {
+  50% { opacity: 0; }
 }
 
 .chat-empty {

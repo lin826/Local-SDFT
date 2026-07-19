@@ -7,9 +7,11 @@ import statistics
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Thread
 from typing import Any, Iterator
 
 import torch
+from transformers import TextIteratorStreamer
 
 from ..config import Config, load_config
 from ..data import build_teacher_messages, load_examples, sample_fewshots
@@ -24,6 +26,21 @@ from .paths import (
 )
 from .schema import PerformanceMetrics, PerformanceResult
 from .store import append_performance_index, save_performance_result
+
+
+def _adapter_ready(adapter_dir: Path | str) -> bool:
+    path = Path(adapter_dir)
+    return path.is_dir() and (path / "adapter_config.json").is_file()
+
+
+def _load_chat_model(cfg: Config, device: str, *, adapter_dir: Path | str | None = None):
+    """Load base causal LM, optionally wrapped with a PEFT LoRA adapter."""
+    base = load_model(cfg.model, device)
+    if adapter_dir is not None and _adapter_ready(adapter_dir):
+        from peft import PeftModel
+
+        return PeftModel.from_pretrained(base, str(adapter_dir))
+    return base
 
 
 def _percentile(values: list[float], pct: float) -> float:
@@ -432,6 +449,52 @@ def measure_toolcall_chat(
     )
 
 
+def _chat_performance_result(
+    *,
+    cfg: Config,
+    cleaned: list[dict[str, str]],
+    assistant_text: str,
+    input_tokens: int,
+    output_tokens: int,
+    generate_ms: float,
+    max_new_tokens: int,
+    device: str,
+    phases: LatencyPhases,
+    model_name: str | None = None,
+) -> PerformanceResult:
+    full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
+    total_tokens = input_tokens + output_tokens
+    total_s = generate_ms / 1000 if generate_ms > 0 else 0.0
+    tps = total_tokens / total_s if total_s > 0 else 0.0
+    resolved_model = model_name or cfg.model.name
+    return PerformanceResult(
+        id=new_run_id("bench"),
+        run_at=utc_now_iso(),
+        benchmark="inference",
+        model=resolved_model,
+        metrics=PerformanceMetrics(
+            latency_ms_mean=generate_ms,
+            latency_ms_p50=generate_ms,
+            latency_ms_p95=generate_ms,
+            tokens_per_second=tps,
+            samples=1,
+            batch_size=1,
+            input_tokens_total=input_tokens,
+            output_tokens_total=output_tokens,
+            device=device,
+            warmup_samples=0,
+        ),
+        metadata={
+            "messages": full_messages,
+            "examples": _chat_examples_summary(cleaned, assistant_text),
+            "max_new_tokens": max_new_tokens,
+            "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
+            "chat": True,
+            "latency_phases": phases.to_list(),
+        },
+    )
+
+
 @torch.inference_mode()
 def measure_chat(
     cfg: Config,
@@ -440,6 +503,8 @@ def measure_chat(
     max_new_tokens: int | None = None,
     device: str | None = None,
     latency_phases: LatencyPhases | None = None,
+    adapter_dir: Path | str | None = None,
+    model_name: str | None = None,
 ) -> PerformanceResult:
     """Run one synchronous multi-turn chat completion.
 
@@ -461,7 +526,7 @@ def measure_chat(
         tokenizer = load_tokenizer(cfg.model)
         tokenizer.padding_side = "left"
     with phases.span("model_load"):
-        model = load_model(cfg.model, device)
+        model = _load_chat_model(cfg, device, adapter_dir=adapter_dir)
         model.eval()
 
     with phases.span("prompt_build"):
@@ -488,37 +553,111 @@ def measure_chat(
         output_tokens = int(new_tokens.numel())
         assistant_text = tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
 
-    full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
-    total_tokens = input_tokens + output_tokens
-    total_s = generate_ms / 1000 if generate_ms > 0 else 0.0
-    tps = total_tokens / total_s if total_s > 0 else 0.0
-
-    return PerformanceResult(
-        id=new_run_id("bench"),
-        run_at=utc_now_iso(),
-        benchmark="inference",
-        model=cfg.model.name,
-        metrics=PerformanceMetrics(
-            latency_ms_mean=generate_ms,
-            latency_ms_p50=generate_ms,
-            latency_ms_p95=generate_ms,
-            tokens_per_second=tps,
-            samples=1,
-            batch_size=1,
-            input_tokens_total=input_tokens,
-            output_tokens_total=output_tokens,
-            device=device,
-            warmup_samples=0,
-        ),
-        metadata={
-            "messages": full_messages,
-            "examples": _chat_examples_summary(cleaned, assistant_text),
-            "max_new_tokens": max_new_tokens,
-            "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
-            "chat": True,
-            "latency_phases": phases.to_list(),
-        },
+    return _chat_performance_result(
+        cfg=cfg,
+        cleaned=cleaned,
+        assistant_text=assistant_text,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        generate_ms=generate_ms,
+        max_new_tokens=max_new_tokens,
+        device=device,
+        phases=phases,
+        model_name=model_name,
     )
+
+
+def iter_measure_chat(
+    cfg: Config,
+    messages: list[dict[str, str]],
+    *,
+    max_new_tokens: int | None = None,
+    device: str | None = None,
+    latency_phases: LatencyPhases | None = None,
+    adapter_dir: Path | str | None = None,
+    model_name: str | None = None,
+) -> Iterator[tuple[str, Any]]:
+    """Stream one multi-turn chat completion as ``(\"token\", text)`` then ``(\"result\", PerformanceResult)``.
+
+    Uses HuggingFace ``TextIteratorStreamer`` so callers can push decoded text
+    deltas to an SSE / WebSocket client while ``model.generate`` runs. Phase
+    timing matches ``measure_chat`` (``generate`` wraps the full streamer loop).
+    Persist is left to the caller, same as ``measure_chat``.
+    """
+    cleaned = _validate_chat_messages(messages)
+    if max_new_tokens is None:
+        max_new_tokens = cfg.generation.max_new_tokens
+    phases = latency_phases or LatencyPhases()
+
+    device = device or pick_device()
+    with phases.span("tokenizer_load"):
+        tokenizer = load_tokenizer(cfg.model)
+        tokenizer.padding_side = "left"
+    with phases.span("model_load"):
+        model = _load_chat_model(cfg, device, adapter_dir=adapter_dir)
+        model.eval()
+
+    with phases.span("prompt_build"):
+        prompt_text = tokenizer.apply_chat_template(
+            cleaned,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
+        enc = enc.to(device)
+        input_tokens = int(enc["input_ids"].numel())
+
+    streamer = TextIteratorStreamer(
+        tokenizer,
+        skip_prompt=True,
+        skip_special_tokens=True,
+    )
+    gen_kwargs = {
+        **enc,
+        "max_new_tokens": max_new_tokens,
+        "do_sample": False,
+        "pad_token_id": tokenizer.pad_token_id,
+        "streamer": streamer,
+    }
+    errors: list[BaseException] = []
+
+    def _generate() -> None:
+        try:
+            with torch.inference_mode():
+                model.generate(**gen_kwargs)
+        except BaseException as exc:  # noqa: BLE001 — re-raised after streamer drains
+            errors.append(exc)
+
+    thread = Thread(target=_generate, daemon=True)
+    pieces: list[str] = []
+    with phases.span("generate"):
+        thread.start()
+        for piece in streamer:
+            if piece:
+                pieces.append(piece)
+                yield ("token", piece)
+        thread.join()
+    if errors:
+        raise RuntimeError(f"streaming generate failed: {errors[0]}") from errors[0]
+    generate_ms = float(phases.phases[-1]["duration_ms"])
+
+    with phases.span("decode"):
+        assistant_text = "".join(pieces).strip()
+        output_tokens = len(tokenizer.encode(assistant_text, add_special_tokens=False))
+
+    result = _chat_performance_result(
+        cfg=cfg,
+        cleaned=cleaned,
+        assistant_text=assistant_text,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        generate_ms=generate_ms,
+        max_new_tokens=max_new_tokens,
+        device=device,
+        phases=phases,
+        model_name=model_name,
+    )
+    yield ("result", result)
 
 
 def geek_jokes_generations_path(run_id: str, root: Path | None = None) -> Path:

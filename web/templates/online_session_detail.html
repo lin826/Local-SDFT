@@ -96,6 +96,9 @@
 
 <div class="actions">
   <a class="btn" href="/data?session={{ session.id }}">Continue learning</a>
+  {% if perf_infer_url %}
+  <a class="btn btn-secondary" href="{{ perf_infer_url }}">Infer on Performance</a>
+  {% endif %}
   <a class="btn btn-secondary" href="/data">Online learning home</a>
 </div>
 {% endblock %}
