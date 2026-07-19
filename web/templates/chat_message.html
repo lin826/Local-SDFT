@@ -1,0 +1,35 @@
+{# Render one chat transcript message with parsed assistant/tool segments. #}
+{% macro chat_message_body(message, msg_id=none, show_copy=false) %}
+{% set segments = message.content | parse_transcript(message.role) %}
+<div class="chat-message-body"{% if msg_id %} id="{{ msg_id }}"{% endif %} data-raw="{{ message.content }}">
+  {% if segments %}
+  {% for seg in segments %}
+  {% if seg.kind == 'reasoning' %}
+  <div class="chat-segment chat-segment-reasoning">
+    <span class="chat-segment-label">Reasoning</span>
+    <pre class="chat-segment-text">{{ seg.content }}</pre>
+  </div>
+  {% elif seg.kind == 'tool_call' %}
+  <details class="chat-segment chat-segment-tool">
+    <summary>{{ seg.label or 'Tool call' }}</summary>
+    <pre class="chat-segment-text">{{ seg.content }}</pre>
+  </details>
+  {% elif seg.kind == 'tool_result' %}
+  <details class="chat-segment chat-segment-tool">
+    <summary>{{ seg.label or 'Interpreter' }}</summary>
+    <pre class="chat-segment-text">{{ seg.content }}</pre>
+  </details>
+  {% elif seg.kind == 'answer' %}
+  <div class="chat-segment chat-segment-answer">
+    <span class="chat-segment-label">Answer</span>
+    <div class="chat-segment-text chat-segment-answer-body">{{ seg.content | highlight_boxed(seg.boxed) }}</div>
+  </div>
+  {% else %}
+  <pre class="chat-content chat-segment-text">{{ seg.content }}</pre>
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  <pre class="chat-content">—</pre>
+  {% endif %}
+</div>
+{% endmacro %}

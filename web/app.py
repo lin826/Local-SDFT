@@ -43,9 +43,15 @@ from web.demo_conditions import (
     merged_checkpoint_path,
     resolve_model_name,
 )
+from web.transcript_parse import highlight_boxed, parse_message_content
 
 WEB_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
+
+templates.env.filters["parse_transcript"] = lambda content, role="assistant": [
+    s.to_dict() for s in parse_message_content(role, content or "")
+]
+templates.env.filters["highlight_boxed"] = highlight_boxed
 
 app = FastAPI(title="Local-SDFT", description="Data collection and performance testing")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")

@@ -1,4 +1,5 @@
 {# Swappable chat fragment for HTMX (outerHTML of #chat-panel). #}
+{% from "chat_message.html" import chat_message_body %}
 {% set max_new_tokens = chat.max_new_tokens %}
 {% set out_tok = chat.output_tokens_total %}
 {% set is_truncated = max_new_tokens and max_new_tokens > 0 and out_tok is not none and out_tok >= max_new_tokens %}
@@ -29,7 +30,7 @@
       {% for m in chat.messages %}
       <div class="chat-bubble chat-{{ m.role }}">
         <span class="chat-role">{{ m.role }}</span>
-        <pre class="chat-content">{{ m.content }}</pre>
+        {{ chat_message_body(m) }}
       </div>
       {% endfor %}
     </div>

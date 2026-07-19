@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "chat_message.html" import chat_message_body %}
 {% block title %}Performance · Local-SDFT{% endblock %}
 {% set active = 'perf' %}
 {% block head %}
@@ -164,7 +165,7 @@
         {% for m in messages[-4:] %}
         <div class="chat-bubble chat-{{ m.role }}">
           <span class="chat-role">{{ m.role }}</span>
-          <pre class="chat-content">{{ m.content }}</pre>
+          {{ chat_message_body(m) }}
         </div>
         {% endfor %}
       </div>

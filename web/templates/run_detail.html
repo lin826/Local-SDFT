@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "chat_message.html" import chat_message_body %}
 {% block title %}{{ result.id }} · Local-SDFT{% endblock %}
 {% set active = 'perf' %}
 {% block content %}
@@ -51,7 +52,8 @@
         <span class="chat-role">{{ m.role }}</span>
         <button type="button" class="copy-btn" data-copy-target="msg-{{ loop.index0 }}">Copy</button>
       </div>
-      <pre class="chat-content" id="msg-{{ loop.index0 }}">{{ m.content }}</pre>
+      <pre class="chat-content" id="msg-{{ loop.index0 }}" hidden>{{ m.content }}</pre>
+      {{ chat_message_body(m, msg_id='msg-view-' ~ loop.index0) }}
     </div>
     {% endfor %}
   </div>
