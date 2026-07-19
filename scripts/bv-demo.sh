@@ -19,6 +19,10 @@ ROUNDS="${2:-6}"
 unset HF_TOKEN || true            # the login node's token is expired; anon pulls work
 export PYTHONNOUSERSITE=1         # avoid a stale ~/.local torchvision shadowing base torch
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+# Compute nodes have HOME=/u (small quota) and no internet. Point the HF cache at
+# the shared /proj cache that the login node pre-populated, and stay offline.
+export HF_HOME="${HF_HOME:-/proj/inf-scaling/zwhong/.cache/huggingface}"
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 
 PY="${PYTHON:-.venv/bin/python}"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
