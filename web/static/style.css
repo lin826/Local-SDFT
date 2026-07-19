@@ -274,6 +274,43 @@ th {
   margin-bottom: 1rem;
 }
 
+.howto {
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin: 0 0 1.5rem;
+}
+
+.howto-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  color: #1e3a8a;
+}
+
+.howto-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #1e3a8a;
+  font-size: 0.925rem;
+}
+
+.howto-list li {
+  margin-bottom: 0.35rem;
+}
+
+.howto-list li:last-child {
+  margin-bottom: 0;
+}
+
+.howto-tip {
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #c7d2fe;
+  color: #3730a3;
+  font-size: 0.875rem;
+}
+
 .checkbox-row {
   display: flex;
   gap: 1.5rem;
@@ -297,6 +334,77 @@ th {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.io-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.85rem;
+  background: #fafbfd;
+}
+
+.io-card:last-child {
+  margin-bottom: 0;
+}
+
+.io-field {
+  margin-bottom: 0.85rem;
+}
+
+.io-field:last-child {
+  margin-bottom: 0;
+}
+
+.io-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.io-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+}
+
+.io-output {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.io-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.io-missing {
+  color: var(--muted);
+  font-style: italic;
+  background: #f3f4f6;
+}
+
+.io-card-missing {
+  border-style: dashed;
+}
+
+.io-preview {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
 }
 
 code {

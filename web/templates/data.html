@@ -5,6 +5,16 @@
 <h1 class="page-title">Collect data</h1>
 <p class="lead">Add Alpaca-style examples. POSTs call <code>collect_record(..., source="web")</code> and append to <code>data/collected/records.jsonl</code>.</p>
 
+{% with page_id='data', tip='After export, set data_files in a YAML config to the exported file, then run uv run python -m sdft.generate.' %}
+{% set steps = [
+  'Fill Instruction and Output (required). Optionally add Input context and comma-separated Tags.',
+  'Click Save example — the row is appended to data/collected/records.jsonl with source=web.',
+  'Review the table at the bottom to confirm what you have collected so far.',
+  'When ready for training, enter an Export name and click Export to write a clean JSONL under data/collected/.',
+] %}
+{% include "howto.html" %}
+{% endwith %}
+
 {% if request.query_params.get('exported') %}
 <p class="notice">Exported {{ request.query_params.get('exported') }} rows to <code>data/collected/{{ request.query_params.get('path') }}</code>.</p>
 {% endif %}

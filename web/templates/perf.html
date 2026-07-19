@@ -5,8 +5,19 @@
 <h1 class="page-title">Performance tests</h1>
 <p class="lead">Starts <code>sdft.records.run_benchmark</code> in the background (loads the model). Results land in <code>outputs/benchmarks/</code>.</p>
 
+{% with page_id='perf', tip='Runs load the model and can take several minutes. Keep this page open and refresh after the notice appears.' %}
+{% set steps = [
+  'Choose Benchmark: inference (Alpaca-style instruction/input) or generate (SDFT teacher pass over dataset examples).',
+  'Pick a Config YAML that points at the model and data you want to measure.',
+  'For inference, fill Instruction and optional Input. For generate, set Examples instead.',
+  'Click Start benchmark — the job runs in the background; a green notice confirms it started.',
+  'Refresh this page after the run finishes, then open a result ID to see Instruction, Input, and model Output.',
+] %}
+{% include "howto.html" %}
+{% endwith %}
+
 {% if request.query_params.get('started') %}
-<p class="notice">Benchmark started in the background. Refresh this page shortly to see results.</p>
+<p class="notice">Benchmark started in the background. Refresh this page shortly, then open the newest run ID — <strong>Instruction / Input / Output</strong> are on the detail page (and previewed under Loaded results).</p>
 {% endif %}
 
 <section class="section">
@@ -29,12 +40,16 @@
         </select>
       </div>
       <div class="field">
-        <label for="num_examples">Examples (generate)</label>
+        <label for="num_examples">Examples (generate only)</label>
         <input id="num_examples" name="num_examples" type="number" value="4" min="1" max="64">
       </div>
       <div class="field">
-        <label for="prompt">Prompt (inference)</label>
-        <input id="prompt" name="prompt" type="text" value="Explain self-distillation fine-tuning in one sentence.">
+        <label for="instruction">Instruction (inference)</label>
+        <input id="instruction" name="instruction" type="text" value="Tell a geek joke about PhD life">
+      </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label for="input_text">Input (inference, optional)</label>
+        <textarea id="input_text" name="input_text" placeholder="Extra context or constraints for the model…"></textarea>
       </div>
     </div>
     <div class="actions">
@@ -72,6 +87,7 @@
   <h2>Loaded results</h2>
   {% if results %}
   {% for r in results %}
+  {% set examples = r.metadata.get('examples') if r.metadata else none %}
   <article class="result-card">
     <div class="result-head">
       <div>
@@ -87,6 +103,30 @@
       <div class="metric"><strong>{{ "%.1f"|format(r.metrics.latency_ms_p95) }}</strong><span>latency_ms_p95</span></div>
       <div class="metric"><strong>{{ r.metrics.samples }}</strong><span>samples</span></div>
     </div>
+    {% if examples %}
+    {% set ex = examples[0] %}
+    <div class="io-preview">
+      <div class="io-field">
+        <span class="io-label">Instruction</span>
+        <pre class="io-text">{{ ex.instruction or '—' }}</pre>
+      </div>
+      {% if ex.input %}
+      <div class="io-field">
+        <span class="io-label">Input</span>
+        <pre class="io-text">{{ ex.input }}</pre>
+      </div>
+      {% endif %}
+      <div class="io-field">
+        <span class="io-label">Output</span>
+        <pre class="io-text io-output">{{ ex.output or '—' }}</pre>
+      </div>
+      {% if examples|length > 1 %}
+      <p class="meta"><a href="/perf/{{ r.id }}">View all {{ examples|length }} examples →</a></p>
+      {% endif %}
+    </div>
+    {% elif r.benchmark == 'inference' %}
+    <p class="empty">No model output captured for this run. Restart the web UI and run inference again.</p>
+    {% endif %}
   </article>
   {% endfor %}
   {% else %}

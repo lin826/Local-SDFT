@@ -1,0 +1,11 @@
+<aside class="howto" aria-labelledby="howto-title-{{ page_id }}">
+  <h2 id="howto-title-{{ page_id }}" class="howto-title">How to use this page</h2>
+  <ol class="howto-list">
+    {% for step in steps %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% if tip %}
+  <p class="howto-tip">{{ tip }}</p>
+  {% endif %}
+</aside>

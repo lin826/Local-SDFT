@@ -18,6 +18,10 @@ dependencies = [
     "python-multipart>=0.0.9",
 ]
 
+[project.optional-dependencies]
+toolcall = ["jinja2>=3.0"]
+dev = ["pytest>=7.0"]
+
 [tool.uv]
 # Dependency-only project: run modules with `uv run python -m sdft.<module>`
 package = false

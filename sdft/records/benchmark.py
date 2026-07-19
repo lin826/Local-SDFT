@@ -140,14 +140,30 @@ def measure_inference(
     cfg: Config,
     prompts: list[str],
     *,
-    max_new_tokens: int = 64,
+    records: list[dict[str, str]] | None = None,
+    max_new_tokens: int | None = None,
     batch_size: int = 4,
-    warmup_batches: int = 1,
+    warmup_batches: int | None = None,
     device: str | None = None,
 ) -> PerformanceResult:
-    """Benchmark plain single-turn generation on explicit prompts."""
+    """Benchmark plain single-turn generation on explicit prompts.
+
+    When ``records`` is provided (Alpaca-style ``instruction`` / ``input`` rows,
+    parallel to ``prompts``), decoded model text is stored alongside them in
+    ``metadata["examples"]`` for UI display.
+
+    ``max_new_tokens`` defaults to ``cfg.generation.max_new_tokens``. Warmup
+    defaults to 0 when the whole run fits in one batch (typical web UI
+    single-prompt inference); otherwise 1 batch.
+    """
     if not prompts:
         raise ValueError("prompts must not be empty")
+    if records is not None and len(records) != len(prompts):
+        raise ValueError("records must be the same length as prompts")
+    if max_new_tokens is None:
+        max_new_tokens = cfg.generation.max_new_tokens
+    if warmup_batches is None:
+        warmup_batches = 0 if len(prompts) <= batch_size else 1
 
     device = device or pick_device()
     tokenizer = load_tokenizer(cfg.model)
@@ -159,6 +175,7 @@ def measure_inference(
     input_tokens = 0
     output_tokens = 0
     samples = 0
+    examples_out: list[dict[str, str]] = []
 
     for batch_idx, start in enumerate(range(0, len(prompts), batch_size)):
         batch_prompts = prompts[start : start + batch_size]
@@ -183,6 +200,27 @@ def measure_inference(
         new_tokens = out[:, enc["input_ids"].shape[1] :]
         batch_output_tokens = int(new_tokens.numel())
         per_sample_ms = elapsed_ms / len(batch_prompts)
+        decoded = tokenizer.batch_decode(new_tokens, skip_special_tokens=True)
+
+        for i, text in enumerate(decoded):
+            abs_i = start + i
+            if records is not None:
+                rec = records[abs_i]
+                examples_out.append(
+                    {
+                        "instruction": str(rec.get("instruction", "")),
+                        "input": str(rec.get("input", "")),
+                        "output": text.strip(),
+                    }
+                )
+            else:
+                examples_out.append(
+                    {
+                        "instruction": batch_prompts[i],
+                        "input": "",
+                        "output": text.strip(),
+                    }
+                )
 
         if batch_idx >= warmup_batches:
             latencies_ms.extend([per_sample_ms] * len(batch_prompts))
@@ -211,7 +249,11 @@ def measure_inference(
             device=device,
             warmup_samples=warmup_batches * batch_size,
         ),
-        metadata={"prompt_count": len(prompts), "max_new_tokens": max_new_tokens},
+        metadata={
+            "prompt_count": len(prompts),
+            "max_new_tokens": max_new_tokens,
+            "examples": examples_out,
+        },
     )
 
 
@@ -346,6 +388,8 @@ def run_benchmark(
     config_path: str | Path = "configs/default.yaml",
     num_examples: int = 8,
     prompts: list[str] | None = None,
+    records: list[dict[str, str]] | None = None,
+    warmup_batches: int | None = None,
     persist: bool = True,
     root: Path | None = None,
 ) -> PerformanceResult:
@@ -355,7 +399,12 @@ def run_benchmark(
         result = measure_generation(cfg, num_examples=num_examples)
     elif benchmark == "inference":
         sample_prompts = prompts or ["Explain self-distillation fine-tuning in one sentence."]
-        result = measure_inference(cfg, sample_prompts)
+        infer_kwargs: dict[str, Any] = {}
+        if records is not None:
+            infer_kwargs["records"] = records
+        if warmup_batches is not None:
+            infer_kwargs["warmup_batches"] = warmup_batches
+        result = measure_inference(cfg, sample_prompts, **infer_kwargs)
     elif benchmark == "geek_jokes":
         result = measure_geek_jokes(cfg, num_examples=num_examples)
     else:

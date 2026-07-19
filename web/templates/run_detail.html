@@ -5,6 +5,18 @@
 <h1 class="page-title">Benchmark {{ result.benchmark }}</h1>
 <p class="lead"><code>{{ result.id }}</code> · {{ result.run_at }}</p>
 
+{% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the Alpaca text fields below — those counters are token counts, not Instruction/Input/Output.' %}
+{% set steps = [
+  'Summary (top): which model/config produced this run.',
+  'Instruction · Input · Output (middle): the prompt you typed and the model reply — this is where the text lives.',
+  'Metrics / Metadata (bottom): timing and throughput only.',
+  'Click Back to benchmarks to start a new inference run if Output is empty.',
+] %}
+{% include "howto.html" %}
+{% endwith %}
+
+{% set examples = result.metadata.get('examples') if result.metadata else none %}
+
 <section class="section">
   <h2>Summary</h2>
   <div class="metrics">
@@ -17,8 +29,50 @@
   </div>
 </section>
 
+{% if result.benchmark == 'inference' or examples %}
+<section class="section" id="io">
+  <h2>Instruction · Input · Output</h2>
+  <p class="lead" style="margin-bottom:1rem;">Alpaca-style text for this run. <em>Instruction</em> and <em>Input</em> are what you submitted on Performance; <em>Output</em> is the model’s generated reply.</p>
+  {% if examples %}
+  {% for ex in examples %}
+  <article class="io-card">
+    <div class="io-field">
+      <span class="io-label">Instruction</span>
+      <pre class="io-text">{{ ex.instruction or '—' }}</pre>
+    </div>
+    <div class="io-field">
+      <span class="io-label">Input</span>
+      <pre class="io-text">{{ ex.input or '—' }}</pre>
+    </div>
+    <div class="io-field">
+      <span class="io-label">Output <span class="io-hint">(model reply)</span></span>
+      <pre class="io-text io-output">{{ ex.output or '—' }}</pre>
+    </div>
+  </article>
+  {% endfor %}
+  {% else %}
+  <article class="io-card io-card-missing">
+    <div class="io-field">
+      <span class="io-label">Instruction</span>
+      <pre class="io-text io-missing">Not saved for this run</pre>
+    </div>
+    <div class="io-field">
+      <span class="io-label">Input</span>
+      <pre class="io-text io-missing">Not saved for this run</pre>
+    </div>
+    <div class="io-field">
+      <span class="io-label">Output <span class="io-hint">(model reply)</span></span>
+      <pre class="io-text io-output io-missing">Not saved for this run</pre>
+    </div>
+    <p class="empty" style="margin-top:0.75rem;">This ID was produced before outputs were persisted. Restart <code>uv run python -m web.app</code>, open <a href="/perf">Performance</a>, run inference again, then open the <strong>new</strong> run ID.</p>
+  </article>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="section">
   <h2>Metrics</h2>
+  <p class="meta" style="margin-bottom:0.75rem;">Timing and throughput only — not the prompt/reply text.</p>
   <div class="metrics">
     {% for key, value in result.metrics.to_dict().items() %}
     <div class="metric"><strong>{{ value }}</strong><span>{{ key }}</span></div>
@@ -31,7 +85,9 @@
   <h2>Metadata</h2>
   <div class="metrics">
     {% for key, value in result.metadata.items() %}
+    {% if key != 'examples' %}
     <div class="metric"><strong>{{ value }}</strong><span>{{ key }}</span></div>
+    {% endif %}
     {% endfor %}
   </div>
 </section>

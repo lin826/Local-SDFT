@@ -113,17 +113,26 @@ async def perf_page(request: Request) -> HTMLResponse:
     )
 
 
+def _join_inference_prompt(instruction: str, input_text: str) -> str:
+    parts = [p for p in (instruction.strip(), input_text.strip()) if p]
+    return "\n\n".join(parts)
+
+
 def _run_benchmark_task(
     benchmark: str,
     config_path: str,
     num_examples: int,
     prompts: list[str] | None,
+    records: list[dict[str, str]] | None,
 ) -> None:
     kwargs: dict = {"config_path": config_path, "persist": True}
     if benchmark == "generate":
         kwargs["num_examples"] = num_examples
     elif prompts:
         kwargs["prompts"] = prompts
+        kwargs["records"] = records
+        # Interactive web runs use a single prompt; skip warmup so I/O is counted.
+        kwargs["warmup_batches"] = 0
     run_benchmark(benchmark, **kwargs)
 
 
@@ -133,17 +142,31 @@ async def run_perf(
     benchmark: str = Form("inference"),
     config_path: str = Form("configs/default.yaml"),
     num_examples: int = Form(4),
-    prompt: str = Form("Explain self-distillation fine-tuning in one sentence."),
+    instruction: str = Form("Explain self-distillation fine-tuning in one sentence."),
+    input_text: str = Form(""),
 ) -> RedirectResponse:
     if benchmark not in {"generate", "inference"}:
         raise HTTPException(status_code=400, detail="benchmark must be generate or inference")
-    prompts = [prompt.strip()] if prompt.strip() else None
+    prompts: list[str] | None = None
+    records: list[dict[str, str]] | None = None
+    if benchmark == "inference":
+        prompt = _join_inference_prompt(instruction, input_text)
+        if not prompt:
+            raise HTTPException(status_code=400, detail="instruction is required for inference")
+        prompts = [prompt]
+        records = [
+            {
+                "instruction": instruction.strip(),
+                "input": input_text.strip(),
+            }
+        ]
     background_tasks.add_task(
         _run_benchmark_task,
         benchmark,
         config_path,
         num_examples,
         prompts,
+        records,
     )
     return RedirectResponse(url="/perf?started=1", status_code=303)
 

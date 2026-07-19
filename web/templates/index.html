@@ -5,6 +5,16 @@
 <h1 class="page-title">SDFT data &amp; performance</h1>
 <p class="lead">Collect training examples and run generate/inference benchmarks via the shared <code>sdft.records</code> contract.</p>
 
+{% with page_id='home', tip='This page is read-only status. Use Collect Data to add examples and Performance to run benches.' %}
+{% set steps = [
+  'Check how many collected examples and recent benchmark runs you already have.',
+  'Open Collect Data to add Alpaca-style training examples, then export them when ready.',
+  'Open Performance to start a generate or inference benchmark against a YAML config.',
+  'Click a benchmark ID in the table below to inspect detailed metrics.',
+] %}
+{% include "howto.html" %}
+{% endwith %}
+
 <div class="grid-2">
   <section class="section">
     <h2>Collected examples</h2>
