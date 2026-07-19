@@ -141,8 +141,9 @@ class TorchTrainer:
 
         totals = {"loss": 0.0, "kl_to_base": 0.0, "completion_tokens": 0.0}
         trained = 0
+        use_sft = self.cfg.online.loss_type == "sft"
         for demo in demos:
-            step = self._loss_for_demo(demo)
+            step = self._sft_loss_for_demo(demo) if use_sft else self._loss_for_demo(demo)
             if step is None:
                 continue
             loss, aux = step
@@ -210,6 +211,29 @@ class TorchTrainer:
             aux["kl_to_base"] = kl_base.item()
 
         return loss, aux
+
+    def _sft_loss_for_demo(self, demo: Demonstration):
+        """Completion-only NLL on the demonstration text (RAFT / stable supervised).
+
+        Used for reward-selected samples and shaped targets, where the
+        demonstration itself is the thing to imitate.
+        """
+        torch = self._torch
+        prompt_ids = self._chat_ids(build_student_messages(demo.messages))
+        comp_ids = self.tokenizer(demo.demonstration, add_special_tokens=False)["input_ids"]
+        if not comp_ids:
+            return None
+        eos = self.tokenizer.eos_token_id
+        if eos is not None:
+            comp_ids = list(comp_ids) + [eos]
+
+        input_ids = self._tensor(prompt_ids + list(comp_ids))
+        logits = self.model(input_ids=input_ids).logits[0, len(prompt_ids) - 1: -1]
+        logp = torch.log_softmax(logits.float(), dim=-1)
+        targets = torch.tensor(list(comp_ids), device=self.device)
+        nll = -logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1).mean()
+        return nll, {"loss": nll.item(), "kl_to_base": 0.0,
+                     "completion_tokens": float(len(comp_ids))}
 
     def _sample_ids(self, prompt_ids: list[int]):
         torch = self._torch

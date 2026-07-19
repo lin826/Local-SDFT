@@ -15,8 +15,10 @@ import re
 from typing import Callable
 
 RewardFn = Callable[[str, str], float]  # (prompt, reply) -> reward in [0, 1]
+ShaperFn = Callable[[str, str], str]    # (prompt, reply) -> reply reshaped to pass
 
 _REGISTRY: dict[str, RewardFn] = {}
+_SHAPERS: dict[str, ShaperFn] = {}
 
 
 def reward(name: str) -> Callable[[RewardFn], RewardFn]:
@@ -26,10 +28,28 @@ def reward(name: str) -> Callable[[RewardFn], RewardFn]:
     return deco
 
 
+def shaper(name: str) -> Callable[[ShaperFn], ShaperFn]:
+    """Register a deterministic reshaper that turns any reply into a passing one.
+
+    When set, the controller trains on shape(prompt, best_sample) instead of the
+    raw sample — guaranteeing a full-marks target, which is what makes a small
+    model learn the behavior reliably (the model's own *content*, the task's
+    *format*).
+    """
+    def deco(fn: ShaperFn) -> ShaperFn:
+        _SHAPERS[name] = fn
+        return fn
+    return deco
+
+
 def get_reward_fn(name: str) -> RewardFn:
     if name not in _REGISTRY:
         raise KeyError(f"unknown reward_fn {name!r}; known: {sorted(_REGISTRY)}")
     return _REGISTRY[name]
+
+
+def get_shaper(name: str) -> ShaperFn | None:
+    return _SHAPERS.get(name)
 
 
 def available() -> list[str]:
@@ -61,6 +81,29 @@ def house_style(prompt: str, reply: str) -> float:
     if reply.rstrip().endswith("?"):
         score += 0.33
     return round(score, 4)
+
+
+_SENT = re.compile(r"[^.!?\n]+[.!?]?")
+
+
+@shaper("house_style")
+def shape_house_style(prompt: str, reply: str) -> str:
+    """Reshape arbitrary content into TL;DR + <=3 bullets + a clarifying question.
+
+    Uses the model's own sentences as material, so it's the model's content in
+    the target format — a guaranteed full-marks demonstration.
+    """
+    raw = re.sub(r"^\s*(tl;?dr:?)\s*", "", reply.strip(), flags=re.IGNORECASE)
+    sents = [s.strip(" -*") for s in _SENT.findall(raw) if len(s.strip()) > 3]
+    if not sents:
+        sents = ["Here is a concise answer."]
+    tldr = sents[0].rstrip(".")
+    bullets = sents[1:4] if len(sents) > 1 else [tldr]
+    bullets = bullets[:3]
+    lines = [f"TL;DR: {tldr}."]
+    lines += [f"- {b.rstrip('.')}." for b in bullets]
+    lines.append("Does that cover what you needed, or should I go deeper?")
+    return "\n".join(lines)
 
 
 @reward("five_words")

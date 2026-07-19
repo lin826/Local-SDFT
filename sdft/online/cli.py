@@ -98,23 +98,37 @@ def cmd_demo(args) -> int:
     cfg = _cfg(args)
     if not cfg.online.reward_fn:
         console.print("[red]demo needs online.reward_fn (e.g. house_style)[/]"); return 2
-    console.print(f"[dim]loading {cfg.model.name} · task={cfg.online.reward_fn}[/]")
+    if args.fresh:
+        # Start from a clean slate so the curve reflects THIS run, not leftover
+        # demonstrations/adapters from a previous one.
+        import shutil
+        from pathlib import Path
+        for p in (cfg.online.db_path, cfg.online.adapters_dir):
+            path = Path(p)
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            elif path.exists():
+                path.unlink()
+        console.print("[dim]fresh run: cleared prior demo state[/]")
+    console.print(f"[dim]loading {cfg.model.name} · task={cfg.online.reward_fn} · loss={cfg.online.loss_type}[/]")
     ctrl = OnlineController.build(cfg)
     from .reward import get_reward_fn
 
     rfn = get_reward_fn(cfg.online.reward_fn)
 
     def report(tag):
-        res = success_on(ctrl.backend, rfn, HELDOUT_PROMPTS)
-        bar = "█" * round(res["success"] * 20)
-        console.print(f"  {tag:<18} success@held-out [green]{res['success']*100:5.1f}%[/] {bar}")
-        return res["success"]
+        res = success_on(ctrl.backend, rfn, HELDOUT_PROMPTS, threshold=args.threshold)
+        bar = "█" * round(res["mean_reward"] * 20)
+        demos = ctrl.stats()["demonstrations"]
+        console.print(f"  {tag:<18} mean_r [green]{res['mean_reward']:.2f}[/] "
+                      f"success {res['success']*100:5.1f}%  demos={demos}  {bar}")
+        return res
 
     console.print("[bold]Airplane-Mode Coach (offline, on-device)[/]")
     report("before coaching")
+    from .demo import COACH_PROMPTS
     for rnd in range(args.rounds):
         conv = "coach-" + uuid.uuid4().hex[:6]
-        from .demo import COACH_PROMPTS
         for i in range(args.coach_per_round):
             ctrl.chat(conv, COACH_PROMPTS[(rnd * args.coach_per_round + i) % len(COACH_PROMPTS)])
         ctrl.maybe_update(force=True)
@@ -122,7 +136,13 @@ def cmd_demo(args) -> int:
     # A/B: base vs learned on the SAME held-out set
     console.print("[dim]toggling adapter OFF (base) for A/B…[/]")
     ctrl.rollback(0); report("adapter OFF (base)")
-    ctrl.rollback(ctrl.stats()["adapter_versions"] - 1); report("adapter ON (learned)")
+    final = ctrl.rollback(ctrl.stats()["adapter_versions"] - 1); report("adapter ON (learned)")
+    # Receipts: show two held-out replies with the learned adapter on.
+    res = success_on(ctrl.backend, rfn, HELDOUT_PROMPTS, threshold=args.threshold)
+    console.print("[dim]sample held-out replies (adapter ON):[/]")
+    for d in res["detail"][:2]:
+        console.print(f"  Q: {d['prompt']}")
+        console.print(f"  A(r={d['reward']:.2f}): {d['reply'][:200]!r}")
     return 0
 
 
@@ -157,6 +177,11 @@ def main(argv=None) -> int:
     d = sub.add_parser("demo", parents=[common])
     d.add_argument("--rounds", type=int, default=5)
     d.add_argument("--coach-per-round", type=int, default=4)
+    d.add_argument("--threshold", type=float, default=0.66,
+                   help="held-out success threshold on the reward (0.66 = mostly follows)")
+    d.add_argument("--fresh", action="store_true", default=True,
+                   help="clear prior demo db/adapters first (default on)")
+    d.add_argument("--no-fresh", dest="fresh", action="store_false")
     sub.add_parser("stats", parents=[common])
 
     args = ap.parse_args(argv)

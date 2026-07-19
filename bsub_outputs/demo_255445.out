@@ -1,0 +1,45 @@
+NVIDIA H100 80GB HBM3, 81559 MiB
+loading LiquidAI/LFM2.5-230M · task=house_style
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p1-r09-n3>
+Subject: Job 255445: <sdft_demo> in cluster <BLUEVELA_LSF> Exited
+
+Job <sdft_demo> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:55:09 2026
+Job was executed on host(s) <p1-r09-n3>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:55:10 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Sun Jul 19 22:55:10 2026
+Terminated at Sun Jul 19 22:55:25 2026
+Results reported at Sun Jul 19 22:55:25 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/bv-demo.sh configs/demo_house_style.yaml 6
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   13.10 sec.
+    Max Memory :                                 334 MB
+    Average Memory :                             254.00 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                68
+    Run time :                                   18 sec.
+    Turnaround time :                            16 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/demo_255445.err> for stderr output of this job.
+

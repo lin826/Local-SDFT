@@ -39,10 +39,12 @@ class OnlineController:
         self._lock = threading.RLock()
         self.eval_hook: EvalHook | None = None
         self._reward_fn = None
+        self._shaper = None
         if cfg.online.reward_fn:
-            from .reward import get_reward_fn
+            from .reward import get_reward_fn, get_shaper
 
             self._reward_fn = get_reward_fn(cfg.online.reward_fn)
+            self._shaper = get_shaper(cfg.online.reward_fn)
         self._updates = self.store.count_training_runs()
         self._ensure_base_version()
 
@@ -84,13 +86,19 @@ class OnlineController:
         samples.append(served_reply)
         scored = [(s, self._reward_fn(prompt_text, s)) for s in samples]
         best, best_r = max(scored, key=lambda x: x[1])
-        if best_r <= 0:
+        # A shaper turns the best sample into a guaranteed-passing target (the
+        # model's own content in the task's format); otherwise require best_r > 0.
+        if self._shaper is not None:
+            target = self._shaper(prompt_text, best)
+        elif best_r > 0:
+            target = best
+        else:
             return  # nothing worth imitating this turn
         demo = Demonstration(
             source="accepted",
             conversation_id=conversation_id,
             messages=history,
-            demonstration=best,
+            demonstration=target,
             topic=auto_topic([Message(conversation_id=conversation_id, role="user",
                                       content=prompt_text)]),
             weight=o.correction_weight * best_r,

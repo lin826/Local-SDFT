@@ -65,3 +65,11 @@ def test_probe_evaluator_degradation():
     out = ev(Ctl())
     assert out["probe_accuracy"] < 1.0  # KeywordBackend only knows 2 of 8
     assert out["degraded"] is True
+
+
+def test_house_style_shaper_yields_full_marks():
+    from sdft.online.reward import get_reward_fn, get_shaper
+    rfn = get_reward_fn("house_style"); shp = get_shaper("house_style")
+    for raw in ["TCP is reliable. UDP is fast. Pick per need.",
+                "I'm ready to dive in", "one two three four five six seven"]:
+        assert rfn("q", shp("q", raw)) >= 0.99

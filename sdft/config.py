@@ -79,6 +79,7 @@ class OnlineConfig:
     max_completion_tokens: int = 128
     beta_kl_base: float = 0.0  # KL-to-base anchor weight (0 = off)
     num_loss_tokens_to_skip: int = 0
+    loss_type: str = "sdft_kl"  # "sdft_kl" (on-policy forward-KL) | "sft" (completion NLL)
     reinstruct_template: str = (
         "Now answer with a response of your own, including the thinking process."
     )
