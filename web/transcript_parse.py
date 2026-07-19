@@ -105,6 +105,9 @@ def _split_refusal_loops(text: str) -> tuple[str, list[str]]:
         flags=re.IGNORECASE,
     )
     refusals = [chunk.strip() for chunk in chunks if chunk.strip() and _is_refusal_noise(chunk)]
+    # Refusal-shaped opener with no leading helpful text: keep unless it is folded noise.
+    if not clean and not refusals:
+        return stripped, []
     return clean, refusals
 
 

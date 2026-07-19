@@ -46,6 +46,25 @@ def test_plain_prose_unchanged():
     assert segments[0].content == text
 
 
+def test_refusal_opener_without_noise_kept_as_prose():
+    text = (
+        "I'm sorry, but I can't assist with that. Making apple juice is a recipe "
+        "that requires specific ingredients and equipment, which are not accessible "
+        "through my current capabilities."
+    )
+    segments = parse_message_content("assistant", text)
+    assert len(segments) == 1
+    assert segments[0].kind == "prose"
+    assert segments[0].content == text
+
+
+def test_exact_refusal_fallback_string_renders():
+    segments = parse_message_content("assistant", EMPTY_ASSISTANT_FALLBACK)
+    assert len(segments) == 1
+    assert segments[0].kind == "prose"
+    assert segments[0].content == EMPTY_ASSISTANT_FALLBACK
+
+
 def test_user_message_single_prose():
     segments = parse_message_content("user", "What is 2+2?")
     assert len(segments) == 1
