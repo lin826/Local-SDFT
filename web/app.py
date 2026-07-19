@@ -36,7 +36,9 @@ from sdft.records import (
 from web.demo_conditions import (
     DEFAULT_CONFIG,
     DEFAULT_DEMO_CONDITION,
+    IGNORE_USER_INSTRUCTION_MESSAGE,
     build_design_summary,
+    config_ignores_user_instruction,
     get_condition,
 )
 from web.transcript_parse import highlight_boxed, parse_message_content
@@ -106,6 +108,32 @@ def _system_from_messages(messages: list[dict[str, str]]) -> str:
     return next((m["content"] for m in messages if m["role"] == "system"), "")
 
 
+def _effective_instruction(config_path: str, instruction: str) -> str:
+    """Return system text sent to the model (empty when config ignores user input)."""
+    if config_ignores_user_instruction(config_path):
+        return ""
+    return instruction.strip()
+
+
+def _instruction_ui_context(
+    config_path: str,
+    *,
+    stored_instruction: str = "",
+) -> dict[str, Any]:
+    """Instruction textarea state for /perf (display text + whether user input is ignored)."""
+    ignored = config_ignores_user_instruction(config_path)
+    if ignored:
+        return {
+            "instruction": IGNORE_USER_INSTRUCTION_MESSAGE,
+            "instruction_ignored": True,
+        }
+    text = stored_instruction.strip() or DEFAULT_INSTRUCTION
+    return {
+        "instruction": text,
+        "instruction_ignored": False,
+    }
+
+
 def _build_chat_messages(
     instruction: str,
     history: list[dict[str, str]],
@@ -161,20 +189,21 @@ def _chat_context_from_result(
             and m.get("role") in ALLOWED_CHAT_ROLES
             and str(m.get("content", "")).strip()
         ]
-    instruction = (
-        _system_from_messages(typed)
-        or instruction_fallback.strip()
-        or DEFAULT_INSTRUCTION
+    config_path = str(result.config_path or meta.get("config_path") or DEFAULT_CONFIG)
+    stored_instruction = _system_from_messages(typed) or instruction_fallback
+    instruction_ctx = _instruction_ui_context(
+        config_path,
+        stored_instruction=stored_instruction,
     )
     history = _history_without_system(typed)
     return {
-        "instruction": instruction,
+        **instruction_ctx,
         "messages": history,
         "messages_json": json.dumps(history, ensure_ascii=False),
         "last_run_id": result.id,
         "composer_prefill": "",
         "demo_condition": str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION),
-        "config_path": str(result.config_path or meta.get("config_path") or DEFAULT_CONFIG),
+        "config_path": config_path,
         "metrics": result.metrics,
         "max_new_tokens": meta.get("max_new_tokens"),
         "output_tokens_total": getattr(result.metrics, "output_tokens_total", None),
@@ -183,8 +212,9 @@ def _chat_context_from_result(
 
 def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
     """Load sticky instruction + history from a prior chat run for ?continue=."""
+    empty_instruction = _instruction_ui_context(DEFAULT_CONFIG)
     empty = {
-        "instruction": DEFAULT_INSTRUCTION,
+        **empty_instruction,
         "messages": [],
         "messages_json": "[]",
         "last_run_id": None,
@@ -209,13 +239,17 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         examples = meta.get("examples") or []
         if examples:
             ex = examples[0]
-            instruction = str(ex.get("instruction") or empty["instruction"])
-            user_text = str(ex.get("input") or "").strip() or instruction
+            stored_instruction = str(ex.get("instruction") or "")
+            user_text = str(ex.get("input") or "").strip() or stored_instruction
             history = [{"role": "user", "content": user_text}]
             if ex.get("output"):
                 history.append({"role": "assistant", "content": str(ex["output"])})
+            instruction_ctx = _instruction_ui_context(
+                config_path,
+                stored_instruction=stored_instruction if ex.get("input") else "",
+            )
             return {
-                "instruction": instruction if ex.get("input") else empty["instruction"],
+                **instruction_ctx,
                 "messages": history,
                 "messages_json": json.dumps(history, ensure_ascii=False),
                 "last_run_id": run_id,
@@ -232,10 +266,14 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         for m in messages
         if isinstance(m, dict) and m.get("role") in ALLOWED_CHAT_ROLES and str(m.get("content", "")).strip()
     ]
-    instruction = _system_from_messages(typed) or empty["instruction"]
+    stored_instruction = _system_from_messages(typed)
+    instruction_ctx = _instruction_ui_context(
+        config_path,
+        stored_instruction=stored_instruction,
+    )
     history = _history_without_system(typed)
     return {
-        "instruction": instruction,
+        **instruction_ctx,
         "messages": history,
         "messages_json": json.dumps(history, ensure_ascii=False),
         "last_run_id": run_id,
@@ -317,29 +355,36 @@ async def perf_page(request: Request) -> HTMLResponse:
         chat["config_path"] = q_config
     if q_instruction and not continue_id:
         seed: list[dict[str, str]] = []
+        selected_for_seed = chat.get("config_path", DEFAULT_CONFIG)
+        instruction_ctx = _instruction_ui_context(
+            selected_for_seed,
+            stored_instruction=q_instruction,
+        )
         if q_input.strip():
             chat = {
-                "instruction": q_instruction,
+                **instruction_ctx,
                 "messages": seed,
                 "messages_json": "[]",
                 "last_run_id": None,
                 "demo_condition": DEFAULT_DEMO_CONDITION,
-                "config_path": chat.get("config_path", DEFAULT_CONFIG),
+                "config_path": selected_for_seed,
             }
             # Prefill composer via placeholder template var
             chat["composer_prefill"] = q_input
         else:
             chat = {
-                "instruction": q_instruction,
+                **instruction_ctx,
                 "messages": seed,
                 "messages_json": "[]",
                 "last_run_id": None,
                 "composer_prefill": "",
                 "demo_condition": DEFAULT_DEMO_CONDITION,
-                "config_path": chat.get("config_path", DEFAULT_CONFIG),
+                "config_path": selected_for_seed,
             }
     else:
         chat.setdefault("composer_prefill", "")
+        if "instruction_ignored" not in chat:
+            chat.update(_instruction_ui_context(chat.get("config_path", DEFAULT_CONFIG)))
 
     selected_config = chat.get("config_path") or request.query_params.get(
         "config_path", CONFIG_OPTIONS[0]
@@ -395,7 +440,8 @@ def _run_chat_inference(
     """Sync plain multi-turn chat inference."""
     condition = get_condition(condition_id)
     effective_config = config_path if config_path in CONFIG_OPTIONS else condition.config_path
-    messages = _build_chat_messages(instruction, history, user_message)
+    effective_instruction = _effective_instruction(effective_config, instruction)
+    messages = _build_chat_messages(effective_instruction, history, user_message)
 
     cfg = load_config(effective_config)
     result = measure_chat(cfg, messages)

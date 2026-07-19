@@ -11,7 +11,11 @@ from fastapi.testclient import TestClient
 
 from sdft.records.schema import PerformanceMetrics, PerformanceResult
 from web.app import CONFIG_OPTIONS, app
-from web.demo_conditions import build_design_summary
+from web.demo_conditions import (
+    IGNORE_USER_INSTRUCTION_MESSAGE,
+    build_design_summary,
+    config_ignores_user_instruction,
+)
 
 
 def _fake_chat_result(messages: list[dict[str, str]], run_id: str = "bench-test-chat") -> PerformanceResult:
@@ -82,6 +86,17 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert b"syncInstructionField()" not in body
     assert b"Start generate" in body
     assert b"without a full page reload" not in body  # removed OpenClaw-specific howto line
+    assert IGNORE_USER_INSTRUCTION_MESSAGE.encode() in body
+    idx = body.index(b'id="instruction"')
+    tag = body[idx : body.index(b">", idx) + 1]
+    assert b"readonly" in tag
+    assert b'name="instruction"' not in tag
+    assert b"Custom system instructions are not used" in body
+
+
+def test_config_options_ignore_user_instruction():
+    for cfg in CONFIG_OPTIONS:
+        assert config_ignores_user_instruction(cfg)
 
 
 def test_config_options_include_alpacaeval_sdft():
@@ -103,6 +118,7 @@ def test_build_design_summary_variants():
     )
     assert "base LFM2.5-230M" in base["variant"]
     assert "no GPT-4 judge" in base["eval_surface"]
+    assert "none (AlpacaEval-faithful" in base["system_instruction"]
 
     sdft = build_design_summary(
         demo_condition="plain",
@@ -111,6 +127,7 @@ def test_build_design_summary_variants():
     )
     assert "SDFT merge" in sdft["variant"]
     assert sdft["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
+    assert "none (AlpacaEval-faithful" in sdft["system_instruction"]
 
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
@@ -174,6 +191,35 @@ def test_chat_persists_design_summary(client: TestClient):
     assert "design_summary" in meta
     assert meta["design_summary"]["config_path"] == "configs/lfm25_alpacaeval2_trained.yaml"
     assert "SDFT merge" in meta["design_summary"]["variant"]
+    assert "none (AlpacaEval-faithful" in meta["design_summary"]["system_instruction"]
+
+
+def test_chat_ignores_user_instruction_for_alpacaeval_configs(client: TestClient):
+    captured: list[list[dict[str, str]]] = []
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        captured.append(list(messages))
+        return _fake_chat_result(messages, run_id="bench-ignore-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "You must always reply in rhyme.",
+                "user_message": "How do I sew a button?",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    assert captured
+    roles = [m["role"] for m in captured[0]]
+    assert roles == ["user"]
+    assert captured[0][0]["content"] == "How do I sew a button?"
 
 
 def test_multi_turn_chat_transcript(client: TestClient):
@@ -216,7 +262,8 @@ def test_multi_turn_chat_transcript(client: TestClient):
         body1 = page1.text
         assert "Tell a joke about grading." in body1
         assert "echo:Tell a joke about grading." in body1
-        assert "You are a witty PhD comic narrator." in body1
+        assert IGNORE_USER_INSTRUCTION_MESSAGE in body1
+        assert "You are a witty PhD comic narrator." not in body1
 
         history = [
             {"role": "user", "content": "Tell a joke about grading."},
@@ -254,7 +301,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
         assert call_count["n"] == 2
         second_msgs = saved["bench-turn-2"].metadata["messages"]
         roles = [m["role"] for m in second_msgs]
-        assert roles == ["system", "user", "assistant", "user", "assistant"]
+        assert roles == ["user", "assistant", "user", "assistant"]
 
 
 def test_run_detail_shows_design_summary(client: TestClient):
