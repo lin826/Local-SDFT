@@ -1,0 +1,35 @@
+# Tool-calling demo: teach LFM2.5-230M to CALL A CALCULATOR for arithmetic.
+# The base model does freehand math and gets it wrong; after a few minutes of
+# coaching it learns to emit  <tool>calc("...")</tool>  and is exact — including
+# on held-out problems with numbers it never saw. That's LEARNING, not memory.
+#
+#   python -m sdft.online.cli demo  --config configs/demo_toolcall.yaml --rounds 6
+#   bash scripts/demo_toolcall.sh                       # narrated walkthrough
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  reward_fn: "calc_tool"     # valid calc() call whose value matches the answer
+  reward_num_samples: 4
+  loss_type: "sft"           # completion-NLL on the shaped (correct) tool call
+  coach_instruction: >-
+    When a question needs arithmetic, respond with a tool call of the form
+    <tool>calc("EXPRESSION")</tool> and nothing else.
+  sample_temperature: 0.8
+  max_completion_tokens: 32
+  lr: 2.0e-4
+  min_new_demos: 4
+  steps_per_update: 6
+  demos_per_step: 4
+  replay_ratio: 0.5
+  eval_every_n_updates: 0
+  db_path: "data/demo_calc.db"
+  adapters_dir: "data/demo_calc_adapters"

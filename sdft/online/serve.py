@@ -155,10 +155,11 @@ def create_app(controller: OnlineController) -> FastAPI:
         """success@held-out for the configured reward task (the demo curve)."""
         if controller._reward_fn is None:
             raise HTTPException(400, "no online.reward_fn configured for the demo")
-        from .demo import HELDOUT_PROMPTS, success_on
+        from .demo import prompts_for, success_on
 
+        _, heldout = prompts_for(controller.cfg.online.reward_fn)
         with controller._lock:
-            res = success_on(controller.backend, controller._reward_fn, HELDOUT_PROMPTS)
+            res = success_on(controller.backend, controller._reward_fn, heldout)
         res["active_adapter"] = controller.stats()["active_adapter"]
         return res
 
@@ -167,13 +168,14 @@ def create_app(controller: OnlineController) -> FastAPI:
         """Coach on n fresh prompts (reward-selected self-distillation), then update."""
         if controller._reward_fn is None:
             raise HTTPException(400, "no online.reward_fn configured for the demo")
-        from .demo import COACH_PROMPTS
+        from .demo import prompts_for
 
         import uuid as _uuid
+        coach_prompts, _ = prompts_for(controller.cfg.online.reward_fn)
         start = controller.stats()["demonstrations"]
         conv = "coach-" + _uuid.uuid4().hex[:6]
         for i in range(n):
-            controller.chat(conv, COACH_PROMPTS[(start + i) % len(COACH_PROMPTS)])
+            controller.chat(conv, coach_prompts[(start + i) % len(coach_prompts)])
         run = controller.maybe_update(force=True)
         return {"coached": n, "harvested": controller.stats()["demonstrations"] - start,
                 "update_ran": run is not None,

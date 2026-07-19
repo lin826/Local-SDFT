@@ -93,7 +93,7 @@ def cmd_serve(args) -> int:
 
 
 def cmd_demo(args) -> int:
-    from .demo import HELDOUT_PROMPTS, success_on
+    from .demo import prompts_for, success_on
 
     cfg = _cfg(args)
     if not cfg.online.reward_fn:
@@ -115,9 +115,10 @@ def cmd_demo(args) -> int:
     from .reward import get_reward_fn
 
     rfn = get_reward_fn(cfg.online.reward_fn)
+    coach_prompts, heldout_prompts = prompts_for(cfg.online.reward_fn)
 
     def report(tag):
-        res = success_on(ctrl.backend, rfn, HELDOUT_PROMPTS, threshold=args.threshold)
+        res = success_on(ctrl.backend, rfn, heldout_prompts, threshold=args.threshold)
         bar = "█" * round(res["mean_reward"] * 20)
         demos = ctrl.stats()["demonstrations"]
         console.print(f"  {tag:<18} mean_r [green]{res['mean_reward']:.2f}[/] "
@@ -126,11 +127,10 @@ def cmd_demo(args) -> int:
 
     console.print("[bold]Airplane-Mode Coach (offline, on-device)[/]")
     report("before coaching")
-    from .demo import COACH_PROMPTS
     for rnd in range(args.rounds):
         conv = "coach-" + uuid.uuid4().hex[:6]
         for i in range(args.coach_per_round):
-            ctrl.chat(conv, COACH_PROMPTS[(rnd * args.coach_per_round + i) % len(COACH_PROMPTS)])
+            ctrl.chat(conv, coach_prompts[(rnd * args.coach_per_round + i) % len(coach_prompts)])
         run = ctrl.maybe_update(force=True)
         tl = f" train_loss={run.metrics.get('loss', float('nan')):.3f}" if run else ""
         report(f"after round {rnd + 1}")
@@ -141,7 +141,7 @@ def cmd_demo(args) -> int:
     ctrl.rollback(0); report("adapter OFF (base)")
     final = ctrl.rollback(ctrl.stats()["adapter_versions"] - 1); report("adapter ON (learned)")
     # Receipts: show two held-out replies with the learned adapter on.
-    res = success_on(ctrl.backend, rfn, HELDOUT_PROMPTS, threshold=args.threshold)
+    res = success_on(ctrl.backend, rfn, heldout_prompts, threshold=args.threshold)
     console.print("[dim]sample held-out replies (adapter ON):[/]")
     for d in res["detail"][:2]:
         console.print(f"  Q: {d['prompt']}")

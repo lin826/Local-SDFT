@@ -106,6 +106,43 @@ def shape_house_style(prompt: str, reply: str) -> str:
     return "\n".join(lines)
 
 
+# ---- tool-calling demo task: "use a calculator" --------------------------
+# The strongest "it LEARNS, not memorizes" task: reward the model for emitting a
+# calc() tool call whose expression evaluates to the correct answer. Held-out
+# problems use numbers never seen in coaching, so success can't be memorized.
+
+
+@reward("calc_tool")
+def calc_tool(prompt: str, reply: str) -> float:
+    """1.0 = valid tool call with the correct value; 0.4 = called but wrong; 0 = no call.
+
+    Rewards tool *use*, not freehand arithmetic — a base model that guesses the
+    number without calling the tool scores 0, so what's learned is the tool-call
+    policy, which is exactly what generalizes.
+    """
+    from .tools import extract_arithmetic, parse_calc_call, safe_eval
+
+    truth = safe_eval(extract_arithmetic(prompt))
+    if truth is None:
+        return 0.0
+    call = parse_calc_call(reply)
+    if call is None:
+        return 0.0  # no tool call at all
+    got = safe_eval(call)
+    if got is None:
+        return 0.2  # emitted something callable-ish but not evaluable
+    return 1.0 if abs(got - truth) < 1e-6 else 0.4
+
+
+@shaper("calc_tool")
+def shape_calc_tool(prompt: str, reply: str) -> str:
+    """Guaranteed-correct demonstration: the exact tool call for this problem."""
+    from .tools import extract_arithmetic
+
+    expr = extract_arithmetic(prompt) or "0"
+    return f'<tool>calc("{expr}")</tool>'
+
+
 @reward("five_words")
 def five_words(prompt: str, reply: str) -> float:
     """Answer in exactly five words (a crisp, unmistakable constraint)."""

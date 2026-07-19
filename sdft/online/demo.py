@@ -30,6 +30,32 @@ HELDOUT_PROMPTS = [
     "What is a race condition?",
 ]
 
+# --- tool-calling task: "use a calculator" --------------------------------
+# COACH uses SMALL numbers; HELD-OUT uses LARGE numbers that never appear in
+# coaching — so a correct held-out answer can only come from learning the skill
+# (translate the question into a calc() call), not from memorizing answers.
+COACH_CALC = [
+    "What is 3 + 4?", "What is 7 * 6?", "What is 9 - 2?", "What is 12 + 8?",
+    "What is 5 * 5?", "What is 15 - 7?", "What is 6 + 9?", "What is 8 * 3?",
+    "What is 14 - 6?", "What is 11 + 4?", "What is 7 * 7?", "What is 18 - 9?",
+]
+HELDOUT_CALC = [
+    "What is 347 + 288?", "What is 913 - 476?", "What is 128 * 47?",
+    "What is 654 + 279?", "What is 802 - 355?", "What is 236 * 19?",
+]
+
+_TASK_PROMPTS = {
+    "house_style": (COACH_PROMPTS, HELDOUT_PROMPTS),
+    "five_words": (COACH_PROMPTS, HELDOUT_PROMPTS),
+    "terse": (COACH_PROMPTS, HELDOUT_PROMPTS),
+    "calc_tool": (COACH_CALC, HELDOUT_CALC),
+}
+
+
+def prompts_for(reward_fn: str | None) -> tuple[list[str], list[str]]:
+    """(coach, held-out) prompt sets for a task; defaults to the style set."""
+    return _TASK_PROMPTS.get(reward_fn or "", (COACH_PROMPTS, HELDOUT_PROMPTS))
+
 
 def success_on(backend, reward_fn, prompts: list[str], threshold: float = 0.99) -> dict:
     """Greedy-answer each prompt, score with reward_fn, return success rate.
