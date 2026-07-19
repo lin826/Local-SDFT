@@ -295,7 +295,10 @@ def test_data_page_shows_online_learning_ui(client: TestClient):
     assert 'action="/data/turn"' in body
     assert "configs/online_learning.yaml" in body
     assert "Updating adapter" in body
-    assert "Feedback tone override" in body
+    assert 'name="message"' in body
+    assert "Gold output" not in body
+    assert 'name="tags"' not in body
+    assert "Export collected" not in body
 
 
 def test_online_turn_route_mocked(client: TestClient):
@@ -345,7 +348,7 @@ def test_online_turn_route_mocked(client: TestClient):
             data={
                 "session_id": session_id,
                 "config_path": "configs/online_learning.yaml",
-                "instruction": "Hello",
+                "message": "Hello",
                 "preview": "1",
             },
             follow_redirects=False,

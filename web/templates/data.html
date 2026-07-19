@@ -6,86 +6,56 @@
 {% endblock %}
 {% block content %}
 <h1 class="page-title">Online learning</h1>
-<p class="lead">Chat-style turns on <code>/data</code>: each user message is classified as implicit feedback on the <strong>previous</strong> assistant reply (+/0/−), the adapter is updated (tiny SDFT + preference), then the model infers a new reply. Gold output is optional and stored for collection only.</p>
+<p class="lead">Chat on <code>/data</code>: each user message is implicit feedback on the <strong>previous</strong> assistant reply (+/0/−), the adapter updates (tiny SDFT + preference), then the model replies. Turns are logged to the session JSON with latency and tone metadata.</p>
 
-{% with page_id='online', tip='Each submit may take several seconds on MPS: tone classify → SDFT generate → LoRA update → inference. The form shows progress via HTMX.' %}
+{% with page_id='online', tip='Each send may take several seconds on MPS: tone classify → SDFT generate → LoRA update → inference. Progress shows via HTMX.' %}
 {% set steps = [
   'Pick a YAML config (default: configs/online_learning.yaml) or start a fresh session.',
-  'Send a user message (Instruction). On turn 2+, its tone feeds back on the prior reply.',
-  'Optionally override detected tone, or add gold Output for dataset collection.',
+  'Send a user message. On turn 2+, its tone feeds back on the prior reply.',
+  'Optionally override detected tone before sending.',
   'Review assistant reply, feedback tone, preference action, and latency breakdown.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
 
-{% if request.query_params.get('exported') %}
-<p class="notice">Exported {{ request.query_params.get('exported') }} rows to <code>data/collected/{{ request.query_params.get('path') }}</code>.</p>
-{% endif %}
-
 <div class="pill-row" style="margin-bottom:1rem;">
   <span class="pill pill-accent">Session <code>{{ session.id }}</code></span>
   <span class="pill pill-muted">{{ session.turn_count }} turn(s)</span>
   <span class="pill pill-muted">{{ session.config_path }}</span>
-  <a class="pill pill-muted" href="/data/{{ session.id }}">View stats</a>
+  <a class="pill pill-muted" href="/data/{{ session.id }}">Session stats</a>
   <a class="pill pill-muted" href="/data?new=1">New session</a>
 </div>
 
 <section class="section" id="online-turn-panel">
-  <h2>Send message</h2>
-  <form
-    id="online-turn-form"
-    method="post"
-    action="/data/turn"
-    hx-post="/data/turn"
-    hx-swap="none"
-    hx-indicator="#online-spinner"
-  >
-    <input type="hidden" name="session_id" value="{{ session.id }}">
-    <div class="field">
-      <label for="config_path">Config</label>
-      <select id="config_path" name="config_path">
-        {% for cfg in config_options %}
-        <option value="{{ cfg }}" {% if cfg == session.config_path %}selected{% endif %}>{{ cfg }}</option>
-        {% endfor %}
-      </select>
+  <h2>Conversation</h2>
+
+  <div class="chat-panel" aria-live="polite">
+    {% if session.turns %}
+    <div class="chat-thread">
+      {% for t in session.turns %}
+      <div class="chat-bubble chat-user">
+        <span class="chat-role">user</span>
+        <div class="chat-content">{{ t.instruction }}</div>
+      </div>
+      {% if t.assistant_reply %}
+      <div class="chat-bubble chat-assistant">
+        <span class="chat-role">assistant</span>
+        <div class="chat-content">{{ t.assistant_reply }}</div>
+        {% if t.feedback_tone %}
+        <p class="meta chat-turn-meta">Feedback: {{ t.feedback_tone }} ({{ t.feedback_reward }}) · {{ t.preference_action or '—' }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% endfor %}
     </div>
-    <div class="field">
-      <label for="instruction">User message</label>
-      <input id="instruction" name="instruction" type="text" placeholder="Thanks, that was perfect!" value="{{ prefill.instruction if prefill else '' }}" required>
-    </div>
-    <div class="field">
-      <label for="input_text">Input context (optional)</label>
-      <input id="input_text" name="input_text" type="text" placeholder="Extra context" value="{{ prefill.input_text if prefill else '' }}">
-    </div>
-    <div class="field">
-      <label for="tone_override">Feedback tone override (optional — on previous reply)</label>
-      <select id="tone_override" name="tone_override">
-        <option value="">Auto-detect from message</option>
-        <option value="positive">Positive (+1)</option>
-        <option value="neutral">Neutral (0)</option>
-        <option value="negative">Negative (−1)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="output">Gold output (optional — collection only)</label>
-      <textarea id="output" name="output" placeholder="Optional reference response for your dataset…">{{ prefill.output if prefill else '' }}</textarea>
-    </div>
-    <div class="field">
-      <label for="tags">Tags (comma-separated, optional)</label>
-      <input id="tags" name="tags" type="text" placeholder="geek-jokes">
-    </div>
-    <div class="field checkbox-field">
-      <label><input type="checkbox" name="preview" value="1" checked> Generate assistant reply after update</label>
-    </div>
-    <div class="actions">
-      <button class="btn" type="submit" id="online-submit-btn">Send &amp; update</button>
-      <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter, then inferring…</span>
-    </div>
-  </form>
+    {% else %}
+    <p class="chat-empty">No turns yet — send your first message below.</p>
+    {% endif %}
+  </div>
 
   {% if last_turn %}
   <div class="online-turn-result">
-    <h3>Turn {{ last_turn.turn_index }} complete</h3>
+    <h3>Turn {{ last_turn.turn_index }} logged</h3>
     {% if last_turn.feedback_tone %}
     <p class="meta">Feedback on previous reply: <strong>{{ last_turn.feedback_tone }}</strong> (reward {{ last_turn.feedback_reward }}{% if last_turn.feedback_source != 'none' %}, {{ last_turn.feedback_source }}{% endif %}) · action <code>{{ last_turn.preference_action }}</code></p>
     {% else %}
@@ -106,36 +76,60 @@
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
       {% endif %}
     </div>
-    {% if last_turn.assistant_reply %}
-    <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">Assistant reply (after update)</span>
-      <pre class="io-text io-output">{{ last_turn.assistant_reply }}</pre>
-    </div>
-    {% endif %}
-    {% if last_turn.sdft_response %}
-    <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">SDFT target (trained on this turn)</span>
-      <pre class="io-text io-output">{{ last_turn.sdft_response }}</pre>
-    </div>
-    {% endif %}
-    {% if last_turn.output %}
-    <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">Gold output (collection only)</span>
-      <pre class="io-text io-output">{{ last_turn.output }}</pre>
-    </div>
-    {% endif %}
     {% if last_turn.latency_phases %}
     {% with phases=last_turn.latency_phases %}
     {% include "latency_gantt.html" %}
     {% endwith %}
     {% endif %}
-    <p class="meta">Record <code>{{ last_turn.record_id }}</code> · <a href="/data/{{ session.id }}">session detail</a></p>
+    <p class="meta">Record <code>{{ last_turn.record_id }}</code> · <a href="/data/{{ session.id }}">session stats</a></p>
   </div>
   {% endif %}
+
+  <form
+    id="online-turn-form"
+    method="post"
+    action="/data/turn"
+    hx-post="/data/turn"
+    hx-swap="none"
+    hx-indicator="#online-spinner"
+    class="chat-composer"
+    style="margin-top:1rem;"
+  >
+    <input type="hidden" name="session_id" value="{{ session.id }}">
+    <label for="message" class="visually-hidden">Message</label>
+    <textarea id="message" name="message" rows="3" required placeholder="Thanks, that was perfect!">{{ prefill.message if prefill else '' }}</textarea>
+    <details class="advanced-details" style="margin:0.5rem 0;">
+      <summary>Advanced</summary>
+      <div class="field" style="margin-top:0.75rem;">
+        <label for="config_path_select">Config</label>
+        <select id="config_path_select" name="config_path">
+          {% for cfg in config_options %}
+          <option value="{{ cfg }}" {% if cfg == session.config_path %}selected{% endif %}>{{ cfg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="tone_override">Feedback tone override (on previous reply)</label>
+        <select id="tone_override" name="tone_override">
+          <option value="">Auto-detect from message</option>
+          <option value="positive">Positive (+1)</option>
+          <option value="neutral">Neutral (0)</option>
+          <option value="negative">Negative (−1)</option>
+        </select>
+      </div>
+      <div class="field checkbox-field">
+        <label><input type="checkbox" name="preview" value="1" checked> Generate assistant reply after update</label>
+      </div>
+    </details>
+    <div class="actions chat-actions">
+      <button class="btn" type="submit" id="online-submit-btn">Send &amp; update</button>
+      <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter, then inferring…</span>
+    </div>
+  </form>
 </section>
 
 <section class="section">
-  <h2>Session turns ({{ session.turn_count }})</h2>
+  <h2>Turn log ({{ session.turn_count }})</h2>
   {% if session.turns %}
   <table>
     <thead>
@@ -159,18 +153,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="empty">No turns yet — send your first message above.</p>
+  <p class="empty">No turns logged yet.</p>
   {% endif %}
 </section>
-
-<details class="section advanced-details">
-  <summary>Export collected records (batch offline training)</summary>
-  <form method="post" action="/data/export" class="inline-form" style="margin-top:0.75rem;">
-    <div class="field">
-      <label for="export_name">Export name</label>
-      <input id="export_name" name="export_name" type="text" value="geek-jokes-export">
-    </div>
-    <button class="btn btn-secondary" type="submit">Export to data/collected/</button>
-  </form>
-</details>
 {% endblock %}

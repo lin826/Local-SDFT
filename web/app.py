@@ -371,9 +371,8 @@ async def data_page(request: Request) -> HTMLResponse:
         session_id = session.id
 
     prefill = {
-        "instruction": request.query_params.get("instruction", ""),
-        "input_text": request.query_params.get("input_text", ""),
-        "output": request.query_params.get("output", ""),
+        "message": request.query_params.get("message")
+        or request.query_params.get("instruction", ""),
     }
     last_turn = None
     turn_q = request.query_params.get("turn")
@@ -437,17 +436,14 @@ async def online_learning_turn(
     request: Request,
     session_id: str = Form(...),
     config_path: str = Form(DEFAULT_ONLINE_CONFIG),
-    instruction: str = Form(...),
-    input_text: str = Form(""),
-    output: str = Form(""),
-    tags: str = Form(""),
+    message: str = Form(""),
+    instruction: str = Form(""),
     preview: str = Form(""),
     tone_override: str = Form(""),
 ):
-    instruction = instruction.strip()
-    output = output.strip()
+    instruction = (message or instruction).strip()
     if not instruction:
-        raise HTTPException(status_code=400, detail="instruction is required")
+        raise HTTPException(status_code=400, detail="message is required")
     if config_path not in ONLINE_CONFIG_OPTIONS:
         config_path = DEFAULT_ONLINE_CONFIG
 
@@ -462,7 +458,6 @@ async def online_learning_turn(
 
         save_online_session(session)
 
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     tone = tone_override.strip().lower() or None
     if tone and tone not in {"positive", "neutral", "negative"}:
         tone = None
@@ -471,9 +466,9 @@ async def online_learning_turn(
             _run_online_turn_task,
             session_id,
             instruction=instruction,
-            input_text=input_text,
-            output=output,
-            tags=tag_list or None,
+            input_text="",
+            output="",
+            tags=None,
             preview=preview.lower() in {"1", "true", "on", "yes"},
             tone_override=tone,
         )
