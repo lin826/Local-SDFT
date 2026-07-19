@@ -36,10 +36,12 @@ from sdft.records import (
 from web.demo_conditions import (
     DEFAULT_CONFIG,
     DEFAULT_DEMO_CONDITION,
-    IGNORE_USER_INSTRUCTION_MESSAGE,
     build_design_summary,
     config_ignores_user_instruction,
+    fixed_system_instruction,
     get_condition,
+    instruction_field_hint,
+    instruction_field_locked,
 )
 from web.transcript_parse import highlight_boxed, parse_message_content
 
@@ -109,7 +111,10 @@ def _system_from_messages(messages: list[dict[str, str]]) -> str:
 
 
 def _effective_instruction(config_path: str, instruction: str) -> str:
-    """Return system text sent to the model (empty when config ignores user input)."""
+    """Return system text sent to the model (fixed config prompt or user text)."""
+    fixed = fixed_system_instruction(config_path)
+    if fixed:
+        return fixed
     if config_ignores_user_instruction(config_path):
         return ""
     return instruction.strip()
@@ -121,16 +126,18 @@ def _instruction_ui_context(
     stored_instruction: str = "",
 ) -> dict[str, Any]:
     """Instruction textarea state for /perf (display text + whether user input is ignored)."""
-    ignored = config_ignores_user_instruction(config_path)
-    if ignored:
+    locked = instruction_field_locked(config_path)
+    if locked:
         return {
-            "instruction": IGNORE_USER_INSTRUCTION_MESSAGE,
+            "instruction": fixed_system_instruction(config_path),
             "instruction_ignored": True,
+            "instruction_hint": instruction_field_hint(config_path),
         }
     text = stored_instruction.strip() or DEFAULT_INSTRUCTION
     return {
         "instruction": text,
         "instruction_ignored": False,
+        "instruction_hint": "",
     }
 
 

@@ -12,7 +12,7 @@
 {% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. The Send button shows “Generating…” while you wait; only the chat panel swaps. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
 {% set steps = [
   'Pick Config — default.yaml (baseline) or lfm25_alpacaeval2_trained.yaml (SDFT merge).',
-  'System / instruction is fixed empty for AlpacaEval-faithful local generation (read-only).',
+  'System / instruction is read-only when fixed or AlpacaEval-faithful (no system message).',
   'Type a user message — try Alpaca-style tasks like sewing or making apple juice — and Send.',
   'Open a result ID to inspect the transcript, metrics, and design summary.',
 ] %}
@@ -53,9 +53,9 @@
         {% if chat.instruction_ignored %}
         <input type="hidden" name="instruction" value="">
         <textarea id="instruction" rows="2" readonly>{{ chat.instruction }}</textarea>
-        <p class="field-hint" id="instruction-hint">
-          Custom system instructions are not used — matches AlpacaEval local generation for a fair base vs SDFT comparison.
-        </p>
+        {% if chat.instruction_hint %}
+        <p class="field-hint" id="instruction-hint">{{ chat.instruction_hint }}</p>
+        {% endif %}
         {% else %}
         <textarea id="instruction" name="instruction" rows="2"
                   placeholder="Overall task guidance for plain chat…">{{ chat.instruction }}</textarea>

@@ -12,9 +12,11 @@ from fastapi.testclient import TestClient
 from sdft.records.schema import PerformanceMetrics, PerformanceResult
 from web.app import CONFIG_OPTIONS, app
 from web.demo_conditions import (
-    IGNORE_USER_INSTRUCTION_MESSAGE,
+    FIXED_SYSTEM_INSTRUCTIONS,
+    NO_SYSTEM_INSTRUCTION_HINT,
     build_design_summary,
     config_ignores_user_instruction,
+    fixed_system_instruction,
 )
 
 
@@ -86,17 +88,25 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert b"syncInstructionField()" not in body
     assert b"Start generate" in body
     assert b"without a full page reload" not in body  # removed OpenClaw-specific howto line
-    assert IGNORE_USER_INSTRUCTION_MESSAGE.encode() in body
+    assert NO_SYSTEM_INSTRUCTION_HINT.encode() in body
     idx = body.index(b'id="instruction"')
-    tag = body[idx : body.index(b">", idx) + 1]
+    tag_end = body.index(b">", idx) + 1
+    close = body.index(b"</textarea>", tag_end)
+    textarea_body = body[tag_end:close]
+    assert textarea_body.strip() == b""
+    tag = body[idx:tag_end]
     assert b"readonly" in tag
     assert b'name="instruction"' not in tag
-    assert b"Custom system instructions are not used" in body
 
 
 def test_config_options_ignore_user_instruction():
     for cfg in CONFIG_OPTIONS:
         assert config_ignores_user_instruction(cfg)
+
+
+def test_alpacaeval_configs_have_no_fixed_system_instruction():
+    for cfg in CONFIG_OPTIONS:
+        assert fixed_system_instruction(cfg) == ""
 
 
 def test_config_options_include_alpacaeval_sdft():
@@ -262,7 +272,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
         body1 = page1.text
         assert "Tell a joke about grading." in body1
         assert "echo:Tell a joke about grading." in body1
-        assert IGNORE_USER_INSTRUCTION_MESSAGE in body1
+        assert NO_SYSTEM_INSTRUCTION_HINT in body1
         assert "You are a witty PhD comic narrator." not in body1
 
         history = [
@@ -340,6 +350,40 @@ def test_generate_still_background(client: TestClient):
         assert r.status_code == 303
         assert r.headers["location"] == "/perf?started=1"
         assert mocked.call_count <= 1
+
+
+def test_fixed_system_instruction_shown_readonly_and_used(client: TestClient, monkeypatch):
+    fixed_text = "You are a helpful benchmark assistant."
+    monkeypatch.setitem(FIXED_SYSTEM_INSTRUCTIONS, "configs/default.yaml", fixed_text)
+    captured: list[list[dict[str, str]]] = []
+
+    def fake_measure_chat(cfg, messages, **kwargs):
+        captured.append(list(messages))
+        return _fake_chat_result(messages, run_id="bench-fixed-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ):
+        page = client.get("/perf")
+        assert page.status_code == 200
+        assert fixed_text in page.text
+        assert NO_SYSTEM_INSTRUCTION_HINT not in page.text
+
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "Ignore me.",
+                "user_message": "Hello fixed",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    assert captured
+    assert captured[0][0] == {"role": "system", "content": fixed_text}
+    assert captured[0][1] == {"role": "user", "content": "Hello fixed"}
 
 
 def test_unknown_demo_condition_rejected(client: TestClient):
