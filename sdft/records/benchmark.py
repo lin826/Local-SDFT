@@ -33,6 +33,17 @@ def _adapter_ready(adapter_dir: Path | str) -> bool:
     return path.is_dir() and (path / "adapter_config.json").is_file()
 
 
+def _peft_adapter_metadata(model: Any) -> dict[str, Any]:
+    """Summarize whether a chat model has an active PEFT LoRA adapter."""
+    if not hasattr(model, "peft_config"):
+        return {"adapter_loaded": False, "peft_active_adapters": []}
+    active = getattr(model, "active_adapters", None)
+    if callable(active):
+        active = active()
+    adapters = list(active) if active else list(model.peft_config.keys())
+    return {"adapter_loaded": True, "peft_active_adapters": adapters}
+
+
 def _load_chat_model(cfg: Config, device: str, *, adapter_dir: Path | str | None = None):
     """Load base causal LM, optionally wrapped with a PEFT LoRA adapter."""
     base = load_model(cfg.model, device)
@@ -461,12 +472,23 @@ def _chat_performance_result(
     device: str,
     phases: LatencyPhases,
     model_name: str | None = None,
+    load_metadata: dict[str, Any] | None = None,
 ) -> PerformanceResult:
     full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
     total_tokens = input_tokens + output_tokens
     total_s = generate_ms / 1000 if generate_ms > 0 else 0.0
     tps = total_tokens / total_s if total_s > 0 else 0.0
     resolved_model = model_name or cfg.model.name
+    metadata: dict[str, Any] = {
+        "messages": full_messages,
+        "examples": _chat_examples_summary(cleaned, assistant_text),
+        "max_new_tokens": max_new_tokens,
+        "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
+        "chat": True,
+        "latency_phases": phases.to_list(),
+    }
+    if load_metadata:
+        metadata.update(load_metadata)
     return PerformanceResult(
         id=new_run_id("bench"),
         run_at=utc_now_iso(),
@@ -484,14 +506,7 @@ def _chat_performance_result(
             device=device,
             warmup_samples=0,
         ),
-        metadata={
-            "messages": full_messages,
-            "examples": _chat_examples_summary(cleaned, assistant_text),
-            "max_new_tokens": max_new_tokens,
-            "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
-            "chat": True,
-            "latency_phases": phases.to_list(),
-        },
+        metadata=metadata,
     )
 
 
@@ -528,6 +543,7 @@ def measure_chat(
     with phases.span("model_load"):
         model = _load_chat_model(cfg, device, adapter_dir=adapter_dir)
         model.eval()
+        load_metadata = _peft_adapter_metadata(model)
 
     with phases.span("prompt_build"):
         prompt_text = tokenizer.apply_chat_template(
@@ -564,6 +580,7 @@ def measure_chat(
         device=device,
         phases=phases,
         model_name=model_name,
+        load_metadata=load_metadata,
     )
 
 
@@ -596,6 +613,7 @@ def iter_measure_chat(
     with phases.span("model_load"):
         model = _load_chat_model(cfg, device, adapter_dir=adapter_dir)
         model.eval()
+        load_metadata = _peft_adapter_metadata(model)
 
     with phases.span("prompt_build"):
         prompt_text = tokenizer.apply_chat_template(
@@ -656,6 +674,7 @@ def iter_measure_chat(
         device=device,
         phases=phases,
         model_name=model_name,
+        load_metadata=load_metadata,
     )
     yield ("result", result)
 

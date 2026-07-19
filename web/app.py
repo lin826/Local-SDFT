@@ -56,7 +56,7 @@ from web.demo_conditions import (
     prompt_strategy_options,
 )
 from web.perf_models import (
-    known_perf_config_values,
+    normalize_perf_config_path,
     perf_infer_url_for_session,
     perf_model_options,
     resolve_perf_config,
@@ -94,13 +94,7 @@ def _perf_config_options() -> list[dict[str, str]]:
 
 
 def _normalize_perf_config(config_path: str) -> str:
-    known = known_perf_config_values()
-    if config_path in known:
-        return config_path
-    mapped = resolve_perf_config_from_adapter(config_path)
-    if mapped and mapped in known:
-        return mapped
-    return DEFAULT_CONFIG
+    return normalize_perf_config_path(config_path)
 
 
 def _load_perf_chat_cfg(selection: Any) -> Any:

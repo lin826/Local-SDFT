@@ -138,6 +138,42 @@ def test_perf_online_adapter_option_and_chat(client: TestClient, tmp_path: Path,
     assert str(captured["model_name"]) == str(adapter)
 
 
+def test_normalize_perf_config_keeps_online_session_outside_dropdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Valid online sessions must not be dropped when omitted from the dropdown cap."""
+    from sdft.online_learning.session import save_session
+    from web.perf_models import ONLINE_PERF_LIMIT, normalize_perf_config_path, online_config_value
+
+    monkeypatch.setattr("sdft.online_learning.paths.project_root", lambda start=None: tmp_path.resolve())
+
+    hidden = create_session("configs/online_learning.yaml", session_id="ol-hidden-adapter-test")
+    adapter = Path(hidden.adapter_dir)
+    adapter.mkdir(parents=True, exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    save_session(hidden)
+
+    for i in range(ONLINE_PERF_LIMIT):
+        session = create_session("configs/online_learning.yaml", session_id=f"ol-dropdown-filler-{i}")
+        filler_adapter = Path(session.adapter_dir)
+        filler_adapter.mkdir(parents=True, exist_ok=True)
+        (filler_adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+        save_session(session)
+
+    online_value = online_config_value(hidden.id)
+    from web.perf_models import known_perf_config_values
+
+    assert online_value not in known_perf_config_values()
+    assert normalize_perf_config_path(online_value) == online_value
+
+
+def test_normalize_perf_config_rejects_missing_online_session():
+    from web.demo_conditions import DEFAULT_CONFIG
+    from web.perf_models import normalize_perf_config_path
+
+    assert normalize_perf_config_path("online:ol-does-not-exist") == DEFAULT_CONFIG
+
+
 def test_perf_infer_link_from_session_detail(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     from sdft.online_learning.session import save_session
     from web.perf_models import online_config_value

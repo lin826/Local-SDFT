@@ -98,13 +98,46 @@ def known_perf_config_values(*, online_limit: int = ONLINE_PERF_LIMIT) -> frozen
     return frozenset(opt.value for opt in perf_model_options(online_limit=online_limit))
 
 
+def normalize_perf_config_path(config_path: str) -> str:
+    """Normalize a /perf Config value without dropping valid online sessions.
+
+    Online sessions are accepted whenever ``resolve_perf_config`` succeeds,
+    even when the session is omitted from the dropdown (``ONLINE_PERF_LIMIT``).
+    """
+    if is_online_config_path(config_path):
+        try:
+            resolve_perf_config(config_path)
+            return config_path
+        except ValueError:
+            return DEFAULT_CONFIG
+
+    if config_path in PERF_BASE_CONFIGS:
+        return config_path
+
+    mapped = resolve_perf_config_from_adapter(config_path)
+    if mapped:
+        try:
+            resolve_perf_config(mapped)
+            return mapped
+        except ValueError:
+            pass
+
+    if config_path in known_perf_config_values():
+        return config_path
+
+    return DEFAULT_CONFIG
+
+
 def resolve_perf_config(config_path: str) -> PerfModelSelection:
     """Resolve a /perf Config value to load settings and optional LoRA adapter."""
     if is_online_config_path(config_path):
         session_id = online_session_id_from_config(config_path)
         if not session_id:
             raise ValueError("invalid online config path")
-        session = load_session(session_id)
+        try:
+            session = load_session(session_id)
+        except FileNotFoundError as exc:
+            raise ValueError(f"online session {session_id!r} not found") from exc
         adapter = Path(session.adapter_dir)
         if not adapter_ready(adapter):
             raise ValueError(
