@@ -46,6 +46,7 @@
         <select id="demo_condition" name="demo_condition">
           {% for opt in condition_options %}
           <option value="{{ opt.id }}"
+            data-toolcall="{{ 'true' if opt.toolcall else 'false' }}"
             {% if opt.id == selected_condition %}selected{% endif %}
             {% if opt.disabled %}disabled{% endif %}
             title="{{ opt.description }}{% if opt.disabled %} — {{ opt.disabled_reason }}{% endif %}">
@@ -57,6 +58,9 @@
           {% for opt in condition_options if opt.id == selected_condition %}{{ opt.description }}{% endfor %}
         </p>
       </div>
+      {% set selected_opt = condition_options | selectattr('id', 'equalto', selected_condition) | first %}
+      {% set selected_is_toolcall = selected_opt.toolcall if selected_opt else true %}
+      {% set display_instruction = (selected_opt.system_prompt if selected_is_toolcall and selected_opt and selected_opt.system_prompt else chat.instruction) %}
       <div class="field">
         <label for="config_path">Config</label>
         <select id="config_path" name="config_path">
@@ -66,9 +70,15 @@
         </select>
         <p class="field-hint">Tool-call settings from YAML; default for demos is <code>openclaw_demo_eval.yaml</code>.</p>
       </div>
-      <div class="field" style="grid-column: 1 / -1;">
-        <label for="instruction">System / instruction <span class="field-hint">(plain chat only; ignored for tool conditions)</span></label>
-        <textarea id="instruction" name="instruction" rows="2" placeholder="Overall task guidance for plain chat…">{{ chat.instruction }}</textarea>
+      <div class="field" style="grid-column: 1 / -1;" id="instruction-field-group">
+        <label for="instruction">System / instruction</label>
+        <textarea id="instruction" name="instruction" rows="{{ 4 if selected_is_toolcall else 2 }}"
+                  placeholder="Overall task guidance for plain chat…"
+                  data-plain-default={{ chat.instruction|tojson }}
+                  {% if selected_is_toolcall %}readonly{% endif %}>{{ display_instruction }}</textarea>
+        <p class="field-hint" id="instruction-hint"{% if not selected_is_toolcall %} hidden{% endif %}>
+          Fixed LFM/OpenClaw tool system prompt (read-only). One-shot (OS) adds a demo in the transcript, not here.
+        </p>
       </div>
     </div>
 
@@ -199,6 +209,8 @@
 (function () {
   var cond = document.getElementById('demo_condition');
   var hint = document.getElementById('condition-hint');
+  var instructionInput = document.getElementById('instruction');
+  var instructionHint = document.getElementById('instruction-hint');
   var form = document.getElementById('chat-form');
   var btn = document.getElementById('chat-send');
   var hints = {
@@ -206,9 +218,45 @@
     {{ opt.id|tojson }}: {{ opt.description|tojson }}{% if not loop.last %},{% endif %}
     {% endfor %}
   };
-  if (cond && hint) {
+  var systemPrompts = {
+    {% for opt in condition_options %}
+    {{ opt.id|tojson }}: {{ opt.system_prompt|tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  var lastPlainInstruction = (instructionInput && instructionInput.getAttribute('data-plain-default')) || '';
+
+  function selectedIsToolcall() {
+    if (!cond) return false;
+    var opt = cond.options[cond.selectedIndex];
+    return opt && opt.getAttribute('data-toolcall') === 'true';
+  }
+
+  function syncInstructionField() {
+    if (!instructionInput || !cond) return;
+    var toolcall = selectedIsToolcall();
+    if (toolcall) {
+      if (!instructionInput.readOnly) {
+        lastPlainInstruction = instructionInput.value;
+      }
+      instructionInput.value = systemPrompts[cond.value] || '';
+      instructionInput.readOnly = true;
+      instructionInput.rows = 4;
+    } else {
+      instructionInput.readOnly = false;
+      instructionInput.value = lastPlainInstruction;
+      instructionInput.rows = 2;
+    }
+    if (instructionHint) {
+      if (toolcall) instructionHint.removeAttribute('hidden');
+      else instructionHint.setAttribute('hidden', '');
+    }
+  }
+
+  if (cond) {
+    syncInstructionField();
     cond.addEventListener('change', function () {
-      hint.textContent = hints[cond.value] || '';
+      if (hint) hint.textContent = hints[cond.value] || '';
+      syncInstructionField();
     });
   }
   // Non-HTMX fallback (no hx-post): disable Send while the full-page POST runs.

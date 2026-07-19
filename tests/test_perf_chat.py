@@ -73,8 +73,46 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert b"Chat inference" in resp.content
     assert b"Demo condition" in resp.content
     assert b"name=\"demo_condition\"" in resp.content
+    assert b'data-toolcall="true"' in resp.content
+    assert b'data-toolcall="false"' in resp.content
+    assert b'id="instruction-field-group"' in resp.content
+    assert b"syncInstructionField()" in resp.content
     assert b"Start generate" in resp.content
     assert b"without a full page reload" in resp.content
+
+
+def test_perf_page_plain_condition_enables_instruction(client: TestClient):
+    resp = client.get("/perf?condition=plain")
+    assert resp.status_code == 200
+    body = resp.text
+    idx = body.index('id="instruction"')
+    tag = body[idx : body.index(">", idx) + 1]
+    assert "readonly" not in tag
+    assert 'id="instruction-hint"' in body
+    hint = body[body.index('id="instruction-hint"') : body.index('id="instruction-hint"') + 80]
+    assert "hidden" in hint
+
+
+def test_perf_page_tool_condition_shows_fixed_system_prompt(client: TestClient):
+    from sdft.toolcall.format import DEFAULT_LFM_JSON_SYSTEM
+    from web.demo_conditions import effective_system_prompt, get_condition
+
+    resp = client.get("/perf")
+    assert resp.status_code == 200
+    body = resp.text
+    idx = body.index('id="instruction"')
+    tag = body[idx : body.index(">", idx) + 1]
+    assert "readonly" in tag
+    zs_prompt = effective_system_prompt(get_condition("ZS"))
+    assert zs_prompt == DEFAULT_LFM_JSON_SYSTEM
+    # Textarea HTML-escapes <>; content is still the fixed LFM system prompt.
+    assert "tool_call_start" in body
+    assert "code_interpreter" in body
+    assert "When you have the final answer, respond in plain text." in body
+    assert "Think: call the interpreter, then box the answer." in body  # CoT map entry
+    assert "Fixed LFM/OpenClaw tool system prompt" in body
+    assert "One-shot (OS)" in body
+    assert "field-hidden" not in body
 
 
 def test_htmx_chat_returns_partial_not_redirect(client: TestClient):

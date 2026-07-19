@@ -688,6 +688,12 @@ details.advanced-details[open] summary {
   font-size: 0.85em;
 }
 
+#instruction[readonly] {
+  background: #eef1f5;
+  color: var(--muted);
+  cursor: default;
+}
+
 .chat-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius);

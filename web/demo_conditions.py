@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from sdft.records.paths import project_root
-from sdft.toolcall.format import DEFAULT_COT_LINE
+from sdft.toolcall.format import (
+    DEFAULT_COT_LINE,
+    DEFAULT_LFM_JSON_SYSTEM,
+    with_cot_line,
+)
 
 DEFAULT_OPENCLAW_CONFIG = "configs/openclaw_demo_eval.yaml"
 DEFAULT_MERGED_REL = "outputs/openclaw-tooluse-merged"
@@ -132,6 +136,16 @@ def get_condition(condition_id: str) -> DemoCondition:
     return cond
 
 
+def effective_system_prompt(condition: DemoCondition) -> str | None:
+    """System text the tool loop uses for this condition (LFM JSON + optional CoT).
+
+    Few-shot (OS) demos are conversation prefixes, not part of the system prompt.
+    """
+    if not condition.toolcall:
+        return None
+    return with_cot_line(DEFAULT_LFM_JSON_SYSTEM, condition.cot_line)
+
+
 def condition_options(root: Path | None = None) -> list[dict[str, Any]]:
     """Serialize conditions for the template (includes SDFT availability)."""
     merged_ok = merged_checkpoint_available(root)
@@ -145,7 +159,9 @@ def condition_options(root: Path | None = None) -> list[dict[str, Any]]:
                 "label": c.label,
                 "description": c.description,
                 "toolcall": c.toolcall,
+                "few_shot_k": c.few_shot_k,
                 "sdft": c.sdft,
+                "system_prompt": effective_system_prompt(c),
                 "disabled": disabled,
                 "disabled_reason": (
                     f"Merged checkpoint not found at {merged_path}. "
