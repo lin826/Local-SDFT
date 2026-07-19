@@ -1,0 +1,45 @@
+# Self-distillation fine-tuning of Liquid AI LFM2.5-230M with LoRA.
+# Override any value here via configs/*.yaml; sections map to sdft/config.py.
+
+model:
+  name: LiquidAI/LFM2.5-230M   # post-trained chat checkpoint (use LiquidAI/LFM2.5-230M-Base for the base model)
+  dtype: float32               # 230M params -> full fp32 is cheap and stable on Apple-silicon MPS
+
+data:
+  dataset: yahma/alpaca-cleaned
+  split: train
+  prompt_fields: [instruction, input]   # concatenated (non-empty) to form the user prompt
+  response_field: output
+  num_examples: 500
+  seed: 0
+
+generation:
+  num_shots: 2            # in-context demonstrations for the teacher pass
+  batch_size: 8
+  max_new_tokens: 256
+  temperature: 0.0        # 0 = greedy; >0 enables sampling with top_p
+  top_p: 1.0
+  min_response_chars: 1
+  out_path: data/sdft_data.jsonl
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  # Regex over full module paths: the 4 attention projections of the 6 attention
+  # blocks. Leaf names live under self_attn.{q,k,v,out}_proj, conv.{in_proj,out_proj,conv},
+  # feed_forward.{w1,w2,w3}. A plain list (e.g. [q_proj, v_proj]) matches leaf suffixes;
+  # beware leaf "out_proj" exists in BOTH attention and conv blocks.
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/sdft-lfm25-230m
+  epochs: 1
+  lr: 0.0002
+  batch_size: 4
+  grad_accum: 4           # effective batch 16
+  max_length: 1024
+  warmup_steps: 10
+  logging_steps: 10
+  save_strategy: epoch
+  seed: 0
