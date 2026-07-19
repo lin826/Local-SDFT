@@ -517,7 +517,8 @@ async def online_learning_turn(
 
     redirect_url = f"/data?session={session_id}&turn={turn.turn_index}"
     if request.headers.get("HX-Request", "").lower() == "true":
-        response = RedirectResponse(url=redirect_url, status_code=303)
+        # HTMX ignores response headers on 3xx; HX-Redirect must be on 2xx.
+        response = HTMLResponse(content="", status_code=200)
         response.headers["HX-Redirect"] = redirect_url
         return response
     return RedirectResponse(url=redirect_url, status_code=303)

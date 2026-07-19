@@ -433,6 +433,61 @@ def test_online_turn_route_mocked(client: TestClient):
     assert "Per-turn latencies" in detail.text
 
 
+def test_online_turn_htmx_returns_redirect_header_not_303(client: TestClient):
+    page = client.get("/data")
+    session_id = page.text.split("session_id")[1].split('value="')[1].split('"')[0]
+
+    def fake_run(session_id, **kwargs):
+        from sdft.online_learning.schema import OnlineTurn, TurnLatency
+        from sdft.online_learning.session import resolve_session, save_session
+        from sdft.records.paths import utc_now_iso
+
+        session = resolve_session(
+            session_id,
+            config_path=kwargs.get("config_path") or "configs/online_learning.yaml",
+        )
+        turn = OnlineTurn(
+            turn_index=1,
+            instruction=kwargs["instruction"],
+            input="",
+            output="",
+            sdft_response="mock sdft target",
+            assistant_reply="mock assistant reply",
+            preview="mock assistant reply",
+            record_id="rec-test-htmx",
+            created_at=utc_now_iso(),
+            feedback_tone=None,
+            preference_action="first_turn",
+            latency=TurnLatency(total_ms=100),
+        )
+        session.turns.append(turn)
+        save_session(session)
+        return turn
+
+    with patch("web.app.run_online_turn", side_effect=fake_run):
+        resp = client.post(
+            "/data/turn",
+            data={
+                "session_id": session_id,
+                "config_path": "configs/online_learning.yaml",
+                "message": "Hello HTMX",
+                "preview": "1",
+            },
+            headers={"HX-Request": "true"},
+            follow_redirects=False,
+        )
+
+    redirect_url = f"/data?session={session_id}&turn=1"
+    assert resp.status_code == 200
+    assert resp.headers.get("HX-Redirect") == redirect_url
+    assert resp.headers.get("location") is None
+
+    after = client.get(redirect_url)
+    assert after.status_code == 200
+    assert "Hello HTMX" in after.text
+    assert "mock assistant reply" in after.text
+
+
 def test_online_session_detail_404(client: TestClient):
     resp = client.get("/data/ol-does-not-exist")
     assert resp.status_code == 404
