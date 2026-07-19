@@ -1,0 +1,31 @@
+{% if last_turn %}
+<div class="online-turn-result">
+  <h3>Turn {{ last_turn.turn_index }} logged</h3>
+  {% if last_turn.feedback_tone %}
+  <p class="meta">Feedback on previous reply: <strong>{{ last_turn.feedback_tone }}</strong> (reward {{ last_turn.feedback_reward }}{% if last_turn.feedback_source != 'none' %}, {{ last_turn.feedback_source }}{% endif %}) · action <code>{{ last_turn.preference_action }}</code></p>
+  {% else %}
+  <p class="meta">First turn — no prior reply to apply feedback to.</p>
+  {% endif %}
+  <div class="metrics-strip">
+    <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.total_ms) }}</strong><span>Total ms</span></div>
+    {% if last_turn.latency.tone_ms is not none %}
+    <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.tone_ms) }}</strong><span>Tone ms</span></div>
+    {% endif %}
+    {% if last_turn.latency.generate_ms is not none %}
+    <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.generate_ms) }}</strong><span>Generate ms</span></div>
+    {% endif %}
+    {% if last_turn.latency.train_ms is not none %}
+    <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.train_ms) }}</strong><span>Train ms</span></div>
+    {% endif %}
+    {% if last_turn.latency.inference_ms is not none %}
+    <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
+    {% endif %}
+  </div>
+  {% if last_turn.latency_phases %}
+  {% with phases=last_turn.latency_phases %}
+  {% include "latency_gantt.html" %}
+  {% endwith %}
+  {% endif %}
+  <p class="meta">Record <code>{{ last_turn.record_id }}</code>{% if session_persisted %} · <a href="/data/{{ session.id }}">session stats</a>{% endif %}</p>
+</div>
+{% endif %}

@@ -1,0 +1,42 @@
+<form
+  id="online-turn-form"
+  method="post"
+  action="/data/turn"
+  hx-post="/data/turn"
+  hx-target="#data-live"
+  hx-swap="outerHTML"
+  hx-indicator="#online-spinner"
+  class="chat-composer"
+  style="margin-top:1rem;"
+>
+  <input type="hidden" name="session_id" value="{{ session.id }}">
+  <label for="message" class="visually-hidden">Message</label>
+  <textarea id="message" name="message" rows="3" required placeholder="Thanks, that was perfect!">{{ prefill.message if prefill else '' }}</textarea>
+  <details class="advanced-details" style="margin:0.5rem 0;">
+    <summary>Advanced</summary>
+    <div class="field" style="margin-top:0.75rem;">
+      <label for="config_path_select">Config</label>
+      <select id="config_path_select" name="config_path">
+        {% for cfg in config_options %}
+        <option value="{{ cfg }}" {% if cfg == session.config_path %}selected{% endif %}>{{ cfg }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="tone_override">Feedback tone override (on previous reply)</label>
+      <select id="tone_override" name="tone_override">
+        <option value="">Auto-detect from message</option>
+        <option value="positive">Positive (+1)</option>
+        <option value="neutral">Neutral (0)</option>
+        <option value="negative">Negative (−1)</option>
+      </select>
+    </div>
+    <div class="field checkbox-field">
+      <label><input type="checkbox" name="preview" value="1" checked> Generate assistant reply after update</label>
+    </div>
+  </details>
+  <div class="actions chat-actions">
+    <button class="btn" type="submit" id="online-submit-btn">Send &amp; update</button>
+    <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter, then inferring…</span>
+  </div>
+</form>

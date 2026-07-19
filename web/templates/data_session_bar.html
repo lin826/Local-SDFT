@@ -1,0 +1,9 @@
+<div class="pill-row" style="margin-bottom:1rem;">
+  <span class="pill pill-accent">Session <code>{{ session.id }}</code></span>
+  <span class="pill pill-muted">{{ session.turn_count }} turn(s)</span>
+  <span class="pill pill-muted">{{ session.config_path }}</span>
+  {% if session_persisted %}
+  <a class="pill pill-muted" href="/data/{{ session.id }}">Session stats</a>
+  {% endif %}
+  <a class="pill pill-muted" href="/data?new=1">New session</a>
+</div>

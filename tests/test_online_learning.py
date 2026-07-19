@@ -433,7 +433,7 @@ def test_online_turn_route_mocked(client: TestClient):
     assert "Per-turn latencies" in detail.text
 
 
-def test_online_turn_htmx_returns_redirect_header_not_303(client: TestClient):
+def test_online_turn_htmx_returns_panel_fragment_not_redirect(client: TestClient):
     page = client.get("/data")
     session_id = page.text.split("session_id")[1].split('value="')[1].split('"')[0]
 
@@ -477,15 +477,18 @@ def test_online_turn_htmx_returns_redirect_header_not_303(client: TestClient):
             follow_redirects=False,
         )
 
-    redirect_url = f"/data?session={session_id}&turn=1"
     assert resp.status_code == 200
-    assert resp.headers.get("HX-Redirect") == redirect_url
+    assert resp.headers.get("HX-Redirect") is None
     assert resp.headers.get("location") is None
-
-    after = client.get(redirect_url)
-    assert after.status_code == 200
-    assert "Hello HTMX" in after.text
-    assert "mock assistant reply" in after.text
+    body = resp.text
+    assert 'id="data-live"' in body
+    assert "Hello HTMX" in body
+    assert "mock assistant reply" in body
+    assert "Turn 1 logged" in body
+    assert "1 turn(s)" in body
+    assert 'name="message"' in body
+    assert 'value="Hello HTMX"' not in body
+    assert resp.headers.get("HX-Push-Url") == f"/data?session={session_id}&turn=1"
 
 
 def test_online_session_detail_404(client: TestClient):

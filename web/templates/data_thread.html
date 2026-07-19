@@ -1,0 +1,23 @@
+<div class="chat-panel" aria-live="polite">
+  {% if session.turns %}
+  <div class="chat-thread">
+    {% for t in session.turns %}
+    <div class="chat-bubble chat-user">
+      <span class="chat-role">user</span>
+      <div class="chat-content">{{ t.instruction }}</div>
+    </div>
+    {% if t.assistant_reply %}
+    <div class="chat-bubble chat-assistant">
+      <span class="chat-role">assistant</span>
+      <div class="chat-content">{{ t.assistant_reply }}</div>
+      {% if t.feedback_tone %}
+      <p class="meta chat-turn-meta">Feedback: {{ t.feedback_tone }} ({{ t.feedback_reward }}) · {{ t.preference_action or '—' }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="chat-empty">No turns yet — send your first message below.</p>
+  {% endif %}
+</div>

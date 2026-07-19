@@ -1,0 +1,28 @@
+<section class="section" id="data-turn-log">
+  <h2>Turn log ({{ session.turn_count }})</h2>
+  {% if session.turns %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Message</th><th>Feedback</th><th>Action</th><th>Tone</th><th>Gen</th><th>Train</th><th>Infer</th><th>Total</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for t in session.turns|reverse %}
+      <tr>
+        <td>{{ t.turn_index }}</td>
+        <td>{{ t.instruction[:60] }}{% if t.instruction|length > 60 %}…{% endif %}</td>
+        <td>{% if t.feedback_tone %}{{ t.feedback_tone }} ({{ t.feedback_reward }}){% else %}—{% endif %}</td>
+        <td class="meta">{{ t.preference_action or '—' }}</td>
+        <td>{% if t.latency.tone_ms is not none %}{{ "%.0f"|format(t.latency.tone_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.generate_ms is not none %}{{ "%.0f"|format(t.latency.generate_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.train_ms is not none %}{{ "%.0f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
+        <td>{% if t.latency.inference_ms is not none %}{{ "%.0f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{{ "%.0f"|format(t.latency.total_ms) }}</td>
+        <td class="meta">{{ t.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No turns logged yet.</p>
+  {% endif %}
+</section>

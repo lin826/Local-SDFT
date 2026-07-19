@@ -395,6 +395,21 @@ async def index(request: Request) -> HTMLResponse:
     )
 
 
+def _online_data_context(
+    session: Any,
+    *,
+    prefill: dict[str, str] | None = None,
+    last_turn: Any | None = None,
+) -> dict[str, Any]:
+    return {
+        "session": session,
+        "session_persisted": session_persisted(session.id),
+        "config_options": ONLINE_CONFIG_OPTIONS,
+        "prefill": prefill or {"message": ""},
+        "last_turn": last_turn,
+    }
+
+
 @app.get("/data", response_class=HTMLResponse)
 async def data_page(request: Request) -> HTMLResponse:
     session_param = request.query_params.get("session") or request.query_params.get("session_id")
@@ -423,13 +438,9 @@ async def data_page(request: Request) -> HTMLResponse:
         request,
         "data.html",
         {
-            "session": session,
-            "session_persisted": session_persisted(session.id),
+            **_online_data_context(session, prefill=prefill, last_turn=last_turn),
             "sessions": list_sessions(limit=10),
-            "config_options": ONLINE_CONFIG_OPTIONS,
             "request": request,
-            "prefill": prefill,
-            "last_turn": last_turn,
         },
     )
 
@@ -517,9 +528,13 @@ async def online_learning_turn(
 
     redirect_url = f"/data?session={session_id}&turn={turn.turn_index}"
     if request.headers.get("HX-Request", "").lower() == "true":
-        # HTMX ignores response headers on 3xx; HX-Redirect must be on 2xx.
-        response = HTMLResponse(content="", status_code=200)
-        response.headers["HX-Redirect"] = redirect_url
+        session = load_session(session_id)
+        response = templates.TemplateResponse(
+            request,
+            "data_panel.html",
+            _online_data_context(session, prefill={"message": ""}, last_turn=turn),
+        )
+        response.headers["HX-Push-Url"] = redirect_url
         return response
     return RedirectResponse(url=redirect_url, status_code=303)
 

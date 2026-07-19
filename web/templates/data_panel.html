@@ -1,0 +1,13 @@
+{# Swappable live region for HTMX (outerHTML of #data-live). #}
+<div id="data-live">
+  {% include "data_session_bar.html" %}
+
+  <section class="section" id="online-turn-panel">
+    <h2>Conversation</h2>
+    {% include "data_thread.html" %}
+    {% include "data_turn_metrics.html" %}
+    {% include "data_composer.html" %}
+  </section>
+
+  {% include "data_turn_log.html" %}
+</div>
