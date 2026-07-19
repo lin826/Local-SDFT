@@ -3,59 +3,101 @@
 {% set active = 'perf' %}
 {% block content %}
 <h1 class="page-title">Performance tests</h1>
-<p class="lead">Starts <code>sdft.records.run_benchmark</code> in the background (loads the model). Results land in <code>outputs/benchmarks/</code>.</p>
+<p class="lead"><strong>Chat inference</strong> is multi-turn and synchronous (each Send waits for the model). <strong>Generate</strong> still runs in the background. Results land in <code>outputs/benchmarks/</code>.</p>
 
-{% with page_id='perf', tip='Runs load the model and can take several minutes. Keep this page open and refresh after the notice appears.' %}
+{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
 {% set steps = [
-  'Choose Benchmark: inference (Alpaca-style instruction/input) or generate (SDFT teacher pass over dataset examples).',
-  'Pick a Config YAML that points at the model and data you want to measure.',
-  'For inference, fill Instruction and optional Input. For generate, set Examples instead.',
-  'Click Start benchmark — the job runs in the background; a green notice confirms it started.',
-  'Refresh this page after the run finishes, then open a result ID to see Instruction, Input, and model Output.',
+  'Set an optional System / instruction (sticky across turns), then pick a Config YAML.',
+  'Type a user message in the composer and click Send — the page waits, then shows the assistant reply in the transcript.',
+  'Keep chatting: prior turns ride along in a hidden JSON field. Open a result ID anytime for metrics + full transcript.',
+  'New chat clears the transcript. Generate (SDFT teacher pass) is a separate background benchmark below.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
 
 {% if request.query_params.get('started') %}
-<p class="notice">Benchmark started in the background. Refresh this page shortly, then open the newest run ID — <strong>Instruction / Input / Output</strong> are on the detail page (and previewed under Loaded results).</p>
+<p class="notice">Generate benchmark started in the background. Refresh this page shortly, then open the newest run ID.</p>
+{% elif request.query_params.get('sent') and chat.last_run_id %}
+<p class="notice">Reply ready. Saved as <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a> — keep chatting or open the detail page.</p>
+{% elif request.query_params.get('continue') and chat.last_run_id %}
+<p class="notice">Continuing from <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>.</p>
 {% elif request.query_params.get('instruction') %}
-<p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then click Start benchmark.</p>
+<p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then Send.</p>
 {% endif %}
 
-<section class="section">
-  <h2>Run benchmark</h2>
-  <form method="post" action="/perf/run">
+<section class="section" id="chat">
+  <div class="chat-head">
+    <h2>Chat inference</h2>
+    <a class="btn btn-secondary btn-sm" href="/perf">New chat</a>
+  </div>
+
+  <form method="post" action="/perf/chat" id="chat-form">
     <div class="grid-2">
-      <div class="field">
-        <label for="benchmark">Benchmark</label>
-        <select id="benchmark" name="benchmark">
-          <option value="inference">inference (single-turn)</option>
-          <option value="generate">generate (SDFT teacher pass)</option>
-        </select>
-      </div>
       <div class="field">
         <label for="config_path">Config</label>
         <select id="config_path" name="config_path">
+          {% for cfg in config_options %}
+          <option value="{{ cfg }}" {% if cfg == selected_config %}selected{% endif %}>{{ cfg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label for="instruction">System / instruction <span class="field-hint">(optional, sticky)</span></label>
+        <textarea id="instruction" name="instruction" rows="2" placeholder="Overall task guidance for the model…">{{ chat.instruction }}</textarea>
+      </div>
+    </div>
+
+    <div class="chat-panel" aria-live="polite">
+      {% if chat.messages %}
+      <div class="chat-thread">
+        {% for m in chat.messages %}
+        <div class="chat-bubble chat-{{ m.role }}">
+          <span class="chat-role">{{ m.role }}</span>
+          <pre class="chat-content">{{ m.content }}</pre>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="chat-empty">No turns yet. Send a message to start a conversation.</p>
+      {% endif %}
+    </div>
+
+    <textarea name="messages_json" class="visually-hidden" aria-hidden="true" readonly tabindex="-1">{{ chat.messages_json }}</textarea>
+
+    <div class="chat-composer">
+      <label for="user_message" class="visually-hidden">Message</label>
+      <textarea id="user_message" name="user_message" rows="3" required placeholder="Your message…">{{ chat.composer_prefill }}</textarea>
+      <div class="actions chat-actions">
+        <button class="btn" type="submit" id="chat-send">Send</button>
+        {% if chat.last_run_id %}
+        <a class="btn btn-secondary" href="/perf/{{ chat.last_run_id }}">View last run</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</section>
+
+<section class="section">
+  <h2>Generate benchmark</h2>
+  <p class="lead" style="margin-bottom:1rem;">Background SDFT teacher pass over dataset examples (unchanged from before).</p>
+  <form method="post" action="/perf/run">
+    <input type="hidden" name="benchmark" value="generate">
+    <div class="grid-2">
+      <div class="field">
+        <label for="gen_config_path">Config</label>
+        <select id="gen_config_path" name="config_path">
           {% for cfg in config_options %}
           <option value="{{ cfg }}">{{ cfg }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="num_examples">Examples (generate only)</label>
+        <label for="num_examples">Examples</label>
         <input id="num_examples" name="num_examples" type="number" value="4" min="1" max="64">
-      </div>
-      <div class="field">
-        <label for="instruction">Instruction (inference)</label>
-        <input id="instruction" name="instruction" type="text" value="{{ defaults.instruction }}">
-      </div>
-      <div class="field" style="grid-column: 1 / -1;">
-        <label for="input_text">Input (inference, optional)</label>
-        <textarea id="input_text" name="input_text" placeholder="Extra context or constraints for the model…">{{ defaults.input_text }}</textarea>
       </div>
     </div>
     <div class="actions">
-      <button class="btn" type="submit">Start benchmark</button>
+      <button class="btn btn-secondary" type="submit">Start generate</button>
     </div>
   </form>
 </section>
@@ -90,11 +132,12 @@
   {% if results %}
   {% for r in results %}
   {% set examples = r.metadata.get('examples') if r.metadata else none %}
+  {% set messages = r.metadata.get('messages') if r.metadata else none %}
   <article class="result-card">
     <div class="result-head">
       <div>
         <strong><a href="/perf/{{ r.id }}">{{ r.id }}</a></strong>
-        <span class="badge badge-completed">{{ r.benchmark }}</span>
+        <span class="badge badge-completed">{{ r.benchmark }}{% if messages %} · chat{% endif %}</span>
         <div class="meta">{{ r.model }} · {{ r.metrics.device }} · {{ r.run_at }}</div>
       </div>
     </div>
@@ -105,7 +148,23 @@
       <div class="metric"><strong>{{ "%.1f"|format(r.metrics.latency_ms_p95) }}</strong><span>latency_ms_p95</span></div>
       <div class="metric"><strong>{{ r.metrics.samples }}</strong><span>samples</span></div>
     </div>
-    {% if examples %}
+    {% if messages %}
+    <div class="io-preview">
+      <div class="chat-thread chat-thread-preview">
+        {% for m in messages[-4:] %}
+        <div class="chat-bubble chat-{{ m.role }}">
+          <span class="chat-role">{{ m.role }}</span>
+          <pre class="chat-content">{{ m.content }}</pre>
+        </div>
+        {% endfor %}
+      </div>
+      {% if messages|length > 4 %}
+      <p class="meta"><a href="/perf/{{ r.id }}">View full transcript ({{ messages|length }} messages) →</a></p>
+      {% else %}
+      <p class="meta"><a href="/perf/{{ r.id }}">Open run →</a> · <a href="/perf?continue={{ r.id }}">Continue chat →</a></p>
+      {% endif %}
+    </div>
+    {% elif examples %}
     {% set ex = examples[0] %}
     <div class="io-preview">
       <div class="io-field">
@@ -132,7 +191,19 @@
   </article>
   {% endfor %}
   {% else %}
-  <p class="empty">No benchmark JSON files yet. Start a run above (heavy — downloads/loads the model).</p>
+  <p class="empty">No benchmark JSON files yet. Start a chat above (heavy — downloads/loads the model).</p>
   {% endif %}
 </section>
+
+<script>
+(function () {
+  var form = document.getElementById('chat-form');
+  var btn = document.getElementById('chat-send');
+  if (!form || !btn) return;
+  form.addEventListener('submit', function () {
+    btn.disabled = true;
+    btn.textContent = 'Waiting for model…';
+  });
+})();
+</script>
 {% endblock %}

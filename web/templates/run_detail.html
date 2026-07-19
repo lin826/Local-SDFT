@@ -18,22 +18,46 @@
 
 <details class="howto-collapsed">
   <summary class="howto-summary">How to use this page</summary>
-  {% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the Alpaca text fields below — those counters are token counts, not Instruction/Input/Output.' %}
+  {% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the transcript below — those counters are token counts, not message text.' %}
   {% set steps = [
     'Header pills (top): benchmark, model, device, config, and headline speed.',
-    'Prompt · Reply (below): the prompt you typed and the model reply — this is where the text lives.',
+    'Transcript or Prompt · Reply: the conversation / Alpaca fields for this run.',
     'Metrics / Advanced (bottom): timing, throughput, and raw metadata only.',
-    'Click Back to benchmarks to start a new inference run if Output is empty.',
+    'Continue chat to resume multi-turn from this run’s messages.',
   ] %}
   {% include "howto.html" %}
   {% endwith %}
 </details>
 
 {% set examples = result.metadata.get('examples') if result.metadata else none %}
+{% set messages = result.metadata.get('messages') if result.metadata else none %}
 {% set max_new_tokens = result.metadata.get('max_new_tokens') if result.metadata else none %}
 {% set is_truncated = max_new_tokens and max_new_tokens > 0 and result.metrics.output_tokens_total >= max_new_tokens %}
 
-{% if result.benchmark == 'inference' or examples %}
+{% if messages %}
+<section class="section" id="transcript">
+  <h2>Transcript</h2>
+  <p class="lead" style="margin-bottom:1rem;">Multi-turn conversation stored for this run.{% if is_truncated %} <span class="badge badge-truncated" title="output_tokens_total ({{ result.metrics.output_tokens_total }}) reached max_new_tokens ({{ max_new_tokens }})">last reply possibly truncated</span>{% endif %}</p>
+  <div class="chat-thread chat-thread-detail">
+    {% for m in messages %}
+    <div class="chat-bubble chat-{{ m.role }}">
+      <div class="chat-bubble-head">
+        <span class="chat-role">{{ m.role }}</span>
+        <button type="button" class="copy-btn" data-copy-target="msg-{{ loop.index0 }}">Copy</button>
+      </div>
+      <pre class="chat-content" id="msg-{{ loop.index0 }}">{{ m.content }}</pre>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="io-actions">
+    <a class="btn btn-secondary btn-sm" href="/perf?continue={{ result.id }}">Continue chat</a>
+    {% if examples and examples[0] %}
+    {% set ex = examples[0] %}
+    <a class="btn btn-secondary btn-sm" href="/data?instruction={{ ex.instruction|urlencode }}&input_text={{ ex.input|urlencode }}&output={{ ex.output|urlencode }}">Save last turn as example</a>
+    {% endif %}
+  </div>
+</section>
+{% elif result.benchmark == 'inference' or examples %}
 <section class="section" id="io">
   <h2>Prompt · Reply</h2>
   <p class="lead" style="margin-bottom:1rem;">Alpaca-style text for this run. <em>Instruction</em> and <em>Input</em> are what you submitted on Performance; <em>Output</em> is the model’s generated reply.</p>
@@ -96,7 +120,7 @@
         </div>
       </div>
     </div>
-    <p class="empty" style="margin-top:0.75rem;">This ID was produced before outputs were persisted. Restart <code>uv run python -m web.app</code>, open <a href="/perf">Performance</a>, run inference again, then open the <strong>new</strong> run ID.</p>
+    <p class="empty" style="margin-top:0.75rem;">This ID was produced before outputs were persisted. Restart <code>uv run python -m web.app</code>, open <a href="/perf">Performance</a>, run a chat turn, then open the <strong>new</strong> run ID.</p>
   </article>
   {% endif %}
 </section>
@@ -135,7 +159,7 @@
 {% if result.metadata %}
 {% set meta_items = [] %}
 {% for key, value in result.metadata.items() %}
-{% if key != 'examples' %}
+{% if key not in ('examples', 'messages') %}
 {% set _ = meta_items.append((key, value)) %}
 {% endif %}
 {% endfor %}

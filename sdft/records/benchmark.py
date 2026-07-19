@@ -257,6 +257,117 @@ def measure_inference(
     )
 
 
+def _validate_chat_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Normalize OpenAI-style chat messages; require a trailing user turn."""
+    allowed = {"system", "user", "assistant"}
+    cleaned: list[dict[str, str]] = []
+    for i, raw in enumerate(messages):
+        if not isinstance(raw, dict):
+            raise ValueError(f"messages[{i}] must be a dict")
+        role = str(raw.get("role", "")).strip()
+        content = str(raw.get("content", "")).strip()
+        if role not in allowed:
+            raise ValueError(f"messages[{i}].role must be one of {sorted(allowed)}")
+        if not content:
+            raise ValueError(f"messages[{i}].content must not be empty")
+        cleaned.append({"role": role, "content": content})
+    if not cleaned:
+        raise ValueError("messages must not be empty")
+    if cleaned[-1]["role"] != "user":
+        raise ValueError("messages must end with a user turn")
+    return cleaned
+
+
+def _chat_examples_summary(messages: list[dict[str, str]], assistant_text: str) -> list[dict[str, str]]:
+    """Alpaca-compatible summary of the last turn for existing UI cards."""
+    system = next((m["content"] for m in messages if m["role"] == "system"), "")
+    last_user = next(
+        (m["content"] for m in reversed(messages) if m["role"] == "user"),
+        "",
+    )
+    if system:
+        return [{"instruction": system, "input": last_user, "output": assistant_text}]
+    return [{"instruction": last_user, "input": "", "output": assistant_text}]
+
+
+@torch.inference_mode()
+def measure_chat(
+    cfg: Config,
+    messages: list[dict[str, str]],
+    *,
+    max_new_tokens: int | None = None,
+    device: str | None = None,
+) -> PerformanceResult:
+    """Run one synchronous multi-turn chat completion.
+
+    ``messages`` is OpenAI-style ``[{role, content}, ...]`` and must end with a
+    user turn. The assistant reply is appended in ``metadata["messages"]``.
+    An Alpaca-style last-turn summary is also stored under ``metadata["examples"]``.
+    """
+    cleaned = _validate_chat_messages(messages)
+    if max_new_tokens is None:
+        max_new_tokens = cfg.generation.max_new_tokens
+
+    device = device or pick_device()
+    tokenizer = load_tokenizer(cfg.model)
+    tokenizer.padding_side = "left"
+    model = load_model(cfg.model, device)
+    model.eval()
+
+    prompt_text = tokenizer.apply_chat_template(
+        cleaned,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
+    enc = enc.to(device)
+    input_tokens = int(enc["input_ids"].numel())
+
+    t0 = time.perf_counter()
+    out = model.generate(
+        **enc,
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    new_tokens = out[:, enc["input_ids"].shape[1] :]
+    output_tokens = int(new_tokens.numel())
+    assistant_text = tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
+
+    full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
+    total_tokens = input_tokens + output_tokens
+    total_s = elapsed_ms / 1000 if elapsed_ms > 0 else 0.0
+    tps = total_tokens / total_s if total_s > 0 else 0.0
+
+    return PerformanceResult(
+        id=new_run_id("bench"),
+        run_at=utc_now_iso(),
+        benchmark="inference",
+        model=cfg.model.name,
+        metrics=PerformanceMetrics(
+            latency_ms_mean=elapsed_ms,
+            latency_ms_p50=elapsed_ms,
+            latency_ms_p95=elapsed_ms,
+            tokens_per_second=tps,
+            samples=1,
+            batch_size=1,
+            input_tokens_total=input_tokens,
+            output_tokens_total=output_tokens,
+            device=device,
+            warmup_samples=0,
+        ),
+        metadata={
+            "messages": full_messages,
+            "examples": _chat_examples_summary(cleaned, assistant_text),
+            "max_new_tokens": max_new_tokens,
+            "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
+            "chat": True,
+        },
+    )
+
+
 def geek_jokes_generations_path(run_id: str, root: Path | None = None) -> Path:
     """Sidecar JSONL of geek-jokes benchmark completions."""
     return performance_dir(root) / f"{run_id}_geek_jokes.jsonl"
@@ -389,6 +500,7 @@ def run_benchmark(
     num_examples: int = 8,
     prompts: list[str] | None = None,
     records: list[dict[str, str]] | None = None,
+    messages: list[dict[str, str]] | None = None,
     warmup_batches: int | None = None,
     persist: bool = True,
     root: Path | None = None,
@@ -398,13 +510,18 @@ def run_benchmark(
     if benchmark == "generate":
         result = measure_generation(cfg, num_examples=num_examples)
     elif benchmark == "inference":
-        sample_prompts = prompts or ["Explain self-distillation fine-tuning in one sentence."]
-        infer_kwargs: dict[str, Any] = {}
-        if records is not None:
-            infer_kwargs["records"] = records
-        if warmup_batches is not None:
-            infer_kwargs["warmup_batches"] = warmup_batches
-        result = measure_inference(cfg, sample_prompts, **infer_kwargs)
+        if messages is not None:
+            result = measure_chat(cfg, messages)
+        else:
+            sample_prompts = prompts or [
+                "Explain self-distillation fine-tuning in one sentence."
+            ]
+            infer_kwargs: dict[str, Any] = {}
+            if records is not None:
+                infer_kwargs["records"] = records
+            if warmup_batches is not None:
+                infer_kwargs["warmup_batches"] = warmup_batches
+            result = measure_inference(cfg, sample_prompts, **infer_kwargs)
     elif benchmark == "geek_jokes":
         result = measure_geek_jokes(cfg, num_examples=num_examples)
     else:

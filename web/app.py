@@ -6,7 +6,10 @@ Uses the shared contract in ``sdft.records`` only — see ``docs/shared-contract
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
+from typing import Any
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -34,6 +37,7 @@ app = FastAPI(title="Local-SDFT", description="Data collection and performance t
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
 CONFIG_OPTIONS = ["configs/default.yaml", "configs/geek_jokes.yaml"]
+ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}
 
 
 def _index_entries(limit: int = 50) -> list[dict]:
@@ -44,6 +48,110 @@ def _index_entries(limit: int = 50) -> list[dict]:
 def _load_results(limit: int = 20):
     results = list_performance_results(performance_dir())
     return list(reversed(results[-limit:]))
+
+
+def _parse_messages_json(raw: str) -> list[dict[str, str]]:
+    """Parse request-carried chat history (OpenAI-style role/content list)."""
+    text = (raw or "").strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid messages_json: {exc}") from exc
+    if not isinstance(data, list):
+        raise HTTPException(status_code=400, detail="messages_json must be a JSON array")
+    cleaned: list[dict[str, str]] = []
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail=f"messages_json[{i}] must be an object")
+        role = str(item.get("role", "")).strip()
+        content = str(item.get("content", "")).strip()
+        if role not in ALLOWED_CHAT_ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"messages_json[{i}].role must be system|user|assistant",
+            )
+        if not content:
+            continue
+        cleaned.append({"role": role, "content": content})
+    return cleaned
+
+
+def _history_without_system(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [m for m in messages if m["role"] != "system"]
+
+
+def _system_from_messages(messages: list[dict[str, str]]) -> str:
+    return next((m["content"] for m in messages if m["role"] == "system"), "")
+
+
+def _build_chat_messages(
+    instruction: str,
+    history: list[dict[str, str]],
+    user_message: str,
+) -> list[dict[str, str]]:
+    """Assemble model input: optional system + prior turns + new user message."""
+    messages: list[dict[str, str]] = []
+    instr = instruction.strip()
+    if instr:
+        messages.append({"role": "system", "content": instr})
+    for m in history:
+        role = m["role"]
+        if role == "system":
+            continue
+        messages.append({"role": role, "content": m["content"]})
+    messages.append({"role": "user", "content": user_message.strip()})
+    return messages
+
+
+def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
+    """Load sticky instruction + history from a prior chat run for ?continue=."""
+    empty = {
+        "instruction": "Tell a geek joke about PhD life",
+        "messages": [],
+        "messages_json": "[]",
+        "last_run_id": None,
+    }
+    if not run_id:
+        return empty
+    path = performance_result_path(run_id)
+    if not path.is_file():
+        return empty
+    result = load_performance_result(path)
+    meta = result.metadata or {}
+    messages = meta.get("messages")
+    if not isinstance(messages, list) or not messages:
+        # Fall back to single-turn examples for re-run compatibility.
+        examples = meta.get("examples") or []
+        if examples:
+            ex = examples[0]
+            instruction = str(ex.get("instruction") or empty["instruction"])
+            user_text = str(ex.get("input") or "").strip() or instruction
+            history = [{"role": "user", "content": user_text}]
+            if ex.get("output"):
+                history.append({"role": "assistant", "content": str(ex["output"])})
+            return {
+                "instruction": instruction if ex.get("input") else empty["instruction"],
+                "messages": history,
+                "messages_json": json.dumps(history, ensure_ascii=False),
+                "last_run_id": run_id,
+            }
+        return empty
+
+    typed = [
+        {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+        for m in messages
+        if isinstance(m, dict) and m.get("role") in ALLOWED_CHAT_ROLES and str(m.get("content", "")).strip()
+    ]
+    instruction = _system_from_messages(typed) or empty["instruction"]
+    history = _history_without_system(typed)
+    return {
+        "instruction": instruction,
+        "messages": history,
+        "messages_json": json.dumps(history, ensure_ascii=False),
+        "last_run_id": run_id,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -106,12 +214,33 @@ async def export_data(export_name: str = Form("geek-jokes-export")) -> RedirectR
 
 @app.get("/perf", response_class=HTMLResponse)
 async def perf_page(request: Request) -> HTMLResponse:
-    defaults = {
-        "instruction": request.query_params.get(
-            "instruction", "Tell a geek joke about PhD life"
-        ),
-        "input_text": request.query_params.get("input", ""),
-    }
+    continue_id = request.query_params.get("continue")
+    chat = _chat_context_from_continue(continue_id)
+    # Query overrides for legacy Re-run links (instruction + input → seed chat).
+    q_instruction = request.query_params.get("instruction")
+    q_input = request.query_params.get("input", "")
+    if q_instruction and not continue_id:
+        seed: list[dict[str, str]] = []
+        if q_input.strip():
+            chat = {
+                "instruction": q_instruction,
+                "messages": seed,
+                "messages_json": "[]",
+                "last_run_id": None,
+            }
+            # Prefill composer via placeholder template var
+            chat["composer_prefill"] = q_input
+        else:
+            chat = {
+                "instruction": q_instruction,
+                "messages": seed,
+                "messages_json": "[]",
+                "last_run_id": None,
+                "composer_prefill": "",
+            }
+    else:
+        chat.setdefault("composer_prefill", "")
+
     return templates.TemplateResponse(
         request,
         "perf.html",
@@ -120,14 +249,12 @@ async def perf_page(request: Request) -> HTMLResponse:
             "index": _index_entries(20),
             "config_options": CONFIG_OPTIONS,
             "request": request,
-            "defaults": defaults,
+            "chat": chat,
+            "selected_config": request.query_params.get(
+                "config_path", CONFIG_OPTIONS[0]
+            ),
         },
     )
-
-
-def _join_inference_prompt(instruction: str, input_text: str) -> str:
-    parts = [p for p in (instruction.strip(), input_text.strip()) if p]
-    return "\n\n".join(parts)
 
 
 def _run_benchmark_task(
@@ -136,49 +263,76 @@ def _run_benchmark_task(
     num_examples: int,
     prompts: list[str] | None,
     records: list[dict[str, str]] | None,
-) -> None:
+    messages: list[dict[str, str]] | None = None,
+):
     kwargs: dict = {"config_path": config_path, "persist": True}
     if benchmark == "generate":
         kwargs["num_examples"] = num_examples
+    elif messages is not None:
+        kwargs["messages"] = messages
     elif prompts:
         kwargs["prompts"] = prompts
         kwargs["records"] = records
         # Interactive web runs use a single prompt; skip warmup so I/O is counted.
         kwargs["warmup_batches"] = 0
-    run_benchmark(benchmark, **kwargs)
+    return run_benchmark(benchmark, **kwargs)
+
+
+@app.post("/perf/chat")
+async def run_perf_chat(
+    config_path: str = Form("configs/default.yaml"),
+    instruction: str = Form(""),
+    user_message: str = Form(...),
+    messages_json: str = Form("[]"),
+) -> RedirectResponse:
+    """Synchronous multi-turn chat: wait for the model, then continue on /perf."""
+    user_message = user_message.strip()
+    if not user_message:
+        raise HTTPException(status_code=400, detail="user_message is required")
+
+    history = _parse_messages_json(messages_json)
+    try:
+        messages = _build_chat_messages(instruction, history, user_message)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    result = await asyncio.to_thread(
+        _run_benchmark_task,
+        "inference",
+        config_path,
+        1,
+        None,
+        None,
+        messages,
+    )
+    cfg_q = quote(config_path, safe="")
+    return RedirectResponse(
+        url=f"/perf?continue={result.id}&config_path={cfg_q}&sent=1",
+        status_code=303,
+    )
 
 
 @app.post("/perf/run")
 async def run_perf(
     background_tasks: BackgroundTasks,
-    benchmark: str = Form("inference"),
+    benchmark: str = Form("generate"),
     config_path: str = Form("configs/default.yaml"),
     num_examples: int = Form(4),
-    instruction: str = Form("Explain self-distillation fine-tuning in one sentence."),
-    input_text: str = Form(""),
 ) -> RedirectResponse:
-    if benchmark not in {"generate", "inference"}:
-        raise HTTPException(status_code=400, detail="benchmark must be generate or inference")
-    prompts: list[str] | None = None
-    records: list[dict[str, str]] | None = None
-    if benchmark == "inference":
-        prompt = _join_inference_prompt(instruction, input_text)
-        if not prompt:
-            raise HTTPException(status_code=400, detail="instruction is required for inference")
-        prompts = [prompt]
-        records = [
-            {
-                "instruction": instruction.strip(),
-                "input": input_text.strip(),
-            }
-        ]
+    """Background generate benchmark (chat inference uses POST /perf/chat)."""
+    if benchmark != "generate":
+        raise HTTPException(
+            status_code=400,
+            detail="use POST /perf/chat for multi-turn inference; only generate is accepted here",
+        )
     background_tasks.add_task(
         _run_benchmark_task,
         benchmark,
         config_path,
         num_examples,
-        prompts,
-        records,
+        None,
+        None,
+        None,
     )
     return RedirectResponse(url="/perf?started=1", status_code=303)
 
