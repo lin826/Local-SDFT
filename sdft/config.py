@@ -68,12 +68,63 @@ class TrainConfig:
 
 
 @dataclass
+class OnlineConfig:
+    """Online (serve-while-learning) SDFT: see sdft/online/."""
+
+    backend: str = "torch"  # torch | echo (echo = model-free, for tests/plumbing)
+    # on-policy sampling + loss
+    sample_temperature: float = 0.9
+    sample_top_p: float = 0.95
+    max_prompt_tokens: int = 1024
+    max_completion_tokens: int = 128
+    beta_kl_base: float = 0.0  # KL-to-base anchor weight (0 = off)
+    num_loss_tokens_to_skip: int = 0
+    reinstruct_template: str = (
+        "Now answer with a response of your own, including the thinking process."
+    )
+    # optimizer
+    lr: float = 1.0e-4
+    weight_decay: float = 0.0
+    max_grad_norm: float = 1.0
+    # serving generation
+    serve_temperature: float = 0.3
+    serve_min_p: float = 0.15
+    serve_max_new_tokens: int = 256
+    # update scheduler
+    min_new_demos: int = 4
+    steps_per_update: int = 4
+    demos_per_step: int = 1
+    replay_ratio: float = 0.5
+    max_per_topic_per_batch: int = 2
+    eval_every_n_updates: int = 5
+    # reward-selected on-policy self-distillation (RAFT-style) for the demo
+    reward_fn: str | None = None  # name in sdft.online.reward registry; None = correction-only
+    reward_num_samples: int = 4  # rollouts per prompt when a reward_fn is set
+    # Optional instruction used ONLY while sampling reward candidates, to elicit
+    # the target behavior on a cold-start model (the SDFT teacher hint). The
+    # stored demonstration trains the PLAIN model, so the behavior persists
+    # without the instruction at serve time.
+    coach_instruction: str | None = None
+    # signals
+    accepted_weight: float = 0.5
+    correction_weight: float = 1.0
+    max_accepted_per_conversation: int = 4
+    # persistence
+    db_path: str = "data/online_sdft.db"
+    adapters_dir: str = "data/online_adapters"
+    # server
+    host: str = "127.0.0.1"
+    port: int = 8080
+
+
+@dataclass
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     data: DataConfig = field(default_factory=DataConfig)
     generation: GenerateConfig = field(default_factory=GenerateConfig)
     lora: LoraConfig = field(default_factory=LoraConfig)
     training: TrainConfig = field(default_factory=TrainConfig)
+    online: OnlineConfig = field(default_factory=OnlineConfig)
 
 
 def _apply(section: Any, values: dict[str, Any], path: str) -> None:

@@ -1,0 +1,33 @@
+# "Airplane-Mode Coach" demo: teach the model a house reply style, live & offline.
+# Reward-selected on-policy self-distillation (RAFT-style) drives the success curve.
+#
+#   python -m sdft.online.cli demo  --config configs/demo_house_style.yaml
+#   python -m sdft.online.cli serve --config configs/demo_house_style.yaml   # web UI
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 16
+  alpha: 32
+  target_modules: '.*self_attn\.(q|k|v|out)_proj'
+
+online:
+  backend: "torch"
+  reward_fn: "house_style"   # TL;DR line + <=3 bullets + a closing question
+  reward_num_samples: 6      # rollouts per prompt; keep the best-rewarded
+  # Teacher hint used only while sampling candidates (cold-start elicitation).
+  # The plain model is distilled onto winners, so the style persists without it.
+  coach_instruction: >-
+    Format every answer exactly like this: first a single line starting with
+    'TL;DR:' summarizing the answer, then up to three '- ' bullet points, then a
+    final line that asks one clarifying question ending in '?'.
+  sample_temperature: 1.0
+  max_completion_tokens: 160
+  lr: 2.0e-4
+  min_new_demos: 2
+  steps_per_update: 4
+  eval_every_n_updates: 0    # demo drives eval explicitly via /v1/demo/eval
+  db_path: "data/demo_sdft.db"
+  adapters_dir: "data/demo_adapters"

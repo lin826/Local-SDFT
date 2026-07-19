@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Airplane-Mode Coach — online SDFT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1021; --panel:#1a1c34; --text:#d6def7; --accent:#7aa2f7;
+          --good:#9ece6a; --warn:#e0af68; --bad:#f7768e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--text);
+         display:flex; flex-direction:column; height:100vh; }
+  header { padding:10px 16px; background:var(--panel); display:flex; align-items:center;
+           justify-content:space-between; gap:12px; }
+  header h1 { font-size:15px; margin:0; }
+  .badges { display:flex; gap:8px; align-items:center; font-size:12px; }
+  .badge { padding:3px 8px; border-radius:6px; background:#26294a; }
+  .offline { background:#1f3a1f; color:var(--good); }
+  main { flex:1; display:grid; grid-template-columns: 1fr 340px; overflow:hidden; }
+  #chat { overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:80%; padding:9px 13px; border-radius:10px; white-space:pre-wrap;
+         line-height:1.45; font-size:14px; }
+  .user { align-self:flex-end; background:var(--good); color:#0f1021; }
+  .assistant { align-self:flex-start; background:var(--panel); }
+  .assistant .tools { margin-top:6px; display:none; gap:6px; }
+  .assistant:hover .tools { display:flex; }
+  .tools button { font-size:11px; background:#33365c; color:var(--text); border:none;
+                  border-radius:5px; padding:2px 8px; cursor:pointer; }
+  .notice { align-self:center; font-size:12px; color:var(--warn); font-style:italic; }
+  aside { background:var(--panel); border-left:1px solid #26294a; padding:14px;
+          display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  .card { background:#14162c; border-radius:10px; padding:12px; }
+  .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.5px; margin:0 0 8px;
+             color:#8b93b8; }
+  .metric { font-size:30px; font-weight:700; }
+  .metric small { font-size:13px; color:#8b93b8; font-weight:400; }
+  svg { width:100%; height:70px; }
+  .row { display:flex; gap:8px; }
+  button.act { flex:1; padding:9px; border-radius:8px; border:none; background:var(--accent);
+               color:#0f1021; font-weight:600; cursor:pointer; font-size:13px; }
+  button.ghost { background:#33365c; color:var(--text); }
+  button:disabled { opacity:.5; cursor:default; }
+  .toggle { display:flex; align-items:center; gap:8px; font-size:13px; }
+  #composer { display:flex; gap:8px; padding:12px 16px; background:var(--panel);
+              grid-column:1 / -1; border-top:1px solid #26294a; }
+  #input { flex:1; padding:10px; border-radius:8px; border:1px solid #33365c; background:var(--bg);
+           color:var(--text); font-size:14px; }
+  .heldout { font-size:11px; color:#8b93b8; max-height:120px; overflow-y:auto; }
+  .heldout div { margin-bottom:4px; }
+  .ok { color:var(--good); } .no { color:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Airplane-Mode Coach — teach your laptop a skill, live &amp; offline</h1>
+  <div class="badges">
+    <span class="badge offline" id="net">✈︎ OFFLINE · on-device</span>
+    <span class="badge" id="adapter">adapter v0</span>
+    <span class="badge" id="task">task: —</span>
+  </div>
+</header>
+<main>
+  <div id="chat"></div>
+  <aside>
+    <div class="card">
+      <h2>Success on held-out prompts</h2>
+      <div class="metric"><span id="succ">—</span><small> /100%</small></div>
+      <svg id="spark" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      <div style="font-size:11px;color:#8b93b8">prompts it was never coached on — proves it learned a skill, not a lookup</div>
+    </div>
+    <div class="card">
+      <h2>Coach it</h2>
+      <div class="row">
+        <button class="act" id="coachBtn" onclick="coach()">Coach 2 prompts</button>
+        <button class="act ghost" onclick="coachN(10)">Coach ×10</button>
+      </div>
+      <div style="height:8px"></div>
+      <div class="toggle">
+        <input type="checkbox" id="adapterToggle" onchange="toggleAdapter()" checked>
+        <label for="adapterToggle">adapter ON (uncheck = base model A/B)</label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Held-out replies</h2>
+      <div class="heldout" id="heldout">click "Coach" or eval to populate</div>
+    </div>
+  </aside>
+  <div id="composer">
+    <input id="input" placeholder="Chat with it (hover a reply to correct it)…" autofocus>
+    <button class="act" onclick="send()">Send</button>
+    <button class="act ghost" onclick="evalNow()">Eval now</button>
+  </div>
+</main>
+<script>
+let convId = null;
+const history = [];       // success rate history for the sparkline
+const chat = document.getElementById('chat');
+
+function setBadge(id, text){ document.getElementById(id).textContent = text; }
+function addMsg(role, text, id){
+  const d = document.createElement('div'); d.className = 'msg '+role; d.textContent = text;
+  if(role==='assistant' && id){
+    const t=document.createElement('div'); t.className='tools';
+    const b=document.createElement('button'); b.textContent='✎ correct';
+    b.onclick=()=>correct(id,text); t.appendChild(b); d.appendChild(t);
+  }
+  chat.appendChild(d); chat.scrollTop=chat.scrollHeight;
+}
+function notice(t){ const d=document.createElement('div'); d.className='notice'; d.textContent=t;
+  chat.appendChild(d); chat.scrollTop=chat.scrollHeight; }
+
+function drawSpark(){
+  const svg=document.getElementById('spark');
+  if(history.length<1){ svg.innerHTML=''; return; }
+  const w=300,h=70,n=history.length;
+  const pts=history.map((v,i)=>{
+    const x = n===1 ? 0 : i/(n-1)*w;
+    const y = h - v*h; return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  svg.innerHTML =
+    `<polyline fill="none" stroke="#9ece6a" stroke-width="2.5" points="${pts}"/>` +
+    history.map((v,i)=>{const x=n===1?0:i/(n-1)*w;const y=h-v*h;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="#9ece6a"/>`;}).join('');
+}
+async function refreshStats(){
+  const s=await (await fetch('/v1/stats')).json();
+  setBadge('adapter','adapter v'+s.active_adapter);
+}
+async function evalNow(){
+  setBadge('succ','…');
+  const r=await fetch('/v1/demo/eval');
+  if(!r.ok){ setBadge('succ','n/a'); notice('set online.reward_fn to run the demo eval'); return; }
+  const d=await r.json();
+  const pct=Math.round(d.success*100);
+  setBadge('succ',pct);
+  history.push(d.success); drawSpark();
+  document.getElementById('heldout').innerHTML = d.detail.map(x=>
+    `<div><span class="${x.reward>=0.99?'ok':'no'}">${x.reward>=0.99?'✓':'✗'}</span> ${x.reply.slice(0,90).replace(/</g,'&lt;')}</div>`).join('');
+  refreshStats();
+  return pct;
+}
+async function coach(){ await coachN(2); }
+async function coachN(n){
+  document.getElementById('coachBtn').disabled=true;
+  notice(`coaching on ${n} prompt(s)… (sampling + on-device SDFT update)`);
+  const r=await fetch('/v1/demo/coach?n='+n,{method:'POST'});
+  if(r.ok){ const d=await r.json();
+    notice(`update → adapter v${d.adapter_version}, loss ${d.loss?.toFixed?.(4)??'—'}`);
+    await evalNow();
+  } else { notice('set online.reward_fn to enable coaching'); }
+  document.getElementById('coachBtn').disabled=false;
+}
+async function toggleAdapter(){
+  const on=document.getElementById('adapterToggle').checked;
+  // adapter ON = latest version; OFF = base v0 (A/B the before/after)
+  const stats=await (await fetch('/v1/stats')).json();
+  const target = on ? stats.adapter_versions-1 : 0;
+  await fetch('/v1/rollback?version='+target,{method:'POST'});
+  notice(on?'adapter ON (personalized)':'adapter OFF (base model)');
+  await evalNow();
+}
+async function send(){
+  const inp=document.getElementById('input'); const text=inp.value.trim(); if(!text)return;
+  inp.value=''; addMsg('user',text);
+  const res=await (await fetch('/v1/chat/completions',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:[{role:'user',content:text}],conversation_id:convId})})).json();
+  convId=res.conversation_id; addMsg('assistant',res.choices[0].message.content,res.message_id);
+  if(res.sdft.update_ran) notice('learned → adapter v'+res.sdft.adapter_version);
+  refreshStats();
+}
+async function correct(id,old){
+  const c=prompt('Your correction becomes the golden answer:',old); if(!c||c===old)return;
+  const res=await (await fetch('/v1/feedback',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({conversation_id:convId,message_id:id,corrected_text:c})})).json();
+  notice(res.update_ran?'correction learned now':'correction recorded'); refreshStats();
+}
+document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+(async()=>{ try{ const s=await (await fetch('/v1/stats')).json(); refreshStats();
+  const e=await fetch('/v1/demo/eval'); if(e.ok){ setBadge('task','reward-driven'); await evalNow(); }
+  }catch(_){}})();
+</script>
+</body>
+</html>

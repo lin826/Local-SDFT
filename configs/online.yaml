@@ -1,0 +1,26 @@
+# Online SDFT: learn from live user interaction while serving.
+# Reuses the offline pipeline's model/lora sections; adds an `online` section.
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"          # 230M in fp32 is cheap and stable on MPS/CPU
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: '.*self_attn\.(q|k|v|out)_proj'
+
+online:
+  backend: "torch"          # torch | echo
+  lr: 1.0e-4
+  sample_temperature: 0.9
+  max_completion_tokens: 128
+  serve_temperature: 0.3
+  serve_min_p: 0.15
+  min_new_demos: 4
+  steps_per_update: 4
+  replay_ratio: 0.5
+  eval_every_n_updates: 5
+  db_path: "data/online_sdft.db"
+  adapters_dir: "data/online_adapters"
