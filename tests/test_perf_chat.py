@@ -66,10 +66,50 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     resp = client.get("/perf")
     assert resp.status_code == 200
     assert b'action="/perf/chat"' in resp.content
+    assert b'hx-post="/perf/chat"' in resp.content
+    assert b'hx-target="#chat-panel"' in resp.content
+    assert b'id="chat-panel"' in resp.content
+    assert b"htmx.org" in resp.content
     assert b"Chat inference" in resp.content
     assert b"Demo condition" in resp.content
     assert b"name=\"demo_condition\"" in resp.content
     assert b"Start generate" in resp.content
+    assert b"without a full page reload" in resp.content
+
+
+def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
+    def fake_measure_chat(cfg, messages, **kwargs):
+        return _fake_chat_result(messages, run_id="bench-htmx-1")
+
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", lambda r: None
+    ):
+        resp = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
+                "instruction": "Be brief.",
+                "user_message": "Hello HTMX",
+                "messages_json": "[]",
+            },
+            headers={"HX-Request": "true"},
+            follow_redirects=False,
+        )
+
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "location" not in {k.lower() for k in resp.headers.keys()} or resp.headers.get("location") is None
+    body = resp.text
+    assert 'id="chat-panel"' in body
+    assert "Hello HTMX" in body
+    assert "echo:Hello HTMX" in body
+    assert 'name="messages_json"' in body
+    assert "bench-htmx-1" in body
+    assert "<html" not in body.lower()
+    assert resp.headers.get("HX-Push-Url")
+    assert "continue=bench-htmx-1" in resp.headers["HX-Push-Url"]
+    assert "sent=1" in resp.headers["HX-Push-Url"]
 
 
 def test_multi_turn_chat_transcript(client: TestClient):

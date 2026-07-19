@@ -1,0 +1,54 @@
+{# Swappable chat fragment for HTMX (outerHTML of #chat-panel). #}
+{% set max_new_tokens = chat.max_new_tokens %}
+{% set out_tok = chat.output_tokens_total %}
+{% set is_truncated = max_new_tokens and max_new_tokens > 0 and out_tok is not none and out_tok >= max_new_tokens %}
+<div id="chat-panel" class="chat-swap">
+  {% if show_sent_notice and chat.last_run_id %}
+  <p class="notice chat-inline-notice">
+    Reply ready. Saved as
+    <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>
+    {% if chat.metrics %}
+    · {{ "%.0f"|format(chat.metrics.latency_ms_mean) }} ms
+    · {{ "%.1f"|format(chat.metrics.tokens_per_second) }} tok/s
+    {% endif %}
+    {% if is_truncated %}
+    · <span class="badge badge-truncated" title="output_tokens_total ({{ out_tok }}) reached max_new_tokens ({{ max_new_tokens }})">possibly truncated</span>
+    {% endif %}
+  </p>
+  {% elif chat.last_run_id and not show_sent_notice %}
+  <p class="notice chat-inline-notice">
+    Continuing from
+    <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>
+    {% if selected_condition %} · condition <strong>{{ selected_condition }}</strong>{% endif %}
+  </p>
+  {% endif %}
+
+  <div class="chat-panel" aria-live="polite">
+    {% if chat.messages %}
+    <div class="chat-thread">
+      {% for m in chat.messages %}
+      <div class="chat-bubble chat-{{ m.role }}">
+        <span class="chat-role">{{ m.role }}</span>
+        <pre class="chat-content">{{ m.content }}</pre>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="chat-empty">No turns yet. Send a message to start a conversation.</p>
+    {% endif %}
+  </div>
+
+  <textarea name="messages_json" class="visually-hidden" aria-hidden="true" readonly tabindex="-1">{{ chat.messages_json }}</textarea>
+
+  <div class="chat-composer">
+    <label for="user_message" class="visually-hidden">Message</label>
+    <textarea id="user_message" name="user_message" rows="3" required placeholder="e.g. What is the sum of the first 10 positive integers?">{{ chat.composer_prefill }}</textarea>
+    <div class="actions chat-actions">
+      <button class="btn" type="submit" id="chat-send">Send</button>
+      <span id="chat-indicator" class="htmx-indicator chat-generating" aria-live="polite">Generating…</span>
+      {% if chat.last_run_id %}
+      <a class="btn btn-secondary" href="/perf/{{ chat.last_run_id }}">View last run</a>
+      {% endif %}
+    </div>
+  </div>
+</div>

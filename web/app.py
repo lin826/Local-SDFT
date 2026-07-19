@@ -128,6 +128,43 @@ def _build_chat_messages(
     return messages
 
 
+def _chat_context_from_result(
+    result: Any,
+    *,
+    instruction_fallback: str = "",
+) -> dict[str, Any]:
+    """Build chat UI context from a just-finished PerformanceResult."""
+    meta = result.metadata or {}
+    messages = meta.get("messages")
+    typed: list[dict[str, str]] = []
+    if isinstance(messages, list):
+        typed = [
+            {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+            for m in messages
+            if isinstance(m, dict)
+            and m.get("role") in ALLOWED_CHAT_ROLES
+            and str(m.get("content", "")).strip()
+        ]
+    instruction = (
+        _system_from_messages(typed)
+        or instruction_fallback.strip()
+        or "Solve the math problem; use the code interpreter when helpful."
+    )
+    history = _history_without_system(typed)
+    return {
+        "instruction": instruction,
+        "messages": history,
+        "messages_json": json.dumps(history, ensure_ascii=False),
+        "last_run_id": result.id,
+        "composer_prefill": "",
+        "demo_condition": str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION),
+        "config_path": str(result.config_path or meta.get("config_path") or DEFAULT_OPENCLAW_CONFIG),
+        "metrics": result.metrics,
+        "max_new_tokens": meta.get("max_new_tokens"),
+        "output_tokens_total": getattr(result.metrics, "output_tokens_total", None),
+    }
+
+
 def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
     """Load sticky instruction + history from a prior chat run for ?continue=."""
     empty = {
@@ -137,6 +174,9 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         "last_run_id": None,
         "demo_condition": DEFAULT_DEMO_CONDITION,
         "config_path": DEFAULT_OPENCLAW_CONFIG,
+        "metrics": None,
+        "max_new_tokens": None,
+        "output_tokens_total": None,
     }
     if not run_id:
         return empty
@@ -165,6 +205,9 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
                 "last_run_id": run_id,
                 "demo_condition": demo_condition,
                 "config_path": config_path,
+                "metrics": result.metrics,
+                "max_new_tokens": meta.get("max_new_tokens"),
+                "output_tokens_total": result.metrics.output_tokens_total,
             }
         return {**empty, "last_run_id": run_id}
 
@@ -182,6 +225,9 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         "last_run_id": run_id,
         "demo_condition": demo_condition,
         "config_path": config_path,
+        "metrics": result.metrics,
+        "max_new_tokens": meta.get("max_new_tokens"),
+        "output_tokens_total": result.metrics.output_tokens_total,
     }
 
 
@@ -383,13 +429,14 @@ def _run_chat_inference(
 
 @app.post("/perf/chat")
 async def run_perf_chat(
+    request: Request,
     config_path: str = Form(DEFAULT_OPENCLAW_CONFIG),
     demo_condition: str = Form(DEFAULT_DEMO_CONDITION),
     instruction: str = Form(""),
     user_message: str = Form(...),
     messages_json: str = Form("[]"),
-) -> RedirectResponse:
-    """Synchronous multi-turn chat: wait for the model, then continue on /perf."""
+):
+    """Synchronous multi-turn chat: HTMX gets a panel fragment; else redirect."""
     user_message = user_message.strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="user_message is required")
@@ -410,10 +457,25 @@ async def run_perf_chat(
     )
     cfg_q = quote(config_path, safe="")
     cond_q = quote(demo_condition, safe="")
-    return RedirectResponse(
-        url=f"/perf?continue={result.id}&config_path={cfg_q}&condition={cond_q}&sent=1",
-        status_code=303,
+    continue_url = (
+        f"/perf?continue={result.id}&config_path={cfg_q}&condition={cond_q}&sent=1"
     )
+
+    if request.headers.get("HX-Request", "").lower() == "true":
+        chat = _chat_context_from_result(result, instruction_fallback=instruction)
+        response = templates.TemplateResponse(
+            request,
+            "chat_panel.html",
+            {
+                "chat": chat,
+                "selected_condition": demo_condition,
+                "show_sent_notice": True,
+            },
+        )
+        response.headers["HX-Push-Url"] = continue_url
+        return response
+
+    return RedirectResponse(url=continue_url, status_code=303)
 
 
 @app.post("/perf/run")

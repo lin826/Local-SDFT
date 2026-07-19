@@ -1,27 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Performance · Local-SDFT{% endblock %}
 {% set active = 'perf' %}
+{% block head %}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+{% endblock %}
 {% block content %}
 <h1 class="page-title">Performance tests</h1>
-<p class="lead"><strong>Chat inference</strong> supports OpenClaw ablation-style conditions (ZS / OS / CoT / SDFT) with live tool calling, plus plain multi-turn chat. Each Send is synchronous. Results land in <code>outputs/benchmarks/</code>.</p>
+<p class="lead"><strong>Chat inference</strong> supports OpenClaw ablation-style conditions (ZS / OS / CoT / SDFT) with live tool calling, plus plain multi-turn chat. Each Send waits for the model, then updates the chat panel in place. Results land in <code>outputs/benchmarks/</code>.</p>
 
-{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. Tool-loop conditions may run several rounds (code interpreter). Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
+{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. The Send button shows “Generating…” while you wait; only the chat panel swaps (condition, config, and system stay put). Tool-loop conditions may run several rounds. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
 {% set steps = [
   'Pick a Demo condition (primary control) — ZS/OS/CoT/SDFT map to the ablation study; Plain chat skips tools.',
   'Optionally adjust Config YAML (toolcall settings) or System / instruction (plain chat only).',
-  'Type a user message — math problems work well for tool conditions — and Send.',
-  'Keep chatting: condition + config stick via run metadata and URL. Open a result ID for metrics + transcript.',
+  'Type a user message — math problems work well for tool conditions — and Send; the transcript updates without a full page reload.',
+  'Keep chatting: condition + config stick. Open a result ID for metrics + transcript.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
 
 {% if request.query_params.get('started') %}
 <p class="notice">Generate benchmark started in the background. Refresh this page shortly, then open the newest run ID.</p>
-{% elif request.query_params.get('sent') and chat.last_run_id %}
-<p class="notice">Reply ready. Saved as <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a> — keep chatting or open the detail page.</p>
-{% elif request.query_params.get('continue') and chat.last_run_id %}
-<p class="notice">Continuing from <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>{% if selected_condition %} · condition <strong>{{ selected_condition }}</strong>{% endif %}.</p>
-{% elif request.query_params.get('instruction') %}
+{% elif request.query_params.get('instruction') and not chat.last_run_id %}
 <p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then Send.</p>
 {% endif %}
 
@@ -35,7 +34,12 @@
     <a class="btn btn-secondary btn-sm" href="/perf">New chat</a>
   </div>
 
-  <form method="post" action="/perf/chat" id="chat-form">
+  <form method="post" action="/perf/chat" id="chat-form"
+        hx-post="/perf/chat"
+        hx-target="#chat-panel"
+        hx-swap="outerHTML"
+        hx-indicator="#chat-indicator"
+        hx-disabled-elt="#chat-send">
     <div class="grid-2">
       <div class="field">
         <label for="demo_condition">Demo condition</label>
@@ -68,33 +72,8 @@
       </div>
     </div>
 
-    <div class="chat-panel" aria-live="polite">
-      {% if chat.messages %}
-      <div class="chat-thread">
-        {% for m in chat.messages %}
-        <div class="chat-bubble chat-{{ m.role }}">
-          <span class="chat-role">{{ m.role }}</span>
-          <pre class="chat-content">{{ m.content }}</pre>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="chat-empty">No turns yet. Send a message to start a conversation.</p>
-      {% endif %}
-    </div>
-
-    <textarea name="messages_json" class="visually-hidden" aria-hidden="true" readonly tabindex="-1">{{ chat.messages_json }}</textarea>
-
-    <div class="chat-composer">
-      <label for="user_message" class="visually-hidden">Message</label>
-      <textarea id="user_message" name="user_message" rows="3" required placeholder="e.g. What is the sum of the first 10 positive integers?">{{ chat.composer_prefill }}</textarea>
-      <div class="actions chat-actions">
-        <button class="btn" type="submit" id="chat-send">Send</button>
-        {% if chat.last_run_id %}
-        <a class="btn btn-secondary" href="/perf/{{ chat.last_run_id }}">View last run</a>
-        {% endif %}
-      </div>
-    </div>
+    {% set show_sent_notice = request.query_params.get('sent') and chat.last_run_id %}
+    {% include "chat_panel.html" %}
   </form>
 </section>
 
@@ -218,10 +197,10 @@
 
 <script>
 (function () {
-  var form = document.getElementById('chat-form');
-  var btn = document.getElementById('chat-send');
   var cond = document.getElementById('demo_condition');
   var hint = document.getElementById('condition-hint');
+  var form = document.getElementById('chat-form');
+  var btn = document.getElementById('chat-send');
   var hints = {
     {% for opt in condition_options %}
     {{ opt.id|tojson }}: {{ opt.description|tojson }}{% if not loop.last %},{% endif %}
@@ -232,11 +211,13 @@
       hint.textContent = hints[cond.value] || '';
     });
   }
-  if (!form || !btn) return;
-  form.addEventListener('submit', function () {
-    btn.disabled = true;
-    btn.textContent = 'Waiting for model…';
-  });
+  // Non-HTMX fallback (no hx-post): disable Send while the full-page POST runs.
+  if (form && btn && !form.hasAttribute('hx-post')) {
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.textContent = 'Waiting for model…';
+    });
+  }
 })();
 </script>
 {% endblock %}
