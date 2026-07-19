@@ -144,17 +144,20 @@ def _attach_probe_hook(ctrl, cfg) -> None:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="sdft-online", description=__doc__)
-    ap.add_argument("--config", default=None)
-    ap.add_argument("--model", default=None)
-    ap.add_argument("--backend", default=None, choices=["torch", "echo"])
+    # Common options accepted both before and after the subcommand.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--config", default=None)
+    common.add_argument("--model", default=None)
+    common.add_argument("--backend", default=None, choices=["torch", "echo"])
+
+    ap = argparse.ArgumentParser(prog="sdft-online", description=__doc__, parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("chat")
-    sub.add_parser("serve")
-    d = sub.add_parser("demo")
+    sub.add_parser("chat", parents=[common])
+    sub.add_parser("serve", parents=[common])
+    d = sub.add_parser("demo", parents=[common])
     d.add_argument("--rounds", type=int, default=5)
     d.add_argument("--coach-per-round", type=int, default=4)
-    sub.add_parser("stats")
+    sub.add_parser("stats", parents=[common])
 
     args = ap.parse_args(argv)
     import logging
