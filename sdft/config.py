@@ -1,0 +1,94 @@
+"""YAML-backed configuration for the SDFT pipeline."""
+
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+@dataclass
+class ModelConfig:
+    name: str = "LiquidAI/LFM2.5-230M"  # post-trained chat checkpoint
+    dtype: str = "float32"  # 230M params: full fp32 is cheap and stable on MPS
+    attn_implementation: str | None = None  # None -> transformers default (sdpa)
+
+
+@dataclass
+class DataConfig:
+    dataset: str = "yahma/alpaca-cleaned"  # HF dataset id, or "json"/"csv" with data_files
+    data_files: str | None = None  # local file path when dataset is "json"/"csv"
+    split: str = "train"
+    prompt_fields: list[str] = field(default_factory=lambda: ["instruction", "input"])
+    response_field: str = "output"
+    num_examples: int = 500
+    seed: int = 0
+
+
+@dataclass
+class GenerateConfig:
+    num_shots: int = 2  # in-context demonstrations sampled from the dataset
+    batch_size: int = 8
+    max_new_tokens: int = 256
+    temperature: float = 0.0  # 0 -> greedy decoding
+    top_p: float = 1.0
+    min_response_chars: int = 1  # filter degenerate/empty generations
+    out_path: str = "data/sdft_data.jsonl"
+
+
+@dataclass
+class LoraConfig:
+    r: int = 16
+    alpha: int = 32
+    dropout: float = 0.05
+    # LFM2 hybrid layout: 6 attention blocks (self_attn.{q,k,v,out}_proj),
+    # 8 conv blocks (conv.{in_proj,out_proj,conv}), SwiGLU MLPs (feed_forward.{w1,w2,w3}).
+    # A regex string matches full dotted paths (PEFT re.fullmatch); a list matches
+    # leaf-name suffixes. Note the leaf "out_proj" exists in BOTH block types.
+    target_modules: list[str] | str = field(
+        default_factory=lambda: r".*self_attn\.(q|k|v|out)_proj"
+    )
+
+
+@dataclass
+class TrainConfig:
+    output_dir: str = "outputs/sdft-lfm25-230m"
+    epochs: float = 1.0
+    lr: float = 2e-4
+    batch_size: int = 4
+    grad_accum: int = 4
+    max_length: int = 1024
+    warmup_steps: int = 10
+    logging_steps: int = 10
+    save_strategy: str = "epoch"
+    seed: int = 0
+
+
+@dataclass
+class Config:
+    model: ModelConfig = field(default_factory=ModelConfig)
+    data: DataConfig = field(default_factory=DataConfig)
+    generation: GenerateConfig = field(default_factory=GenerateConfig)
+    lora: LoraConfig = field(default_factory=LoraConfig)
+    training: TrainConfig = field(default_factory=TrainConfig)
+
+
+def _apply(section: Any, values: dict[str, Any], path: str) -> None:
+    valid = {f.name: f for f in dataclasses.fields(section)}
+    for key, value in values.items():
+        if key not in valid:
+            raise ValueError(f"Unknown config key '{path}.{key}' (valid: {sorted(valid)})")
+        setattr(section, key, value)
+
+
+def load_config(path: str | Path) -> Config:
+    cfg = Config()
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    for section_name, values in raw.items():
+        if not hasattr(cfg, section_name):
+            raise ValueError(f"Unknown config section '{section_name}'")
+        _apply(getattr(cfg, section_name), values or {}, section_name)
+    return cfg
