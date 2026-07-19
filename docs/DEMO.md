@@ -52,3 +52,26 @@ to `five_words`, `terse`, or your own `@reward("name")`.
 
 `success@held-out` before/after · #coaching rounds to competence · adapter size (MBs) ·
 tokens/sec · peak RAM — all on-device.
+
+## Variant: tool-calling — "it learns to use a calculator" (the LEARNS-not-memorizes demo)
+
+The most rigorous version. Teach the model to answer arithmetic by emitting
+`<tool>calc("…")</tool>`. **Coach on small numbers, test on large numbers that
+never appear in coaching** (disjointness is asserted in code + a unit test), so a
+correct held-out answer can only come from learning the *skill* (question → tool
+call), never from memorized answers.
+
+```bash
+python scripts/demo_toolcall.py --rounds 6          # narrated walkthrough
+python -m sdft.online.cli demo --config configs/demo_toolcall.yaml   # task-generic
+```
+
+Validated on LFM2.5-230M (H100, offline): base does freehand math and is **0%**
+correct; after ~2 coaching rounds it emits correct tool calls and is **100%** on
+held-out problems; toggling the adapter off returns it to **0%**. The
+appear/disappear on the *same unseen inputs* is the "it learned" moment.
+
+Reward = a valid `calc()` call whose expression evaluates to the right answer
+(rewards tool *use*, so freehand-correct scores 0); a shaper supplies a
+guaranteed-correct tool call as the SFT target; arithmetic is evaluated with an
+AST-safe evaluator (`sdft/online/tools.py`), never `eval`.
