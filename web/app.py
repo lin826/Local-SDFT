@@ -55,9 +55,6 @@ app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="stati
 CONFIG_OPTIONS = [
     DEFAULT_CONFIG,
     "configs/lfm25_alpacaeval2_trained.yaml",
-    "configs/geek_jokes.yaml",
-    "configs/geek_jokes_trained.yaml",
-    "configs/geek_jokes_bench.yaml",
 ]
 DEFAULT_INSTRUCTION = "Answer helpfully and directly in plain text."
 ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}

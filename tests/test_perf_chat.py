@@ -85,9 +85,14 @@ def test_perf_page_shows_chat_ui(client: TestClient):
 
 
 def test_config_options_include_alpacaeval_sdft():
-    assert "configs/default.yaml" in CONFIG_OPTIONS
-    assert "configs/lfm25_alpacaeval2_trained.yaml" in CONFIG_OPTIONS
+    assert CONFIG_OPTIONS == [
+        "configs/default.yaml",
+        "configs/lfm25_alpacaeval2_trained.yaml",
+    ]
     assert "configs/openclaw_demo_eval.yaml" not in CONFIG_OPTIONS
+    assert "configs/geek_jokes.yaml" not in CONFIG_OPTIONS
+    assert "configs/geek_jokes_trained.yaml" not in CONFIG_OPTIONS
+    assert "configs/geek_jokes_bench.yaml" not in CONFIG_OPTIONS
 
 
 def test_build_design_summary_variants():
