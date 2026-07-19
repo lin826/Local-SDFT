@@ -9,9 +9,11 @@ model:
   dtype: "float32"
 
 lora:
-  r: 16
-  alpha: 32
-  target_modules: '.*self_attn\.(q|k|v|out)_proj'
+  r: 32
+  alpha: 64
+  # Include the SwiGLU MLP projections, not just attention — more capacity to
+  # change output *format*, which attention-only LoRA barely moves.
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
 
 online:
   backend: "torch"
@@ -23,10 +25,12 @@ online:
   coach_instruction: >-
     Answer concisely in a few short sentences.
   sample_temperature: 0.8
-  max_completion_tokens: 128
-  lr: 5.0e-5                 # gentle: many small online steps, avoid collapse
+  max_completion_tokens: 96
+  lr: 2.0e-4                 # SFT is stable; push hard enough to imprint the format
   min_new_demos: 4
-  steps_per_update: 4
+  steps_per_update: 6        # gradient steps per update
+  demos_per_step: 4          # batch of 4 demos per step (24 slots/update w/ replay)
+  replay_ratio: 0.5
   eval_every_n_updates: 0    # demo drives eval explicitly via /v1/demo/eval
   db_path: "data/demo_sdft.db"
   adapters_dir: "data/demo_adapters"

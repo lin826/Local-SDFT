@@ -131,8 +131,11 @@ def cmd_demo(args) -> int:
         conv = "coach-" + uuid.uuid4().hex[:6]
         for i in range(args.coach_per_round):
             ctrl.chat(conv, COACH_PROMPTS[(rnd * args.coach_per_round + i) % len(COACH_PROMPTS)])
-        ctrl.maybe_update(force=True)
+        run = ctrl.maybe_update(force=True)
+        tl = f" train_loss={run.metrics.get('loss', float('nan')):.3f}" if run else ""
         report(f"after round {rnd + 1}")
+        if run:
+            console.print(f"[dim]           {tl.strip()}[/]")
     # A/B: base vs learned on the SAME held-out set
     console.print("[dim]toggling adapter OFF (base) for A/B…[/]")
     ctrl.rollback(0); report("adapter OFF (base)")
