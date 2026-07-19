@@ -274,6 +274,12 @@ th {
   margin-bottom: 1rem;
 }
 
+.notice-warn {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
 .howto {
   background: #f0f4ff;
   border: 1px solid #c7d2fe;

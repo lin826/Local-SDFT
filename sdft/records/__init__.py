@@ -7,6 +7,7 @@ parallel schemas or storage locations.
 from .benchmark import (
     geek_jokes_generations_path,
     measure_chat,
+    measure_toolcall_chat,
     measure_generation,
     measure_geek_jokes,
     measure_inference,
@@ -62,6 +63,7 @@ __all__ = [
     "load_performance_result",
     "geek_jokes_generations_path",
     "measure_chat",
+    "measure_toolcall_chat",
     "measure_generation",
     "measure_geek_jokes",
     "measure_inference",

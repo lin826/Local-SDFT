@@ -67,6 +67,8 @@ def test_perf_page_shows_chat_ui(client: TestClient):
     assert resp.status_code == 200
     assert b'action="/perf/chat"' in resp.content
     assert b"Chat inference" in resp.content
+    assert b"Demo condition" in resp.content
+    assert b"name=\"demo_condition\"" in resp.content
     assert b"Start generate" in resp.content
 
 
@@ -74,9 +76,8 @@ def test_multi_turn_chat_transcript(client: TestClient):
     call_count = {"n": 0}
     saved: dict[str, PerformanceResult] = {}
 
-    def fake_run(benchmark, **kwargs):
+    def fake_measure_chat(cfg, messages, **kwargs):
         call_count["n"] += 1
-        messages = kwargs["messages"]
         run_id = f"bench-turn-{call_count['n']}"
         result = _fake_chat_result(messages, run_id=run_id)
         from sdft.records.store import append_performance_index, save_performance_result
@@ -87,11 +88,14 @@ def test_multi_turn_chat_transcript(client: TestClient):
         saved[result.id] = result
         return result
 
-    with patch("web.app.run_benchmark", side_effect=fake_run):
+    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.app.persist_performance_result", side_effect=lambda r: saved.setdefault(r.id, r)
+    ):
         r1 = client.post(
             "/perf/chat",
             data={
                 "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
                 "instruction": "You are a witty PhD comic narrator.",
                 "user_message": "Tell a joke about grading.",
                 "messages_json": "[]",
@@ -102,6 +106,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
         loc1 = r1.headers["location"]
         assert "continue=bench-turn-1" in loc1
         assert "sent=1" in loc1
+        assert "condition=plain" in loc1
 
         page1 = client.get(loc1)
         assert page1.status_code == 200
@@ -118,6 +123,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
             "/perf/chat",
             data={
                 "config_path": "configs/default.yaml",
+                "demo_condition": "plain",
                 "instruction": "You are a witty PhD comic narrator.",
                 "user_message": "Make it shorter.",
                 "messages_json": json.dumps(history),
@@ -162,3 +168,58 @@ def test_generate_still_background(client: TestClient):
         assert r.status_code == 303
         assert r.headers["location"] == "/perf?started=1"
         assert mocked.call_count <= 1
+
+
+def test_sdft_condition_rejected_without_checkpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("web.app.merged_checkpoint_available", lambda: False)
+    resp = client.post(
+        "/perf/chat",
+        data={
+            "config_path": "configs/openclaw_demo_eval.yaml",
+            "demo_condition": "SDFT-ZS",
+            "instruction": "",
+            "user_message": "What is 2+2?",
+            "messages_json": "[]",
+        },
+    )
+    assert resp.status_code == 400
+    assert "SDFT checkpoint missing" in resp.json()["detail"]
+
+
+def test_toolcall_condition_uses_measure_toolcall_chat(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, object] = {}
+
+    def fake_toolcall(cfg, messages, **kwargs):
+        captured["kwargs"] = kwargs
+        captured["model"] = cfg.model.name
+        return _fake_chat_result(messages, run_id="bench-tool-zs")
+
+    monkeypatch.setattr("web.app.measure_toolcall_chat", fake_toolcall)
+    monkeypatch.setattr(
+        "web.app.persist_performance_result",
+        lambda result: None,
+    )
+
+    with patch("web.app.load_config") as load_cfg:
+        from sdft.config import load_config as real_load
+
+        cfg = real_load("configs/openclaw_demo_eval.yaml")
+        load_cfg.return_value = cfg
+
+        r = client.post(
+            "/perf/chat",
+            data={
+                "config_path": "configs/openclaw_demo_eval.yaml",
+                "demo_condition": "OS+CoT",
+                "instruction": "ignored",
+                "user_message": "What is 3+5?",
+                "messages_json": "[]",
+            },
+            follow_redirects=False,
+        )
+    assert r.status_code == 303
+    assert "condition=OS%2BCoT" in r.headers["location"] or "condition=OS+CoT" in r.headers["location"]
+    assert captured["kwargs"]["few_shot_k"] == 1
+    assert captured["kwargs"]["cot_line"] is not None
+    assert captured["kwargs"]["demo_condition"] == "OS+CoT"
+    assert captured["model"] == "LiquidAI/LFM2.5-230M"

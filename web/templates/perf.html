@@ -3,14 +3,14 @@
 {% set active = 'perf' %}
 {% block content %}
 <h1 class="page-title">Performance tests</h1>
-<p class="lead"><strong>Chat inference</strong> is multi-turn and synchronous (each Send waits for the model). <strong>Generate</strong> still runs in the background. Results land in <code>outputs/benchmarks/</code>.</p>
+<p class="lead"><strong>Chat inference</strong> supports OpenClaw ablation-style conditions (ZS / OS / CoT / SDFT) with live tool calling, plus plain multi-turn chat. Each Send is synchronous. Results land in <code>outputs/benchmarks/</code>.</p>
 
-{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
+{% with page_id='perf', tip='Chat loads the model on each Send and can take a minute — keep the tab open. Tool-loop conditions may run several rounds (code interpreter). Conversation history is posted with the form (no server session). Generate jobs run in the background.' %}
 {% set steps = [
-  'Set an optional System / instruction (sticky across turns), then pick a Config YAML.',
-  'Type a user message in the composer and click Send — the page waits, then shows the assistant reply in the transcript.',
-  'Keep chatting: prior turns ride along in a hidden JSON field. Open a result ID anytime for metrics + full transcript.',
-  'New chat clears the transcript. Generate (SDFT teacher pass) is a separate background benchmark below.',
+  'Pick a Demo condition (primary control) — ZS/OS/CoT/SDFT map to the ablation study; Plain chat skips tools.',
+  'Optionally adjust Config YAML (toolcall settings) or System / instruction (plain chat only).',
+  'Type a user message — math problems work well for tool conditions — and Send.',
+  'Keep chatting: condition + config stick via run metadata and URL. Open a result ID for metrics + transcript.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
@@ -20,9 +20,13 @@
 {% elif request.query_params.get('sent') and chat.last_run_id %}
 <p class="notice">Reply ready. Saved as <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a> — keep chatting or open the detail page.</p>
 {% elif request.query_params.get('continue') and chat.last_run_id %}
-<p class="notice">Continuing from <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>.</p>
+<p class="notice">Continuing from <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>{% if selected_condition %} · condition <strong>{{ selected_condition }}</strong>{% endif %}.</p>
 {% elif request.query_params.get('instruction') %}
 <p class="notice">Prefilled from a previous run’s Re-run link — edit as needed, then Send.</p>
+{% endif %}
+
+{% if sdft_missing %}
+<p class="notice notice-warn">SDFT merged checkpoint not found at <code>{{ sdft_path }}</code>. SDFT-* conditions are disabled until you train and merge (see <code>docs/openclaw-tooluse-sdft.md</code>).</p>
 {% endif %}
 
 <section class="section" id="chat">
@@ -34,16 +38,33 @@
   <form method="post" action="/perf/chat" id="chat-form">
     <div class="grid-2">
       <div class="field">
+        <label for="demo_condition">Demo condition</label>
+        <select id="demo_condition" name="demo_condition">
+          {% for opt in condition_options %}
+          <option value="{{ opt.id }}"
+            {% if opt.id == selected_condition %}selected{% endif %}
+            {% if opt.disabled %}disabled{% endif %}
+            title="{{ opt.description }}{% if opt.disabled %} — {{ opt.disabled_reason }}{% endif %}">
+            {{ opt.label }}{% if opt.disabled %} (unavailable){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="field-hint" id="condition-hint">
+          {% for opt in condition_options if opt.id == selected_condition %}{{ opt.description }}{% endfor %}
+        </p>
+      </div>
+      <div class="field">
         <label for="config_path">Config</label>
         <select id="config_path" name="config_path">
           {% for cfg in config_options %}
           <option value="{{ cfg }}" {% if cfg == selected_config %}selected{% endif %}>{{ cfg }}</option>
           {% endfor %}
         </select>
+        <p class="field-hint">Tool-call settings from YAML; default for demos is <code>openclaw_demo_eval.yaml</code>.</p>
       </div>
       <div class="field" style="grid-column: 1 / -1;">
-        <label for="instruction">System / instruction <span class="field-hint">(optional, sticky)</span></label>
-        <textarea id="instruction" name="instruction" rows="2" placeholder="Overall task guidance for the model…">{{ chat.instruction }}</textarea>
+        <label for="instruction">System / instruction <span class="field-hint">(plain chat only; ignored for tool conditions)</span></label>
+        <textarea id="instruction" name="instruction" rows="2" placeholder="Overall task guidance for plain chat…">{{ chat.instruction }}</textarea>
       </div>
     </div>
 
@@ -66,7 +87,7 @@
 
     <div class="chat-composer">
       <label for="user_message" class="visually-hidden">Message</label>
-      <textarea id="user_message" name="user_message" rows="3" required placeholder="Your message…">{{ chat.composer_prefill }}</textarea>
+      <textarea id="user_message" name="user_message" rows="3" required placeholder="e.g. What is the sum of the first 10 positive integers?">{{ chat.composer_prefill }}</textarea>
       <div class="actions chat-actions">
         <button class="btn" type="submit" id="chat-send">Send</button>
         {% if chat.last_run_id %}
@@ -137,7 +158,7 @@
     <div class="result-head">
       <div>
         <strong><a href="/perf/{{ r.id }}">{{ r.id }}</a></strong>
-        <span class="badge badge-completed">{{ r.benchmark }}{% if messages %} · chat{% endif %}</span>
+        <span class="badge badge-completed">{{ r.benchmark }}{% if messages %} · chat{% endif %}{% if r.metadata and r.metadata.get('demo_condition') %} · {{ r.metadata.demo_condition }}{% endif %}</span>
         <div class="meta">{{ r.model }} · {{ r.metrics.device }} · {{ r.run_at }}</div>
       </div>
     </div>
@@ -199,6 +220,18 @@
 (function () {
   var form = document.getElementById('chat-form');
   var btn = document.getElementById('chat-send');
+  var cond = document.getElementById('demo_condition');
+  var hint = document.getElementById('condition-hint');
+  var hints = {
+    {% for opt in condition_options %}
+    {{ opt.id|tojson }}: {{ opt.description|tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  if (cond && hint) {
+    cond.addEventListener('change', function () {
+      hint.textContent = hints[cond.value] || '';
+    });
+  }
   if (!form || !btn) return;
   form.addEventListener('submit', function () {
     btn.disabled = true;

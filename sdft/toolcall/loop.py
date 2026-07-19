@@ -152,6 +152,7 @@ def run_tool_loop(
     device: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     few_shot_messages: list[dict[str, str]] | None = None,
+    history_messages: list[dict[str, str]] | None = None,
 ) -> ToolLoopResult:
     """Run a ReTool-style tool loop until answer, limit, or context overflow."""
     cfg = cfg or ToolLoopConfig()
@@ -171,6 +172,8 @@ def run_tool_loop(
     if prefix is None and cfg.few_shot_k > 0:
         prefix = default_few_shot_messages(fmt, cfg.few_shot_k, cot_line=cot_str)
     messages: list[dict[str, str]] = list(prefix or [])
+    if history_messages:
+        messages.extend(history_messages)
     messages.append({"role": "user", "content": user_prompt})
     response_parts: list[str] = []
     tool_call_count = 0

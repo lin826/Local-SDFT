@@ -12,6 +12,12 @@
   {% if result.config_path %}
   <span class="pill pill-muted">{{ result.config_path }}</span>
   {% endif %}
+  {% if result.metadata and result.metadata.get('demo_condition') %}
+  <span class="pill pill-accent">{{ result.metadata.demo_condition }}</span>
+  {% endif %}
+  {% if result.metadata and result.metadata.get('tool_call_count') is not none %}
+  <span class="pill pill-muted">{{ result.metadata.tool_call_count }} tool call(s)</span>
+  {% endif %}
   <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.tokens_per_second) }} tok/s</span>
   <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.latency_ms_mean) }} ms latency</span>
 </div>

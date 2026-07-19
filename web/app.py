@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from sdft.config import load_config
 from sdft.records import (
     collect_record,
     collected_records_path,
@@ -24,10 +25,23 @@ from sdft.records import (
     load_collected_records,
     load_performance_index,
     load_performance_result,
+    measure_chat,
+    measure_toolcall_chat,
     performance_dir,
     performance_index_path,
     performance_result_path,
+    persist_performance_result,
     run_benchmark,
+)
+
+from web.demo_conditions import (
+    CONDITION_BY_ID,
+    DEFAULT_OPENCLAW_CONFIG,
+    condition_options,
+    get_condition,
+    merged_checkpoint_available,
+    merged_checkpoint_path,
+    resolve_model_name,
 )
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -36,7 +50,16 @@ templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 app = FastAPI(title="Local-SDFT", description="Data collection and performance testing")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
-CONFIG_OPTIONS = ["configs/default.yaml", "configs/geek_jokes.yaml"]
+CONFIG_OPTIONS = [
+    DEFAULT_OPENCLAW_CONFIG,
+    "configs/openclaw_tooluse_sdft.yaml",
+    "configs/openclaw_rl_eval.yaml",
+    "configs/geek_jokes.yaml",
+    "configs/geek_jokes_trained.yaml",
+    "configs/geek_jokes_bench.yaml",
+    "configs/default.yaml",
+]
+DEFAULT_DEMO_CONDITION = "ZS"
 ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}
 
 
@@ -108,10 +131,12 @@ def _build_chat_messages(
 def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
     """Load sticky instruction + history from a prior chat run for ?continue=."""
     empty = {
-        "instruction": "Tell a geek joke about PhD life",
+        "instruction": "Solve the math problem; use the code interpreter when helpful.",
         "messages": [],
         "messages_json": "[]",
         "last_run_id": None,
+        "demo_condition": DEFAULT_DEMO_CONDITION,
+        "config_path": DEFAULT_OPENCLAW_CONFIG,
     }
     if not run_id:
         return empty
@@ -120,6 +145,8 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         return empty
     result = load_performance_result(path)
     meta = result.metadata or {}
+    demo_condition = str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION)
+    config_path = str(result.config_path or meta.get("config_path") or DEFAULT_OPENCLAW_CONFIG)
     messages = meta.get("messages")
     if not isinstance(messages, list) or not messages:
         # Fall back to single-turn examples for re-run compatibility.
@@ -136,8 +163,10 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
                 "messages": history,
                 "messages_json": json.dumps(history, ensure_ascii=False),
                 "last_run_id": run_id,
+                "demo_condition": demo_condition,
+                "config_path": config_path,
             }
-        return empty
+        return {**empty, "last_run_id": run_id}
 
     typed = [
         {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
@@ -151,6 +180,8 @@ def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
         "messages": history,
         "messages_json": json.dumps(history, ensure_ascii=False),
         "last_run_id": run_id,
+        "demo_condition": demo_condition,
+        "config_path": config_path,
     }
 
 
@@ -219,6 +250,12 @@ async def perf_page(request: Request) -> HTMLResponse:
     # Query overrides for legacy Re-run links (instruction + input → seed chat).
     q_instruction = request.query_params.get("instruction")
     q_input = request.query_params.get("input", "")
+    q_condition = request.query_params.get("condition")
+    q_config = request.query_params.get("config_path")
+    if q_condition:
+        chat["demo_condition"] = q_condition
+    if q_config:
+        chat["config_path"] = q_config
     if q_instruction and not continue_id:
         seed: list[dict[str, str]] = []
         if q_input.strip():
@@ -227,6 +264,8 @@ async def perf_page(request: Request) -> HTMLResponse:
                 "messages": seed,
                 "messages_json": "[]",
                 "last_run_id": None,
+                "demo_condition": chat.get("demo_condition", DEFAULT_DEMO_CONDITION),
+                "config_path": chat.get("config_path", DEFAULT_OPENCLAW_CONFIG),
             }
             # Prefill composer via placeholder template var
             chat["composer_prefill"] = q_input
@@ -237,9 +276,23 @@ async def perf_page(request: Request) -> HTMLResponse:
                 "messages_json": "[]",
                 "last_run_id": None,
                 "composer_prefill": "",
+                "demo_condition": chat.get("demo_condition", DEFAULT_DEMO_CONDITION),
+                "config_path": chat.get("config_path", DEFAULT_OPENCLAW_CONFIG),
             }
     else:
         chat.setdefault("composer_prefill", "")
+
+    selected_condition = chat.get("demo_condition", DEFAULT_DEMO_CONDITION)
+    if selected_condition not in CONDITION_BY_ID:
+        selected_condition = DEFAULT_DEMO_CONDITION
+    selected_config = chat.get("config_path") or request.query_params.get(
+        "config_path", CONFIG_OPTIONS[0]
+    )
+    if selected_config not in CONFIG_OPTIONS:
+        selected_config = CONFIG_OPTIONS[0]
+
+    sdft_missing = not merged_checkpoint_available()
+    sdft_path = str(merged_checkpoint_path())
 
     return templates.TemplateResponse(
         request,
@@ -248,11 +301,13 @@ async def perf_page(request: Request) -> HTMLResponse:
             "results": _load_results(20),
             "index": _index_entries(20),
             "config_options": CONFIG_OPTIONS,
+            "condition_options": condition_options(),
             "request": request,
             "chat": chat,
-            "selected_config": request.query_params.get(
-                "config_path", CONFIG_OPTIONS[0]
-            ),
+            "selected_config": selected_config,
+            "selected_condition": selected_condition,
+            "sdft_missing": sdft_missing,
+            "sdft_path": sdft_path,
         },
     )
 
@@ -264,23 +319,72 @@ def _run_benchmark_task(
     prompts: list[str] | None,
     records: list[dict[str, str]] | None,
     messages: list[dict[str, str]] | None = None,
+    toolcall_kwargs: dict[str, Any] | None = None,
 ):
     kwargs: dict = {"config_path": config_path, "persist": True}
     if benchmark == "generate":
         kwargs["num_examples"] = num_examples
     elif messages is not None:
         kwargs["messages"] = messages
+        if toolcall_kwargs:
+            kwargs["toolcall_kwargs"] = toolcall_kwargs
     elif prompts:
         kwargs["prompts"] = prompts
         kwargs["records"] = records
-        # Interactive web runs use a single prompt; skip warmup so I/O is counted.
         kwargs["warmup_batches"] = 0
     return run_benchmark(benchmark, **kwargs)
 
 
+def _run_chat_inference(
+    *,
+    config_path: str,
+    condition_id: str,
+    instruction: str,
+    history: list[dict[str, str]],
+    user_message: str,
+) -> Any:
+    """Sync chat inference for plain or OpenClaw tool-loop conditions."""
+    condition = get_condition(condition_id)
+    if condition.requires_merged_checkpoint and not merged_checkpoint_available():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"SDFT checkpoint missing at {merged_checkpoint_path()}. "
+                "Train and merge first (docs/openclaw-tooluse-sdft.md)."
+            ),
+        )
+
+    effective_config = config_path if config_path in CONFIG_OPTIONS else condition.config_path
+    messages = _build_chat_messages(instruction, history, user_message)
+
+    cfg = load_config(effective_config)
+    if condition.toolcall:
+        messages = [m for m in messages if m["role"] != "system"]
+        cfg.model.name = resolve_model_name(condition)
+        result = measure_toolcall_chat(
+            cfg,
+            messages,
+            few_shot_k=condition.few_shot_k,
+            cot_line=condition.cot_line,
+            demo_condition=condition.id,
+        )
+    else:
+        result = measure_chat(cfg, messages)
+        result.metadata = result.metadata or {}
+        result.metadata["demo_condition"] = condition.id
+        result.metadata["model_path"] = cfg.model.name
+
+    result.config_path = effective_config
+    result.metadata = result.metadata or {}
+    result.metadata["config_path"] = effective_config
+    persist_performance_result(result)
+    return result
+
+
 @app.post("/perf/chat")
 async def run_perf_chat(
-    config_path: str = Form("configs/default.yaml"),
+    config_path: str = Form(DEFAULT_OPENCLAW_CONFIG),
+    demo_condition: str = Form(DEFAULT_DEMO_CONDITION),
     instruction: str = Form(""),
     user_message: str = Form(...),
     messages_json: str = Form("[]"),
@@ -292,22 +396,22 @@ async def run_perf_chat(
 
     history = _parse_messages_json(messages_json)
     try:
-        messages = _build_chat_messages(instruction, history, user_message)
+        get_condition(demo_condition)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     result = await asyncio.to_thread(
-        _run_benchmark_task,
-        "inference",
-        config_path,
-        1,
-        None,
-        None,
-        messages,
+        _run_chat_inference,
+        config_path=config_path,
+        condition_id=demo_condition,
+        instruction=instruction,
+        history=history,
+        user_message=user_message,
     )
     cfg_q = quote(config_path, safe="")
+    cond_q = quote(demo_condition, safe="")
     return RedirectResponse(
-        url=f"/perf?continue={result.id}&config_path={cfg_q}&sent=1",
+        url=f"/perf?continue={result.id}&config_path={cfg_q}&condition={cond_q}&sent=1",
         status_code=303,
     )
 

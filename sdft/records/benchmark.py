@@ -12,6 +12,7 @@ import torch
 
 from ..config import Config, load_config
 from ..data import build_teacher_messages, load_examples, sample_fewshots
+from ..toolcall.loop import ToolLoopConfig, run_tool_loop
 from ..utils import load_model, load_tokenizer, pick_device
 from .paths import (
     new_run_id,
@@ -291,6 +292,103 @@ def _chat_examples_summary(messages: list[dict[str, str]], assistant_text: str) 
 
 
 @torch.inference_mode()
+def measure_toolcall_chat(
+    cfg: Config,
+    messages: list[dict[str, str]],
+    *,
+    few_shot_k: int = 0,
+    cot_line: str | None = None,
+    demo_condition: str | None = None,
+    device: str | None = None,
+) -> PerformanceResult:
+    """Run one chat turn through the OpenClaw-style tool loop (ablation demo path)."""
+    cleaned = _validate_chat_messages(messages)
+    history = [m for m in cleaned[:-1] if m["role"] != "system"]
+    last_user = cleaned[-1]["content"]
+
+    device = device or pick_device()
+    tokenizer = load_tokenizer(cfg.model)
+    model = load_model(cfg.model, device)
+    model.eval()
+
+    loop_cfg = ToolLoopConfig(
+        max_rounds=cfg.toolcall.max_rounds,
+        max_new_tokens=cfg.toolcall.max_new_tokens,
+        temperature=cfg.toolcall.temperature,
+        top_p=cfg.toolcall.top_p,
+        format=cfg.toolcall.format,
+        system_prompt=cfg.toolcall.system_prompt,
+        max_context_chars=cfg.toolcall.max_context_chars,
+        max_obs_chars=cfg.toolcall.max_obs_chars,
+        sandbox_timeout_s=cfg.toolcall.sandbox_timeout_s,
+        few_shot_k=few_shot_k,
+        cot_line=cot_line,
+    )
+
+    t0 = time.perf_counter()
+    loop_result = run_tool_loop(
+        model,
+        tokenizer,
+        last_user,
+        cfg=loop_cfg,
+        device=device,
+        history_messages=history or None,
+    )
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    assistant_text = loop_result.response_text.strip()
+    full_messages = [*cleaned, {"role": "assistant", "content": assistant_text}]
+
+    prompt_text = tokenizer.apply_chat_template(
+        cleaned,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    input_tokens = len(tokenizer.encode(prompt_text, add_special_tokens=False))
+    output_tokens = len(tokenizer.encode(assistant_text, add_special_tokens=False))
+    total_tokens = input_tokens + output_tokens
+    total_s = elapsed_ms / 1000 if elapsed_ms > 0 else 0.0
+    tps = total_tokens / total_s if total_s > 0 else 0.0
+
+    meta: dict[str, Any] = {
+        "messages": full_messages,
+        "examples": _chat_examples_summary(cleaned, assistant_text),
+        "max_new_tokens": cfg.toolcall.max_new_tokens,
+        "turn_count": sum(1 for m in cleaned if m["role"] == "user"),
+        "chat": True,
+        "toolcall": True,
+        "tool_call_count": loop_result.tool_call_count,
+        "finish_reason": loop_result.finish_reason,
+        "few_shot_k": few_shot_k,
+        "cot_line": cot_line,
+        "toolcall_format": str(cfg.toolcall.format),
+        "model_path": cfg.model.name,
+    }
+    if demo_condition:
+        meta["demo_condition"] = demo_condition
+
+    return PerformanceResult(
+        id=new_run_id("bench"),
+        run_at=utc_now_iso(),
+        benchmark="inference",
+        model=cfg.model.name,
+        metrics=PerformanceMetrics(
+            latency_ms_mean=elapsed_ms,
+            latency_ms_p50=elapsed_ms,
+            latency_ms_p95=elapsed_ms,
+            tokens_per_second=tps,
+            samples=1,
+            batch_size=1,
+            input_tokens_total=input_tokens,
+            output_tokens_total=output_tokens,
+            device=device,
+            warmup_samples=0,
+        ),
+        metadata=meta,
+    )
+
+
+@torch.inference_mode()
 def measure_chat(
     cfg: Config,
     messages: list[dict[str, str]],
@@ -502,6 +600,7 @@ def run_benchmark(
     records: list[dict[str, str]] | None = None,
     messages: list[dict[str, str]] | None = None,
     warmup_batches: int | None = None,
+    toolcall_kwargs: dict[str, Any] | None = None,
     persist: bool = True,
     root: Path | None = None,
 ) -> PerformanceResult:
@@ -511,7 +610,10 @@ def run_benchmark(
         result = measure_generation(cfg, num_examples=num_examples)
     elif benchmark == "inference":
         if messages is not None:
-            result = measure_chat(cfg, messages)
+            if toolcall_kwargs:
+                result = measure_toolcall_chat(cfg, messages, **toolcall_kwargs)
+            else:
+                result = measure_chat(cfg, messages)
         else:
             sample_prompts = prompts or [
                 "Explain self-distillation fine-tuning in one sentence."
