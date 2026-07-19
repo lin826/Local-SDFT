@@ -1,4 +1,4 @@
-"""One online-learning turn: SDFT generate, LoRA update, optional preview, persist."""
+"""One online-learning turn: tone feedback, SDFT update, then inference."""
 
 from __future__ import annotations
 
@@ -10,33 +10,15 @@ from sdft.records.benchmark import LatencyPhases
 from sdft.records.collect import collect_record
 from sdft.records.paths import utc_now_iso
 
+from .feedback import build_train_examples
 from .generate_step import generate_sdft_response, turns_to_fewshot_examples
 from .inference import generate_preview
 from .paths import session_adapter_dir
 from .schema import OnlineTurn
 from .session import load_session, save_session
 from .stats import turn_latency_from_phases
+from .tone import resolve_tone
 from .train_step import run_train_step
-
-
-def _replay_examples(
-    session,
-    new_row: dict[str, str],
-    buffer_size: int,
-) -> list[dict[str, str]]:
-    prior = [
-        {
-            "instruction": t.instruction,
-            "input": t.input,
-            "sdft_response": t.sdft_response,
-        }
-        for t in session.turns
-        if t.sdft_response.strip()
-    ]
-    combined = [*prior, new_row]
-    if buffer_size <= 0:
-        return [new_row]
-    return combined[-buffer_size:]
 
 
 def run_online_turn(
@@ -47,9 +29,10 @@ def run_online_turn(
     output: str = "",
     tags: list[str] | None = None,
     preview: bool = True,
+    tone_override: str | None = None,
     root: Path | None = None,
 ) -> OnlineTurn:
-    """SDFT-generate a target, LoRA-update on it, optionally preview, persist session."""
+    """Classify feedback tone, LoRA-update, then infer the assistant reply."""
     session = load_session(session_id, root=root)
     cfg = load_config(session.config_path)
     adapter_dir = session_adapter_dir(session_id, root)
@@ -61,10 +44,33 @@ def run_online_turn(
     instruction = instruction.strip()
     user_input = input.strip()
     gold_output = output.strip()
+    prior_turns = list(session.turns)
 
-    fewshots = turns_to_fewshot_examples(session.turns)
+    feedback_tone: str | None = None
+    feedback_reward: int | None = None
+    feedback_source = "none"
+    if prior_turns:
+        with phases.span("tone_classify"):
+            feedback_tone, feedback_reward, feedback_source = resolve_tone(
+                instruction,
+                override=tone_override,
+            )
+
+    fewshots = turns_to_fewshot_examples(prior_turns)
     generate_input_tokens: int | None = None
     generate_output_tokens: int | None = None
+    prev_rewrite: str | None = None
+
+    if feedback_tone == "negative" and prior_turns:
+        with phases.span("generate_prev_rewrite"):
+            prev = prior_turns[-1]
+            prev_fewshots = turns_to_fewshot_examples(prior_turns[:-1])
+            prev_rewrite, _, _ = generate_sdft_response(
+                cfg,
+                instruction=prev.instruction,
+                user_input=prev.input,
+                fewshot_examples=prev_fewshots,
+            )
 
     with phases.span("generate_sdft"):
         sdft_response, generate_input_tokens, generate_output_tokens = generate_sdft_response(
@@ -74,22 +80,26 @@ def run_online_turn(
             fewshot_examples=fewshots,
         )
 
-    train_row = {
-        "instruction": instruction,
-        "input": user_input,
-        "sdft_response": sdft_response,
-    }
-    replay = _replay_examples(session, train_row, cfg.online_learning.replay_buffer_size)
+    replay, preference_action, trained_on = build_train_examples(
+        cfg,
+        prior_turns=prior_turns,
+        instruction=instruction,
+        user_input=user_input,
+        sdft_response=sdft_response,
+        feedback_tone=feedback_tone,
+        feedback_reward=feedback_reward,
+        prev_rewrite=prev_rewrite,
+    )
     with phases.span("train_update"):
         run_train_step(cfg, adapter_dir, replay)
 
-    preview_text = ""
+    assistant_reply = ""
     preview_input_tokens: int | None = None
     preview_output_tokens: int | None = None
     ol = cfg.online_learning
-    if preview and ol.preview_before_train:
-        with phases.span("inference_preview"):
-            preview_text, preview_input_tokens, preview_output_tokens = generate_preview(
+    if preview:
+        with phases.span("inference_reply"):
+            assistant_reply, preview_input_tokens, preview_output_tokens = generate_preview(
                 cfg,
                 adapter_dir,
                 instruction,
@@ -116,6 +126,12 @@ def run_online_turn(
                 "online_session_id": session_id,
                 "turn_index": turn_index,
                 "sdft_response": sdft_response,
+                "assistant_reply": assistant_reply,
+                "feedback_tone": feedback_tone,
+                "feedback_reward": feedback_reward,
+                "feedback_source": feedback_source,
+                "preference_action": preference_action,
+                "trained_on": trained_on,
                 "gold_output_for_collection_only": bool(gold_output),
                 "latency": latency.to_dict(),
             },
@@ -127,12 +143,18 @@ def run_online_turn(
         input=user_input,
         output=gold_output,
         sdft_response=sdft_response,
-        preview=preview_text,
+        assistant_reply=assistant_reply,
+        preview=assistant_reply,
         record_id=record.id,
         created_at=utc_now_iso(),
         latency=latency,
         latency_phases=phases.to_list(),
         tags=tag_list,
+        feedback_tone=feedback_tone,
+        feedback_reward=feedback_reward,
+        feedback_source=feedback_source,
+        preference_action=preference_action,
+        trained_on=trained_on,
     )
     session.turns.append(turn)
     session.updated_at = turn.created_at

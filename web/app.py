@@ -419,6 +419,7 @@ def _run_online_turn_task(
     output: str,
     tags: list[str] | None,
     preview: bool,
+    tone_override: str | None = None,
 ) -> Any:
     return run_online_turn(
         session_id,
@@ -427,6 +428,7 @@ def _run_online_turn_task(
         output=output,
         tags=tags,
         preview=preview,
+        tone_override=tone_override,
     )
 
 
@@ -440,6 +442,7 @@ async def online_learning_turn(
     output: str = Form(""),
     tags: str = Form(""),
     preview: str = Form(""),
+    tone_override: str = Form(""),
 ):
     instruction = instruction.strip()
     output = output.strip()
@@ -460,6 +463,9 @@ async def online_learning_turn(
         save_online_session(session)
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    tone = tone_override.strip().lower() or None
+    if tone and tone not in {"positive", "neutral", "negative"}:
+        tone = None
     try:
         turn = await asyncio.to_thread(
             _run_online_turn_task,
@@ -469,6 +475,7 @@ async def online_learning_turn(
             output=output,
             tags=tag_list or None,
             preview=preview.lower() in {"1", "true", "on", "yes"},
+            tone_override=tone,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

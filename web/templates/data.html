@@ -6,14 +6,14 @@
 {% endblock %}
 {% block content %}
 <h1 class="page-title">Online learning</h1>
-<p class="lead">Submit Alpaca-style prompts; each turn runs a <strong>tiny SDFT</strong> step (model rewrites the target), LoRA-updates the adapter on that self-generated response, and optionally previews the updated adapter. User gold output is optional and stored for collection only — it is <em>not</em> used for the online update.</p>
+<p class="lead">Chat-style turns on <code>/data</code>: each user message is classified as implicit feedback on the <strong>previous</strong> assistant reply (+/0/−), the adapter is updated (tiny SDFT + preference), then the model infers a new reply. Gold output is optional and stored for collection only.</p>
 
-{% with page_id='online', tip='Each submit may take several seconds on MPS while the model generates an SDFT target and updates the adapter. The form shows progress via HTMX.' %}
+{% with page_id='online', tip='Each submit may take several seconds on MPS: tone classify → SDFT generate → LoRA update → inference. The form shows progress via HTMX.' %}
 {% set steps = [
   'Pick a YAML config (default: configs/online_learning.yaml) or start a fresh session.',
-  'Fill Instruction (required). Optionally add Input context and a gold Output for dataset collection.',
-  'Submit — the server SDFT-generates a target, runs 1–few LoRA steps on sdft_response, and optionally previews the updated adapter.',
-  'Review turn feedback (SDFT target, preview, generate/train/infer/total latency) and open the session detail page for aggregate stats.',
+  'Send a user message (Instruction). On turn 2+, its tone feeds back on the prior reply.',
+  'Optionally override detected tone, or add gold Output for dataset collection.',
+  'Review assistant reply, feedback tone, preference action, and latency breakdown.',
 ] %}
 {% include "howto.html" %}
 {% endwith %}
@@ -31,7 +31,7 @@
 </div>
 
 <section class="section" id="online-turn-panel">
-  <h2>Submit turn</h2>
+  <h2>Send message</h2>
   <form
     id="online-turn-form"
     method="post"
@@ -50,15 +50,24 @@
       </select>
     </div>
     <div class="field">
-      <label for="instruction">Instruction</label>
-      <input id="instruction" name="instruction" type="text" placeholder="Tell a geek joke about PhD life" value="{{ prefill.instruction if prefill else '' }}" required>
+      <label for="instruction">User message</label>
+      <input id="instruction" name="instruction" type="text" placeholder="Thanks, that was perfect!" value="{{ prefill.instruction if prefill else '' }}" required>
     </div>
     <div class="field">
-      <label for="input_text">Input (optional)</label>
-      <input id="input_text" name="input_text" type="text" placeholder="Context or constraints" value="{{ prefill.input_text if prefill else '' }}">
+      <label for="input_text">Input context (optional)</label>
+      <input id="input_text" name="input_text" type="text" placeholder="Extra context" value="{{ prefill.input_text if prefill else '' }}">
     </div>
     <div class="field">
-      <label for="output">Gold output (optional — collection only, not used for update)</label>
+      <label for="tone_override">Feedback tone override (optional — on previous reply)</label>
+      <select id="tone_override" name="tone_override">
+        <option value="">Auto-detect from message</option>
+        <option value="positive">Positive (+1)</option>
+        <option value="neutral">Neutral (0)</option>
+        <option value="negative">Negative (−1)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="output">Gold output (optional — collection only)</label>
       <textarea id="output" name="output" placeholder="Optional reference response for your dataset…">{{ prefill.output if prefill else '' }}</textarea>
     </div>
     <div class="field">
@@ -66,19 +75,27 @@
       <input id="tags" name="tags" type="text" placeholder="geek-jokes">
     </div>
     <div class="field checkbox-field">
-      <label><input type="checkbox" name="preview" value="1" checked> Preview with updated adapter after SDFT update</label>
+      <label><input type="checkbox" name="preview" value="1" checked> Generate assistant reply after update</label>
     </div>
     <div class="actions">
-      <button class="btn" type="submit" id="online-submit-btn">Submit &amp; update adapter</button>
-      <span id="online-spinner" class="htmx-indicator online-spinner">Running tiny SDFT update…</span>
+      <button class="btn" type="submit" id="online-submit-btn">Send &amp; update</button>
+      <span id="online-spinner" class="htmx-indicator online-spinner">Updating adapter, then inferring…</span>
     </div>
   </form>
 
   {% if last_turn %}
   <div class="online-turn-result">
     <h3>Turn {{ last_turn.turn_index }} complete</h3>
+    {% if last_turn.feedback_tone %}
+    <p class="meta">Feedback on previous reply: <strong>{{ last_turn.feedback_tone }}</strong> (reward {{ last_turn.feedback_reward }}{% if last_turn.feedback_source != 'none' %}, {{ last_turn.feedback_source }}{% endif %}) · action <code>{{ last_turn.preference_action }}</code></p>
+    {% else %}
+    <p class="meta">First turn — no prior reply to apply feedback to.</p>
+    {% endif %}
     <div class="metrics-strip">
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.total_ms) }}</strong><span>Total ms</span></div>
+      {% if last_turn.latency.tone_ms is not none %}
+      <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.tone_ms) }}</strong><span>Tone ms</span></div>
+      {% endif %}
       {% if last_turn.latency.generate_ms is not none %}
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.generate_ms) }}</strong><span>Generate ms</span></div>
       {% endif %}
@@ -88,13 +105,16 @@
       {% if last_turn.latency.inference_ms is not none %}
       <div class="metric-chip"><strong>{{ "%.0f"|format(last_turn.latency.inference_ms) }}</strong><span>Infer ms</span></div>
       {% endif %}
-      {% if last_turn.latency.output_tokens is not none %}
-      <div class="metric-chip"><strong>{{ last_turn.latency.output_tokens }}</strong><span>SDFT tokens</span></div>
-      {% endif %}
     </div>
+    {% if last_turn.assistant_reply %}
+    <div class="io-field" style="margin-top:1rem;">
+      <span class="io-label">Assistant reply (after update)</span>
+      <pre class="io-text io-output">{{ last_turn.assistant_reply }}</pre>
+    </div>
+    {% endif %}
     {% if last_turn.sdft_response %}
     <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">SDFT target (trained on this)</span>
+      <span class="io-label">SDFT target (trained on this turn)</span>
       <pre class="io-text io-output">{{ last_turn.sdft_response }}</pre>
     </div>
     {% endif %}
@@ -102,12 +122,6 @@
     <div class="io-field" style="margin-top:1rem;">
       <span class="io-label">Gold output (collection only)</span>
       <pre class="io-text io-output">{{ last_turn.output }}</pre>
-    </div>
-    {% endif %}
-    {% if last_turn.preview %}
-    <div class="io-field" style="margin-top:1rem;">
-      <span class="io-label">Adapter preview (after update)</span>
-      <pre class="io-text io-output">{{ last_turn.preview }}</pre>
     </div>
     {% endif %}
     {% if last_turn.latency_phases %}
@@ -125,24 +139,27 @@
   {% if session.turns %}
   <table>
     <thead>
-      <tr><th>#</th><th>Instruction</th><th>Total ms</th><th>Generate</th><th>Train</th><th>Infer</th><th>When</th></tr>
+      <tr><th>#</th><th>Message</th><th>Feedback</th><th>Action</th><th>Tone</th><th>Gen</th><th>Train</th><th>Infer</th><th>Total</th><th>When</th></tr>
     </thead>
     <tbody>
       {% for t in session.turns|reverse %}
       <tr>
         <td>{{ t.turn_index }}</td>
-        <td>{{ t.instruction[:80] }}{% if t.instruction|length > 80 %}…{% endif %}</td>
-        <td>{{ "%.0f"|format(t.latency.total_ms) }}</td>
+        <td>{{ t.instruction[:60] }}{% if t.instruction|length > 60 %}…{% endif %}</td>
+        <td>{% if t.feedback_tone %}{{ t.feedback_tone }} ({{ t.feedback_reward }}){% else %}—{% endif %}</td>
+        <td class="meta">{{ t.preference_action or '—' }}</td>
+        <td>{% if t.latency.tone_ms is not none %}{{ "%.0f"|format(t.latency.tone_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.generate_ms is not none %}{{ "%.0f"|format(t.latency.generate_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.train_ms is not none %}{{ "%.0f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.inference_ms is not none %}{{ "%.0f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
+        <td>{{ "%.0f"|format(t.latency.total_ms) }}</td>
         <td class="meta">{{ t.created_at }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p class="empty">No turns yet — submit your first example above.</p>
+  <p class="empty">No turns yet — send your first message above.</p>
   {% endif %}
 </section>
 

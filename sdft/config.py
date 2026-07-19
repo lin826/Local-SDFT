@@ -87,7 +87,7 @@ class ToolCallConfig:
 class OnlineLearningConfig:
     train_steps: int = 2
     replay_buffer_size: int = 8
-    preview_before_train: bool = True
+    preview_before_train: bool = False
     preview_max_new_tokens: int = 128
     session_root: str = "outputs/online-learning"
 

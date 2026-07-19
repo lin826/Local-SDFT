@@ -13,6 +13,7 @@ class TurnLatency:
     """Wall-clock latency for one online-learning turn."""
 
     total_ms: float
+    tone_ms: float | None = None
     generate_ms: float | None = None
     train_ms: float | None = None
     inference_ms: float | None = None
@@ -30,7 +31,7 @@ class TurnLatency:
 
 @dataclass
 class OnlineTurn:
-    """One user prompt plus SDFT target, optional gold label, and update timing."""
+    """One chat turn: user message, SDFT target, assistant reply, and feedback metadata."""
 
     turn_index: int
     instruction: str
@@ -40,9 +41,15 @@ class OnlineTurn:
     record_id: str
     created_at: str
     latency: TurnLatency
+    assistant_reply: str = ""
     preview: str = ""
     latency_phases: list[dict[str, Any]] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    feedback_tone: str | None = None
+    feedback_reward: int | None = None
+    feedback_source: str = "none"
+    preference_action: str = ""
+    trained_on: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -56,6 +63,10 @@ class OnlineTurn:
         data = {k: v for k, v in raw.items() if k in known}
         if "sdft_response" not in data:
             data["sdft_response"] = raw.get("sdft_response") or raw.get("preview") or ""
+        if "assistant_reply" not in data:
+            data["assistant_reply"] = raw.get("assistant_reply") or raw.get("preview") or ""
+        if "preview" not in data:
+            data["preview"] = data.get("assistant_reply") or ""
         return cls(
             latency=TurnLatency.from_dict(latency_raw),
             **data,

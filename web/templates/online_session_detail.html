@@ -3,7 +3,7 @@
 {% set active = 'data' %}
 {% block content %}
 <h1 class="page-title">Online learning session</h1>
-<p class="lead"><code>{{ session.id }}</code> · {{ session.updated_at }} · {{ session.turn_count }} turn(s) · tiny SDFT updates</p>
+<p class="lead"><code>{{ session.id }}</code> · {{ session.updated_at }} · {{ session.turn_count }} turn(s) · chat-style SDFT + tone feedback</p>
 
 <div class="pill-row">
   <span class="pill pill-accent">{{ session.model }}</span>
@@ -25,6 +25,17 @@
 
 {% set summary = session.latency_summary %}
 {% if summary and summary.turn_count %}
+<section class="section" id="tone-summary">
+  <h2>Feedback tone counts</h2>
+  {% set tc = summary.get('tone_counts') or {} %}
+  <div class="pill-row">
+    <span class="pill pill-accent">+ {{ tc.get('positive', 0) }}</span>
+    <span class="pill pill-muted">0 {{ tc.get('neutral', 0) }}</span>
+    <span class="pill pill-muted">− {{ tc.get('negative', 0) }}</span>
+    <span class="pill pill-muted">first turn {{ tc.get('first_turn', 0) }}</span>
+  </div>
+</section>
+
 <section class="section" id="latency-summary">
   <h2>Latency summary</h2>
   <p class="lead" style="margin-bottom:1rem;">Aggregated over {{ summary.turn_count }} turn(s): mean / p50 / p95 (ms).</p>
@@ -34,9 +45,10 @@
     </thead>
     <tbody>
       {% for phase_name, label in [
+        ('tone_ms', 'Tone classify'),
         ('generate_ms', 'SDFT generate'),
         ('train_ms', 'Adapter update'),
-        ('inference_ms', 'Post-update preview'),
+        ('inference_ms', 'Post-update inference'),
         ('total_ms', 'Total turn'),
       ] %}
       {% set s = summary.get(phase_name) or {} %}
@@ -58,18 +70,20 @@
   {% if session.turns %}
   <table>
     <thead>
-      <tr><th>#</th><th>Instruction</th><th>Generate ms</th><th>Train ms</th><th>Infer ms</th><th>Total ms</th><th>Tokens</th><th>When</th></tr>
+      <tr><th>#</th><th>Message</th><th>Feedback</th><th>Action</th><th>Tone ms</th><th>Gen ms</th><th>Train ms</th><th>Infer ms</th><th>Total ms</th><th>When</th></tr>
     </thead>
     <tbody>
       {% for t in session.turns %}
       <tr>
         <td>{{ t.turn_index }}</td>
         <td>{{ t.instruction[:60] }}{% if t.instruction|length > 60 %}…{% endif %}</td>
+        <td>{% if t.feedback_tone %}{{ t.feedback_tone }} ({{ t.feedback_reward }}){% else %}—{% endif %}</td>
+        <td class="meta">{{ t.preference_action or '—' }}</td>
+        <td>{% if t.latency.tone_ms is not none %}{{ "%.1f"|format(t.latency.tone_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.generate_ms is not none %}{{ "%.1f"|format(t.latency.generate_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.train_ms is not none %}{{ "%.1f"|format(t.latency.train_ms) }}{% else %}—{% endif %}</td>
         <td>{% if t.latency.inference_ms is not none %}{{ "%.1f"|format(t.latency.inference_ms) }}{% else %}—{% endif %}</td>
         <td><strong>{{ "%.1f"|format(t.latency.total_ms) }}</strong></td>
-        <td class="meta">{% if t.latency.output_tokens is not none %}{{ t.latency.output_tokens }} sdft{% else %}—{% endif %}</td>
         <td class="meta">{{ t.created_at }}</td>
       </tr>
       {% endfor %}
