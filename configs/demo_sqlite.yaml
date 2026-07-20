@@ -1,0 +1,41 @@
+# Text→SQL against REAL software: the model emits <sql>…</sql>, a real SQLite
+# engine runs it, reward = the result set matches a gold query. Held-out
+# questions use categories/cities never seen in coaching, so a correct executed
+# answer can only come from writing correct SQL.
+#
+#   python scripts/demo_sqlite.py
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  reward_fn: "sqlite_tool"
+  reward_num_samples: 6          # more rollouts: some will produce a runnable query
+  loss_type: "sft"              # train on the gold query (guaranteed-correct target)
+  # Cold-start teacher hint (used only while sampling candidates): the schema +
+  # the output contract. The trained target is the gold SQL, so the skill
+  # persists; the demo also supplies the schema at eval (standard text→SQL).
+  coach_instruction: >-
+    You are a SQLite assistant for a store database with tables
+    customers(id, name, city), products(id, name, category, price, stock),
+    orders(id, customer_id, product_id, quantity, order_date).
+    Answer the question with ONE SQLite query wrapped in <sql>...</sql>.
+  sample_temperature: 0.8
+  max_completion_tokens: 64
+  serve_temperature: 0.0
+  serve_max_new_tokens: 64
+  lr: 2.0e-4
+  min_new_demos: 1
+  steps_per_update: 6
+  demos_per_step: 4
+  replay_ratio: 0.5
+  eval_every_n_updates: 0
+  db_path: "data/demo_sqlite.db"          # SDFT store (not the queried DB)
+  adapters_dir: "data/demo_sqlite_adapters"

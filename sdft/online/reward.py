@@ -143,6 +143,38 @@ def shape_calc_tool(prompt: str, reply: str) -> str:
     return f'<tool>calc("{expr}")</tool>'
 
 
+# ---- text→SQL against REAL software: "answer questions about a database" ---
+# The strongest "interacts with real software" task: the model emits a query,
+# a real SQLite engine runs it, and reward = the result set matches a gold
+# query's result. Held-out questions use categories/cities never seen in
+# coaching, so a correct executed answer can only come from writing correct SQL.
+
+
+@reward("sqlite_tool")
+def sqlite_tool(prompt: str, reply: str) -> float:
+    """1.0 = query runs and matches gold; 0.4 = ran but wrong; 0.2 = errored; 0 = no SQL."""
+    from .sqlenv import db_path, gold_for, parse_sql, results_match, run_query
+
+    dbp, gold = db_path(), gold_for(prompt)
+    if dbp is None or gold is None:
+        return 0.0
+    sql = parse_sql(reply)
+    if sql is None:
+        return 0.0
+    got = run_query(dbp, sql)
+    if got is None:
+        return 0.2  # emitted a query but it errored or was denied by the jail
+    return 1.0 if results_match(got, run_query(dbp, gold)) else 0.4
+
+
+@shaper("sqlite_tool")
+def shape_sqlite_tool(prompt: str, reply: str) -> str:
+    """Guaranteed-correct demonstration: the gold query for this question."""
+    from .sqlenv import gold_for
+
+    return f"<sql>{gold_for(prompt) or 'SELECT 1'}</sql>"
+
+
 @reward("five_words")
 def five_words(prompt: str, reply: str) -> float:
     """Answer in exactly five words (a crisp, unmistakable constraint)."""

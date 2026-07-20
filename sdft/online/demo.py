@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 
 from .reward import SIGNOFF
+from .sqlenv import COACH_QA as _SQL_COACH
+from .sqlenv import HELDOUT_QA as _SQL_HELDOUT
 
 # Prompts used to COACH (train) — the model gets feedback on these.
 COACH_PROMPTS = [
@@ -53,6 +55,7 @@ _TASK_PROMPTS = {
     "five_words": (COACH_PROMPTS, HELDOUT_PROMPTS),
     "terse": (COACH_PROMPTS, HELDOUT_PROMPTS),
     "calc_tool": (COACH_CALC, HELDOUT_CALC),
+    "sqlite_tool": ([q for q, _ in _SQL_COACH], [q for q, _ in _SQL_HELDOUT]),
 }
 
 
