@@ -67,17 +67,35 @@ class TestRollback:
 
 
 class TestRewardPath:
-    def test_reward_fn_harvests_demo(self, tmp_path):
-        # five_words rewards exactly-5-word replies; echo samples won't qualify,
-        # but the reward path must run without error and only keep positives.
+    def test_shaper_task_always_harvests(self, tmp_path):
+        # five_words has a shaper, so even a non-passing sample is reshaped into a
+        # guaranteed-correct target and harvested.
         cfg = make_cfg(tmp_path, reward_fn="five_words", reward_num_samples=3)
         c = OnlineController.build(cfg)
         try:
             c.chat("c1", "name three primary colors please")
-            # echo replies are not 5 words -> reward 0 -> no demo harvested
-            assert len(c.buffer.pending()) == 0
+            assert len(c.buffer.pending()) == 1
+            # the harvested target actually satisfies the reward
+            from sdft.online.reward import get_reward_fn
+            demo = c.buffer.pending()[0]
+            assert get_reward_fn("five_words")("q", demo.demonstration) == 1.0
         finally:
             c.store.close()
+
+    def test_reward_without_shaper_skips_zero(self, tmp_path):
+        # A reward with NO shaper and zero score harvests nothing.
+        from sdft.online import reward
+        reward._REGISTRY["zeroonly"] = lambda p, r: 0.0
+        try:
+            cfg = make_cfg(tmp_path, reward_fn="zeroonly", reward_num_samples=2)
+            c = OnlineController.build(cfg)
+            try:
+                c.chat("c1", "hello")
+                assert len(c.buffer.pending()) == 0
+            finally:
+                c.store.close()
+        finally:
+            reward._REGISTRY.pop("zeroonly", None)
 
     def test_reward_fn_keeps_positive(self, tmp_path):
         # A reward that always passes -> best sample harvested as a demo.

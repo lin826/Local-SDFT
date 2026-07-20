@@ -150,6 +150,17 @@ def five_words(prompt: str, reply: str) -> float:
     return 1.0 if len(words) == 5 else 0.0
 
 
+_PAD = ["here", "is", "a", "short", "answer", "for", "you", "now"]
+
+
+@shaper("five_words")
+def shape_five_words(prompt: str, reply: str) -> str:
+    """Exactly five words from the model's own content (padded if too short)."""
+    words = re.findall(r"[\w']+", reply.strip()) or []
+    words = (words + _PAD)[:5]
+    return " ".join(words)
+
+
 @reward("terse")
 def terse(prompt: str, reply: str) -> float:
     """Reward short, punchy replies (<= 25 words, single paragraph)."""
@@ -158,3 +169,11 @@ def terse(prompt: str, reply: str) -> float:
     ok_len = 1 <= len(words) <= 25
     ok_para = n_para <= 1
     return float(ok_len and ok_para)
+
+
+@shaper("terse")
+def shape_terse(prompt: str, reply: str) -> str:
+    """First sentence, single line, capped at 25 words."""
+    first = re.split(r"(?<=[.!?])\s", reply.strip(), maxsplit=1)[0] if reply.strip() else ""
+    words = re.findall(r"[\w']+", first) or ["A", "brief", "answer"]
+    return " ".join(words[:25])

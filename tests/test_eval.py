@@ -73,3 +73,27 @@ def test_house_style_shaper_yields_full_marks():
     for raw in ["TCP is reliable. UDP is fast. Pick per need.",
                 "I'm ready to dive in", "one two three four five six seven"]:
         assert rfn("q", shp("q", raw)) >= 0.99
+
+
+def test_style_shapers_pass_their_rewards():
+    from sdft.online.reward import get_reward_fn, get_shaper
+    for name in ("five_words", "terse", "house_style"):
+        rfn, shp = get_reward_fn(name), get_shaper(name)
+        assert shp is not None, name
+        assert rfn("q", shp("q", "some rambly model answer here that is long")) >= 0.99, name
+
+
+def test_controller_set_task_switches(tmp_path):
+    from sdft.config import Config
+    from sdft.online.controller import OnlineController
+    cfg = Config(); cfg.online.backend = "echo"
+    cfg.online.db_path = str(tmp_path / "d.db"); cfg.online.adapters_dir = str(tmp_path / "a")
+    c = OnlineController.build(cfg)
+    try:
+        assert c._reward_fn is None
+        c.set_task("five_words")
+        assert c._reward_fn is not None and c._shaper is not None
+        c.set_task(None)
+        assert c._reward_fn is None
+    finally:
+        c.store.close()

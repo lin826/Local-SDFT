@@ -48,6 +48,18 @@ class OnlineController:
         self._updates = self.store.count_training_runs()
         self._ensure_base_version()
 
+    def set_task(self, reward_fn_name: str | None) -> None:
+        """Switch the active reward task at runtime (for the continual-learning demo)."""
+        if reward_fn_name is None:
+            self._reward_fn = self._shaper = None
+            self.cfg.online.reward_fn = None
+            return
+        from .reward import get_reward_fn, get_shaper
+
+        self._reward_fn = get_reward_fn(reward_fn_name)
+        self._shaper = get_shaper(reward_fn_name)
+        self.cfg.online.reward_fn = reward_fn_name
+
     @classmethod
     def build(cls, cfg: Config) -> "OnlineController":
         store = SQLiteStore(cfg.online.db_path)
