@@ -4,6 +4,9 @@ Builds ``instruction`` / ``output`` / ``generator`` annotations and calls the
 library's pairwise GPT-4 judge (default: ``weighted_alpaca_eval_gpt4_turbo``
 vs ``gpt4_turbo`` reference) to obtain ``win_rate`` and
 ``length_controlled_winrate``.
+
+Also dispatches to a **local** open-model judge (Colab T4, no OpenAI) via
+``sdft.alpacaeval_local_judge`` — same protocol shape, not leaderboard-equivalent.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from typing import Any, Sequence
 
 # AE2 default annotator (AlpacaEval 2.0). Override via evaluate_model_outputs(...).
 DEFAULT_ANNOTATORS_CONFIG = "weighted_alpaca_eval_gpt4_turbo"
+JUDGE_ENV = "JUDGE"
 
 
 def require_openai_api_key() -> str:
@@ -25,9 +29,27 @@ def require_openai_api_key() -> str:
             "OPENAI_API_KEY is required for official AlpacaEval judging "
             f"(annotator `{DEFAULT_ANNOTATORS_CONFIG}`). "
             "Set it in the environment (or Colab Secrets) before scoring. "
-            "Judging uses paid OpenAI API calls — expect real $ cost on full AE2."
+            "Judging uses paid OpenAI API calls — expect real $ cost on full AE2. "
+            "Or set JUDGE=local to use the open-model Colab T4 judge instead."
         )
     return key
+
+
+def resolve_judge_mode(explicit: str | None = None) -> str:
+    """Return ``\"local\"`` or ``\"openai\"``.
+
+    Precedence: ``explicit`` arg → ``JUDGE`` env → default ``local``
+    (Colab-friendly; no API key required).
+    """
+    raw = (explicit if explicit is not None else os.environ.get(JUDGE_ENV, "local")) or "local"
+    mode = str(raw).strip().lower()
+    if mode in {"local", "hf", "open"}:
+        return "local"
+    if mode in {"openai", "gpt4", "gpt-4", "official"}:
+        return "openai"
+    raise ValueError(
+        f"unknown judge mode {raw!r}; use JUDGE=local or JUDGE=openai"
+    )
 
 
 def to_model_outputs(
@@ -113,12 +135,50 @@ def evaluate_model_outputs(
     annotators_config: str = DEFAULT_ANNOTATORS_CONFIG,
     reference_outputs: Any = None,
     is_overwrite_leaderboard: bool = True,
+    judge: str | None = None,
+    judge_model: str | None = None,
 ) -> dict[str, Any]:
-    """Run official ``alpaca_eval.evaluate`` and return a JSON-serializable summary.
+    """Run AlpacaEval-style pairwise judging and return a JSON-serializable summary.
 
-    Requires ``OPENAI_API_KEY`` and the optional ``alpacaeval`` extra
-    (``pip install alpaca-eval`` / ``uv sync --extra alpacaeval``).
+    ``judge`` / env ``JUDGE``:
+      - ``local`` (default) — open HF model on GPU (see ``alpacaeval_local_judge``)
+      - ``openai`` — official ``alpaca_eval.evaluate`` + GPT-4-Turbo (needs key)
     """
+    mode = resolve_judge_mode(judge)
+    if mode == "local":
+        from .alpacaeval_local_judge import evaluate_with_local_judge
+
+        return evaluate_with_local_judge(
+            model_outputs,
+            name=name,
+            output_dir=output_dir,
+            max_instances=max_instances,
+            judge_model=judge_model,
+            reference_outputs=reference_outputs,
+        )
+
+    return _evaluate_openai(
+        model_outputs,
+        name=name,
+        output_dir=output_dir,
+        max_instances=max_instances,
+        annotators_config=annotators_config,
+        reference_outputs=reference_outputs,
+        is_overwrite_leaderboard=is_overwrite_leaderboard,
+    )
+
+
+def _evaluate_openai(
+    model_outputs: Sequence[dict[str, str]] | str | Path,
+    *,
+    name: str | None = None,
+    output_dir: str | Path | None = None,
+    max_instances: int | None = None,
+    annotators_config: str = DEFAULT_ANNOTATORS_CONFIG,
+    reference_outputs: Any = None,
+    is_overwrite_leaderboard: bool = True,
+) -> dict[str, Any]:
+    """Run official ``alpaca_eval.evaluate`` (GPT-4-Turbo annotator)."""
     require_openai_api_key()
     try:
         from alpaca_eval import evaluate as alpaca_evaluate
@@ -163,9 +223,11 @@ def evaluate_model_outputs(
 
     leaderboard, annotations = alpaca_evaluate(**eval_kwargs)
     metrics = extract_model_metrics(leaderboard, model_name)
+    metrics["judge"] = "openai"
 
     summary = {
         "annotators_config": annotators_config,
+        "judge": "openai",
         "max_instances": max_instances,
         "n_model_outputs": len(rows),
         "output_dir": str(out_dir),

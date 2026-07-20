@@ -19,7 +19,10 @@ _DTYPES = {
 
 
 def pick_device() -> str:
-    """Prefer MPS (Apple Silicon), then CUDA, then CPU."""
+    """Prefer MPS (Apple Silicon), then CUDA, then CPU.
+
+    TPU is not supported (needs torch_xla/PJRT); on Colab use a CUDA GPU runtime.
+    """
     if torch.backends.mps.is_available():
         return "mps"
     if torch.cuda.is_available():

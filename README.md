@@ -26,7 +26,8 @@ Also in this repo:
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
   (ZS / ICL / CoT inference + gold SFT + SDFT LoRA; train on alpaca-cleaned,
-  generate on AE2, official `alpaca_eval` win-rate / LC win-rate; no GRPO)
+  generate on AE2, pairwise win-rate via local open judge ≈ AE2 protocol or
+  optional official GPT-4-Turbo; no GRPO)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -46,7 +47,8 @@ uv sync --extra alpacaeval
 
 Dependencies: `torch>=2.6` · `transformers>=4.54` (`Lfm2ForCausalLM`, no
 trust-remote-code) · `trl>=0.19` (`SFTTrainer` / `GRPOTrainer`) · `peft>=0.15`.
-Optional: `alpaca-eval` via the `alpacaeval` extra (needs `OPENAI_API_KEY`).
+Optional: `alpaca-eval` via the `alpacaeval` extra. Local judge needs no API key
+(`JUDGE=local`, default); official GPT-4-Turbo needs `JUDGE=openai` + `OPENAI_API_KEY`.
 
 ## Quick start — offline SDFT
 
@@ -82,8 +84,9 @@ module names.
 Numbers are from local Apple Silicon runs (MPS, ~32 GB). Artifacts under
 `outputs/compare/` and `outputs/benchmarks/` (gitignored). BFCL scores are a
 **local AST subset**, not the official Berkeley Function-Calling Leaderboard.
-Official AlpacaEval 2 LC win-rate needs `OPENAI_API_KEY` + the `alpacaeval`
-optional extra (Colab notebook / `scripts/run_alpaca_eval.py`).
+AlpacaEval-style scoring: local open judge ≈ AE2 pairwise protocol (not
+leaderboard-equivalent); official GPT-4-Turbo LC win-rate needs `JUDGE=openai`
++ `OPENAI_API_KEY` (Colab notebook / `scripts/run_alpaca_eval.py`).
 
 ### BFCL-v3 local AST — where SDFT shines
 
@@ -167,15 +170,17 @@ uv run python -m web.app   # → http://127.0.0.1:8765/perf
 Custom local JSONL: point a config at an Alpaca-style file (`dataset: json` +
 `data_files: ...`) and run the Quick-start three steps with `--config`.
 
-Colab (official AE2 win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
+Colab (AE2-style win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
 — train gold SFT / SDFT on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT +
-adapters on AE2 instructions, then `alpaca_eval.evaluate` for `win_rate` /
-`length_controlled_winrate` (requires `OPENAI_API_KEY`; API $ cost; no GRPO).
+adapters on AE2 instructions, then pairwise judge for `win_rate` (local open
+model ≈ AE2 protocol by default; optional official GPT-4-Turbo + LC). Not
+leaderboard-equivalent when using the local judge. No GRPO.
 
 ```bash
 uv sync --extra alpacaeval
-export OPENAI_API_KEY=...
-# after writing model_outputs JSON (see notebook / sdft.alpacaeval_score):
+# default local judge (Colab T4); optional: export ALPACA_EVAL_LOCAL_JUDGE=...
+export JUDGE=local
+# or official: export JUDGE=openai OPENAI_API_KEY=...
 uv run python scripts/run_alpaca_eval.py \
   --model-outputs outputs/alpacaeval/sdft/model_outputs.json \
   --name sdft --output-dir outputs/alpacaeval/sdft

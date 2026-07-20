@@ -1,0 +1,33 @@
+# Example alpaca_eval custom annotator for a local HF judge (documentation).
+# Primary Colab path uses sdft.alpacaeval_local_judge (controlled 4-bit load);
+# this YAML mirrors the protocol if you call alpaca_eval.evaluate directly:
+#
+#   alpaca_eval.evaluate(
+#       model_outputs=...,
+#       annotators_config="<path-to-this-dir>",
+#       fn_metric="get_winrate",  # LC GLM is GPT-specific — skip
+#   )
+#
+# VRAM: Qwen/Qwen3.5-9B NF4 ≈ 5–7 GB; Colab T4 (~15 GB) at batch_size=1.
+# Unload the 230M policy before judging (notebook empties CUDA cache).
+# If OOM, set model_name to Qwen/Qwen2.5-7B-Instruct.
+# Needs recent transformers with Qwen3.5 support; disable thinking for short
+# pairwise completions (see sdft.alpacaeval_local_judge._generate_verdict).
+
+qwen35_t4_4bit:
+  prompt_template: "qwen35_t4_4bit/basic_prompt.txt"
+  fn_completions: "huggingface_local_completions"
+  completions_kwargs:
+    model_name: "Qwen/Qwen3.5-9B"
+    max_new_tokens: 16
+    do_sample: false
+    model_kwargs:
+      torch_dtype: "float16"
+      load_in_4bit: true
+      device_map: "auto"
+      trust_remote_code: true
+  completion_parser_kwargs:
+    outputs_to_match:
+      1: '(?:^|\n) ?Output \(a\)'
+      2: '(?:^|\n) ?Output \(b\)'
+  batch_size: 1

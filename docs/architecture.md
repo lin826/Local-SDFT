@@ -45,7 +45,8 @@ flowchart LR
 | `sdft/config.py` | YAML → dataclasses (single source of knobs) |
 | `sdft/rewards.py` | Local reward fns for GRPO (`instruction`, `boxed`, `bfcl`) |
 | `sdft/alpacaeval_ablation.py` | AE2 prompt strategies (ZS / FS / CoT) for `/perf` + Colab |
-| `sdft/alpacaeval_score.py` | Official `alpaca_eval.evaluate` wrapper (win-rate / LC) |
+| `sdft/alpacaeval_score.py` | AE2 score dispatch (`JUDGE=local|openai`) → win-rate / LC |
+| `sdft/alpacaeval_local_judge.py` | Local open HF pairwise judge ≈ AE2 protocol (not GPT-4-Turbo LC) |
 | `sdft/peft_utils.py` | Shared `adapter_ready` / chat model loading |
 | `sdft/online_learning/` | Per-turn tone feedback → tiny SDFT → reply |
 | `sdft/toolcall/` | ReTool-style tool loop + OpenClaw eval |
@@ -54,7 +55,7 @@ flowchart LR
 | `web/` | FastAPI + HTMX UI (`/`, `/data`, `/perf`) |
 | `configs/compare/` | Batch-size-1 baselines (Alpaca + BFCL; 230M + 1.2B) |
 | `scripts/run_batch1_comparison.py` | Train + score base / SFT / SDFT / GRPO (Alpaca) |
-| `scripts/run_alpaca_eval.py` | Official AlpacaEval 2 judge on model_outputs JSON |
+| `scripts/run_alpaca_eval.py` | Local or official AlpacaEval-style judge on model_outputs JSON |
 | `scripts/run_bfcl_baselines.py` | Train + score BFCL gold / SDFT / GRPO |
 | `scripts/run_bfcl_eval.py` | BFCL local subset wrapper |
 | `scripts/build_bfcl_train_data.py` | BFCL gold/GRPO jsonl + split manifest |
@@ -82,9 +83,11 @@ uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
 # Batch-size-1 Alpaca heuristic (secondary)
 uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
 
-# Colab official AE2 win-rate (train alpaca-cleaned → generate AE2 → alpaca_eval):
+# Colab AE2-style win-rate (train alpaca-cleaned → generate AE2 → judge):
 #   notebooks/local_sdft_colab.ipynb
-#   uv sync --extra alpacaeval && OPENAI_API_KEY=... \
+#   JUDGE=local (default) — Qwen3.5-9B 4-bit ≈ AE2 protocol, not LC leaderboard
+#   JUDGE=openai OPENAI_API_KEY=... — official GPT-4-Turbo win_rate / LC
+#   uv sync --extra alpacaeval && \
 #     uv run python scripts/run_alpaca_eval.py --model-outputs ... --name sdft
 ```
 
