@@ -60,6 +60,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/demo_correct_once.yaml")
     ap.add_argument("--max-corrections", type=int, default=12)
+    ap.add_argument("--consolidation-steps", type=int, default=5)
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -118,7 +119,18 @@ def main() -> int:
             if learned_rate >= 0.85:
                 break
         if not progressed:
-            break  # it obeys every cooking question and generalized as far as it will
+            break  # it obeys every cooking question; consolidate below
+
+    # Consolidation: the on-device loop keeps replaying the few corrections you
+    # gave (no new input from you), strengthening the habit until it generalizes.
+    if learned_rate < 0.85:
+        console.print(Rule("It consolidates on its own (replaying your corrections)", style="dim"))
+        for i in range(args.consolidation_steps):
+            if ctrl.maybe_update(force=True) is None:
+                break
+            learned_rate, _ = held_out_rate(f"consolidation {i + 1}")
+            if learned_rate >= 0.85:
+                break
 
     console.print(Rule("After — a held-out programming question", style="dim"))
     learned_rate, (hq, hr, hok) = held_out_rate("adapter ON (learned)")
