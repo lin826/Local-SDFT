@@ -40,6 +40,10 @@ COACH = [
     "How do I ripen an avocado quickly?",
     "How do I keep guacamole from browning?",
     "What's a substitute for buttermilk?",
+    "How do I soften brown sugar?",
+    "What temperature should I roast vegetables at?",
+    "How do I stop onions from making me cry?",
+    "How long can leftovers stay in the fridge?",
 ]
 # ...measure the habit on a totally different domain it was never corrected on.
 HELDOUT = [
@@ -55,7 +59,7 @@ HELDOUT = [
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/demo_correct_once.yaml")
-    ap.add_argument("--max-corrections", type=int, default=8)
+    ap.add_argument("--max-corrections", type=int, default=12)
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -95,16 +99,26 @@ def main() -> int:
     console.print(Rule("You fix its replies a few times (cooking questions only)", style="dim"))
     conv = "fix-" + uuid.uuid4().hex[:6]
     corrections = 0
-    for q in COACH:
-        if corrections >= args.max_corrections:
-            break
-        mid, reply = ctrl.chat(conv, q)
-        if obeys(q, reply) >= 1.0:
-            continue  # it already obeyed — nothing to correct
-        ctrl.correct(conv, mid, fix(q, reply))   # you fix it, in one line
-        corrections += 1
-        ctrl.maybe_update(force=True)
-        rate, _ = held_out_rate(f"after {corrections} correction(s)")
+    learned_rate = base_rate
+    # Keep clearing cooking mail-style questions, correcting any that break the
+    # rule, until the habit transfers to held-out or we hit the correction budget.
+    while corrections < args.max_corrections and learned_rate < 0.85:
+        progressed = False
+        for q in COACH:
+            if corrections >= args.max_corrections:
+                break
+            mid, reply = ctrl.chat(conv, q)
+            if obeys(q, reply) >= 1.0:
+                continue  # it already obeyed — nothing to correct
+            ctrl.correct(conv, mid, fix(q, reply))   # you fix it, in one line
+            corrections += 1
+            progressed = True
+            ctrl.maybe_update(force=True)
+            learned_rate, _ = held_out_rate(f"after {corrections} correction(s)")
+            if learned_rate >= 0.85:
+                break
+        if not progressed:
+            break  # it obeys every cooking question and generalized as far as it will
 
     console.print(Rule("After — a held-out programming question", style="dim"))
     learned_rate, (hq, hr, hok) = held_out_rate("adapter ON (learned)")
