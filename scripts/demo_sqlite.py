@@ -95,16 +95,22 @@ def main() -> int:
     show_example(sqlenv.HELDOUT_QA[0][0])
 
     console.print(Rule("Coaching — reward-selected self-distillation on the real engine", style="dim"))
-    learned = base_rate
+    # Early-stop on the held-out signal: keep the best checkpoint, since coaching
+    # on only a handful of questions eventually over-fits and drifts.
+    best_rate, best_version = base_rate, ctrl.stats()["active_adapter"]
     for r in range(args.max_rounds):
         conv = "sql-" + uuid.uuid4().hex[:6]
         for i in range(args.coach_per_round):
             q, _ = sqlenv.COACH_QA[i % len(sqlenv.COACH_QA)]
             ctrl.chat(conv, q)
         ctrl.maybe_update(force=True)
-        learned, _ = held_out_rate(f"after round {r + 1}")
-        if learned >= 0.85:
+        rate, _ = held_out_rate(f"after round {r + 1}")
+        if rate > best_rate:
+            best_rate, best_version = rate, ctrl.stats()["active_adapter"]
+        if rate >= 0.85:
             break
+    ctrl.rollback(best_version)  # restore the best checkpoint for the A/B + examples
+    console.print(f"[dim]keeping best adapter v{best_version} ({best_rate*100:.0f}% held-out)[/]")
 
     console.print(Rule("After — a held-out question, run against the real database", style="dim"))
     for q, _ in sqlenv.HELDOUT_QA[:3]:
@@ -113,7 +119,7 @@ def main() -> int:
     console.print(Rule("A/B — same questions, adapter OFF (base) vs ON (learned)", style="dim"))
     ctrl.rollback(0)
     off_rate, _ = held_out_rate("adapter OFF (base)")
-    ctrl.rollback(ctrl.stats()["adapter_versions"] - 1)
+    ctrl.rollback(best_version)
     on_rate, _ = held_out_rate("adapter ON (learned)")
 
     console.print(Rule("Result", style="green"))
