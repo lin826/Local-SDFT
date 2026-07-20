@@ -34,7 +34,7 @@ from sdft.online.reward import get_reward_fn
 console = Console()
 
 MODE_A = ("house_style", "briefing (TL;DR + bullets + question)")
-MODE_B = ("terse", "terse (one short line)")
+MODE_B = ("five_words", "five-word summary")
 THRESH = 0.66
 
 
