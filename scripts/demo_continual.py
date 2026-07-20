@@ -34,7 +34,7 @@ from sdft.online.reward import get_reward_fn
 console = Console()
 
 MODE_A = ("house_style", "briefing (TL;DR + bullets + question)")
-MODE_B = ("five_words", "five-word summary")
+MODE_B = ("direct", "direct one-line answer")
 THRESH = 0.66
 
 
@@ -91,7 +91,7 @@ def main() -> int:
     console.print(Rule("Phase 1 — learn mode A (briefing)", style="dim"))
     p1 = learn(MODE_A[0], rA, "learn A")
 
-    console.print(Rule("Phase 2 — switch to mode B (terse); A may fade", style="dim"))
+    console.print(Rule(f"Phase 2 — switch to mode B ({MODE_B[0]}); A may fade", style="dim"))
     learn(MODE_B[0], rB, "learn B")
 
     console.print(Rule("Phase 3 — switch BACK to mode A", style="dim"))

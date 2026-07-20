@@ -77,7 +77,7 @@ def test_house_style_shaper_yields_full_marks():
 
 def test_style_shapers_pass_their_rewards():
     from sdft.online.reward import get_reward_fn, get_shaper
-    for name in ("five_words", "terse", "house_style"):
+    for name in ("five_words", "terse", "house_style", "direct"):
         rfn, shp = get_reward_fn(name), get_shaper(name)
         assert shp is not None, name
         assert rfn("q", shp("q", "some rambly model answer here that is long")) >= 0.99, name

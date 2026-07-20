@@ -161,6 +161,27 @@ def shape_five_words(prompt: str, reply: str) -> str:
     return " ".join(words)
 
 
+@reward("direct")
+def direct(prompt: str, reply: str) -> float:
+    """A single-line 'Answer: …' — the opposite of the multi-line briefing style."""
+    s = reply.strip()
+    score = 0.0
+    if re.match(r"answer\s*:", s, re.IGNORECASE):
+        score += 0.5
+    lines = [ln for ln in s.splitlines() if ln.strip()]
+    if len(lines) == 1 and not re.search(r"^\s*[-*]", s, re.MULTILINE):
+        score += 0.5
+    return score
+
+
+@shaper("direct")
+def shape_direct(prompt: str, reply: str) -> str:
+    first = re.split(r"(?<=[.!?])\s", reply.strip(), maxsplit=1)[0] if reply.strip() else "Here is the answer."
+    first = re.sub(r"^\s*answer\s*:\s*", "", first, flags=re.IGNORECASE)
+    words = first.split() or ["Here", "is", "the", "answer."]
+    return "Answer: " + " ".join(words[:25])
+
+
 @reward("terse")
 def terse(prompt: str, reply: str) -> float:
     """Reward short, punchy replies (<= 25 words, single paragraph)."""
