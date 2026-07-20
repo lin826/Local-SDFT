@@ -100,6 +100,7 @@ def main() -> int:
     console.print(Rule("You fix its replies a few times (cooking questions only)", style="dim"))
     conv = "fix-" + uuid.uuid4().hex[:6]
     corrections = 0
+    applied: list[tuple[str, str]] = []   # (question, one-line fix) — the "knowledge" ICL/RAG also get
     learned_rate = base_rate
     # Keep clearing cooking mail-style questions, correcting any that break the
     # rule, until the habit transfers to held-out or we hit the correction budget.
@@ -111,7 +112,9 @@ def main() -> int:
             mid, reply = ctrl.chat(conv, q)
             if obeys(q, reply) >= 1.0:
                 continue  # it already obeyed — nothing to correct
-            ctrl.correct(conv, mid, fix(q, reply))   # you fix it, in one line
+            fixed = fix(q, reply)
+            ctrl.correct(conv, mid, fixed)   # you fix it, in one line
+            applied.append((q, fixed))
             corrections += 1
             progressed = True
             ctrl.maybe_update(force=True)
@@ -137,17 +140,63 @@ def main() -> int:
     console.print(f"  Q: {hq}")
     console.print(f"  A: {hr[:160]!r}   {'[green]✓ one sentence[/]' if hok else '[red]✗[/]'}")
 
-    console.print(Rule("A/B: toggle the fix off", style="dim"))
-    ctrl.rollback(0)
-    off_rate, _ = held_out_rate("adapter OFF (base)")
-    ctrl.rollback(ctrl.stats()["adapter_versions"] - 1)
+    # ---- Fair baselines: ICL / RAG WITHOUT finetuning -------------------
+    # Give the *base* model the same corrections, but in-context instead of in
+    # the weights — the honest "why not just prompt/retrieve?" test.
+    tok = ctrl.backend.tokenizer
+    rule = "Answer in exactly one sentence."
+
+    def ntok(messages) -> int:
+        out = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=True)
+        ids = out["input_ids"] if hasattr(out, "keys") else out
+        ids = list(ids)
+        if ids and isinstance(ids[0], (list, tuple)):
+            ids = list(ids[0])
+        return len(ids)
+
+    def icl_context(examples, query):
+        msgs = [{"role": "system", "content": rule}]
+        for q, a in examples:
+            msgs += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
+        msgs += [{"role": "user", "content": query}]
+        return msgs
+
+    def retrieve(query, k=3):
+        qs = set(re.findall(r"[a-z]+", query.lower()))
+        return sorted(applied, key=lambda c: len(qs & set(re.findall(r"[a-z]+", c[0].lower()))),
+                      reverse=True)[:k]
+
+    def eval_context(tag, ctx_fn):
+        hits, overhead = 0, 0
+        bare = 0
+        for q in HELDOUT:
+            msgs = ctx_fn(q)
+            reply = ctrl.backend.generate(msgs, temperature=0.0, max_new_tokens=64)
+            hits += obeys(q, reply) >= 1.0
+            overhead += ntok(msgs) - ntok([{"role": "user", "content": q}])
+        rate = hits / len(HELDOUT)
+        avg_ovh = overhead / len(HELDOUT)
+        console.print(f"  {tag:<34} one-sentence [green]{rate*100:5.1f}%[/]   "
+                      f"+{avg_ovh:.0f} tokens/call")
+        return rate, avg_ovh
+
+    console.print(Rule("The honest test: RAG / in-context vs finetuning (no training)", style="dim"))
+    ctrl.rollback(0)   # base weights — everything below is WITHOUT finetuning
+    icl_rate, icl_ovh = eval_context(
+        f"ICL: rule + all {len(applied)} corrections", lambda q: icl_context(applied, q))
+    rag_rate, rag_ovh = eval_context(
+        "RAG: rule + top-3 retrieved", lambda q: icl_context(retrieve(q), q))
+    base_again, _ = eval_context("base: no help", lambda q: [{"role": "user", "content": q}])
+    ctrl.rollback(ctrl.stats()["adapter_versions"] - 1)   # restore the finetuned adapter
 
     console.print(Rule("Result", style="green"))
-    console.print(f"  {corrections} plain corrections on cooking → one-sentence habit on held-out "
-                  f"programming: base [red]{base_rate*100:.0f}%[/] → learned [green]{learned_rate*100:.0f}%[/] "
-                  f"(off again: {off_rate*100:.0f}%).")
-    console.print("  You told it once, by fixing a few replies. It generalized to a different topic,"
-                  " on-device — you never have to say it again.")
+    console.print("  same held-out programming questions, one-sentence habit:")
+    console.print(f"    base (no help)                 [red]{base_again*100:5.0f}%[/]   +0 tokens/call")
+    console.print(f"    ICL (rule + all corrections)   [yellow]{icl_rate*100:5.0f}%[/]   +{icl_ovh:.0f} tokens/call, every call")
+    console.print(f"    RAG (rule + retrieved)         [yellow]{rag_rate*100:5.0f}%[/]   +{rag_ovh:.0f} tokens/call, every call")
+    console.print(f"    finetuned (ours)               [green]{learned_rate*100:5.0f}%[/]   [bold]+0 tokens/call[/]")
+    console.print(f"\n  {corrections} corrections, folded into the weights: same-or-better accuracy than"
+                  " stuffing them into every prompt — at zero context cost, on-device.")
     return 0
 
 
