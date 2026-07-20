@@ -11,13 +11,10 @@ from peft import PeftModel
 from trl import SFTConfig, SFTTrainer
 
 from sdft.config import Config
+from sdft.peft_utils import adapter_ready
 from sdft.utils import load_model, load_tokenizer, pick_device
 
 from .generate_step import row_to_prompt
-
-
-def _adapter_ready(adapter_dir: Path) -> bool:
-    return (adapter_dir / "adapter_config.json").is_file()
 
 
 def _rows_to_dataset(rows: list[dict[str, str]]) -> Dataset:
@@ -59,7 +56,7 @@ def run_train_step(
     base = load_model(cfg.model, device)
     base.config.use_cache = False
 
-    if _adapter_ready(adapter_dir):
+    if adapter_ready(adapter_dir):
         model = PeftModel.from_pretrained(base, str(adapter_dir), is_trainable=True)
     else:
         peft_config = PeftLoraConfig(

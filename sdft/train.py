@@ -1,7 +1,10 @@
-"""SDFT step 2 — LoRA fine-tuning on self-generated responses.
+"""SDFT step 2 — LoRA fine-tuning on self-generated (or gold) responses.
 
 Trains only the LoRA adapters (attention projections by default); the base
 weights stay frozen. Loss is computed on the completion tokens only.
+
+Use ``--target sdft`` (default) for SDFT, or ``--target gold`` for a supervised
+baseline on the original ``response`` field.
 """
 
 from __future__ import annotations
@@ -18,34 +21,55 @@ from .config import load_config
 from .utils import load_model, load_tokenizer, pick_device
 
 
-def load_sdft_dataset(path: str) -> Dataset:
+def load_sft_dataset(path: str, *, target_field: str = "sdft_response") -> Dataset:
     rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
     if not rows:
         return Dataset.from_list([])
 
+    def _completion(row: dict) -> str:
+        text = str(row.get(target_field) or "").strip()
+        if target_field == "sdft_response" and not text:
+            text = str(row.get("response") or "").strip()
+        return text
+
     # Pre-rendered OpenClaw prefixes (string prompt) — matches tool-loop eval.
     if isinstance(rows[0].get("prompt"), str):
         return Dataset.from_list(
-            [{"prompt": row["prompt"], "completion": row["sdft_response"]} for row in rows]
+            [
+                {"prompt": row["prompt"], "completion": completion}
+                for row in rows
+                if (completion := _completion(row))
+            ]
         )
 
     return Dataset.from_list(
         [
             {
                 "prompt": [{"role": "user", "content": row["prompt"]}],
-                "completion": [{"role": "assistant", "content": row["sdft_response"]}],
+                "completion": [{"role": "assistant", "content": completion}],
             }
             for row in rows
+            if (completion := _completion(row))
         ]
     )
+
+
+# Back-compat alias
+load_sdft_dataset = load_sft_dataset
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--data", default=None, help="SDFT jsonl (default: generation.out_path)")
+    parser.add_argument("--data", default=None, help="training jsonl (default: generation.out_path)")
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--epochs", type=float, default=None)
+    parser.add_argument(
+        "--target",
+        choices=("sdft", "gold"),
+        default=None,
+        help="sdft -> sdft_response field; gold -> response field (SFT baseline)",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -54,10 +78,17 @@ def main() -> None:
     output_dir = args.output_dir or t.output_dir
     epochs = args.epochs if args.epochs is not None else t.epochs
 
+    if args.target == "gold":
+        target_field = "response"
+    elif args.target == "sdft":
+        target_field = "sdft_response"
+    else:
+        target_field = t.target_field
+
     device = pick_device()
     print(f"device: {device}")
-    ds = load_sdft_dataset(data_path)
-    print(f"training on {len(ds)} pairs from {data_path}")
+    ds = load_sft_dataset(data_path, target_field=target_field)
+    print(f"training on {len(ds)} pairs from {data_path} (target={target_field})")
 
     tokenizer = load_tokenizer(cfg.model)
     model = load_model(cfg.model, device)

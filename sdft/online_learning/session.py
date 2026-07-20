@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sdft.config import load_config
+from sdft.peft_utils import adapter_ready
 from sdft.records.paths import utc_now_iso
 from sdft.records.store import read_json, write_json
 
@@ -94,12 +95,6 @@ def save_session(session: OnlineLearningSession, *, root: Path | None = None) ->
     path.parent.mkdir(parents=True, exist_ok=True)
     write_json(path, session.to_dict())
     return path
-
-
-def adapter_ready(adapter_dir: Path | str) -> bool:
-    """True when a PEFT LoRA adapter has been saved under ``adapter_dir``."""
-    path = Path(adapter_dir)
-    return path.is_dir() and (path / "adapter_config.json").is_file()
 
 
 def list_sessions_with_adapter(

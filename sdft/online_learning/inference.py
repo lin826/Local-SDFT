@@ -5,14 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from peft import PeftModel
 
 from sdft.config import Config
-from sdft.utils import load_model, load_tokenizer, pick_device
-
-
-def _adapter_ready(adapter_dir: Path) -> bool:
-    return adapter_dir.is_dir() and (adapter_dir / "adapter_config.json").is_file()
+from sdft.peft_utils import load_chat_model
+from sdft.utils import load_tokenizer, pick_device
 
 
 @torch.inference_mode()
@@ -31,11 +27,7 @@ def generate_preview(
 
     tokenizer = load_tokenizer(cfg.model)
     tokenizer.padding_side = "left"
-    base = load_model(cfg.model, device)
-    if _adapter_ready(adapter_dir):
-        model = PeftModel.from_pretrained(base, str(adapter_dir))
-    else:
-        model = base
+    model = load_chat_model(cfg, device, adapter_dir=adapter_dir)
     model.eval()
 
     parts = [p for p in (instruction.strip(), user_input.strip()) if p]

@@ -1,9 +1,11 @@
 # Local-SDFT
 
-Using LoRA to decrease the load of fine-tuning, and challenge the capability of
-self-distillation on geek jokes (PHD comics) — locally, on
-[Liquid AI LFM2.5-230M](https://huggingface.co/LiquidAI/LFM2.5-230M).
-The 230M base weights stay frozen; only small LoRA adapters are trained.
+Fine-tune a **230M** language model on your laptop — with
+**Self-Distillation Fine-Tuning (SDFT)**, plain LoRA SFT, and **GRPO** —
+and watch it learn live in a browser.
+
+Built on [Liquid AI LFM2.5-230M](https://huggingface.co/LiquidAI/LFM2.5-230M).
+Base weights stay frozen; only small LoRA adapters train.
 
 Recipe per [Yang et al., 2024 — *Self-Distillation Bridges Distribution Gap in
 Language Model Fine-Tuning*](https://arxiv.org/abs/2406.13629):
@@ -14,6 +16,15 @@ Language Model Fine-Tuning*](https://arxiv.org/abs/2406.13629):
 2. **Train** — LoRA SFT on `(prompt → model-generated response)`, loss on the
    completion tokens only.
 3. **Merge** — fold the trained adapter back into the base weights for deployment.
+
+Also in this repo:
+
+- **Gold SFT** and **GRPO** baselines at batch size 1 (same style as the online demo)
+- **Online learning** chat (`/data`) — tone as implicit feedback, tiny LoRA updates
+- **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
+- **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
+
+See [docs/architecture.md](docs/architecture.md) for the package map.
 
 ## Requirements
 
@@ -27,32 +38,26 @@ Language Model Fine-Tuning*](https://arxiv.org/abs/2406.13629):
 uv sync
 ```
 
-Stack: torch 2.13 · transformers 5.14 (`Lfm2ForCausalLM`, no trust-remote-code) ·
-trl 1.8 (`SFTTrainer`) · peft 0.19.
+Dependencies: `torch>=2.6` · `transformers>=4.54` (`Lfm2ForCausalLM`, no
+trust-remote-code) · `trl>=0.19` (`SFTTrainer` / `GRPOTrainer`) · `peft>=0.15`.
 
-## Usage
+## Quick start — offline SDFT
 
 ```bash
 # 1. Self-distillation: teacher pass over the task dataset
 uv run python -m sdft.generate --config configs/default.yaml
 
 # 2. LoRA fine-tune on the self-generated data
-uv run python -m sdft.train --config configs/default.yaml
+uv run python -m sdft.train    --config configs/default.yaml
 
 # 3. (Optional) merge adapter into base weights -> standalone model
-uv run python -m sdft.merge --config configs/default.yaml
+uv run python -m sdft.merge    --config configs/default.yaml
 ```
 
 All knobs live in the config YAML (dataset + field mapping, few-shot count,
 decoding, LoRA rank/targets, training hyperparameters); sections map to the
 dataclasses in `sdft/config.py`. Common overrides are also CLI flags
-(`--num-examples`, `--out`, `--data`, `--output-dir`, `--epochs`).
-
-### Geek jokes (PHD comics)
-
-`configs/geek_jokes.yaml` is a ready template: drop your data at
-`data/geek_jokes.jsonl` (one JSON per line: `{"instruction": ..., "input": ...,
-"output": ...}`) and run the three steps with `--config configs/geek_jokes.yaml`.
+(`--num-examples`, `--out`, `--data`, `--output-dir`, `--epochs`, `--target`).
 
 ### Smoke test (~2 min end to end)
 
@@ -64,6 +69,50 @@ uv run python -m sdft.merge --adapter outputs/smoke --out outputs/smoke-merged
 
 Utility: `uv run python -m sdft.inspect` prints the model's LoRA-targetable
 module names.
+
+## Web demo
+
+```bash
+uv run python -m web.app
+# → http://127.0.0.1:8765
+```
+
+| Route | What it does |
+|---|---|
+| `/` | Overview + recent benchmarks |
+| `/data` | Online learning: each message is tone feedback, then a tiny LoRA SDFT update, then a reply |
+| `/perf` | Base vs adapter chat with SSE streaming, prompt-strategy ablations, latency Gantt |
+| `/perf/{run_id}` | Run detail |
+
+Online learning defaults: [`configs/online_learning.yaml`](configs/online_learning.yaml)
+(`batch_size: 1`, `train_steps: 2`).
+
+## Batch-size-1 baselines (SFT / SDFT / GRPO)
+
+Same update style as the online demo — small LoRA, `batch_size=1` for SFT/SDFT,
+and the smallest valid GRPO group (`num_generations=2`):
+
+```bash
+uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
+# faster smoke:
+uv run python scripts/run_batch1_comparison.py --num-train 16 --num-eval 8 --max-grpo-steps 8
+```
+
+Configs live under [`configs/compare/`](configs/compare/). Results land in
+`outputs/compare/batch1_comparison.json` (gitignored).
+
+Gold SFT / GRPO alone:
+
+```bash
+uv run python -m sdft.train --config configs/compare/batch1_sft_gold.yaml --target gold
+uv run python -m sdft.grpo_train --config configs/compare/batch1_grpo.yaml --data data/compare/batch1_grpo.jsonl
+```
+
+### Geek jokes (PHD comics)
+
+`configs/geek_jokes.yaml` is a ready template: drop your data at
+`data/geek_jokes.jsonl` (one JSON per line: `{"instruction": ..., "input": ...,
+"output": ...}`) and run the three steps with `--config configs/geek_jokes.yaml`.
 
 ### OpenClaw-RL tool-calling eval
 
@@ -80,6 +129,30 @@ bash scripts/run_openclaw_rl_eval.sh
 Numbers below are from local runs on Apple Silicon (MPS). Artifacts live under
 `outputs/benchmarks/` (gitignored). Official AlpacaEval 2 **LC win-rate** was
 **not** computed (no `OPENAI_API_KEY` / GPT-4 Turbo judge).
+
+### Batch-size-1 comparison (held-out heuristic reward)
+
+Local run on MPS (`num_train=32`, `num_eval=16`, GRPO `max_steps=16`). Score =
+`instruction_reward` (non-refusal + length + gold lexical overlap) — no API judge.
+
+| Arm | Mean reward | Refusal rate | Mean chars | Train s |
+|---|---:|---:|---:|---:|
+| base | 1.179 | 0.000 | 488.3 | — |
+| gold SFT | **1.190** | 0.000 | 476.2 | 10.7 |
+| SDFT | 1.176 | 0.000 | 516.5 | 10.3 |
+| GRPO | 1.177 | 0.000 | 519.6 | 35.5 |
+
+On this local heuristic the arms stay close (expected without a GPT-4 judge).
+Gold SFT edges the smoke score; SDFT/GRPO stay competitive while training
+faster / with on-policy signal. Qualitative `/perf` wins (fewer stubborn
+refusals on practical how-tos) remain the stronger demo. Reproduce:
+
+```bash
+uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
+```
+
+Results land in `outputs/compare/batch1_comparison.json` (gitignored). Also see
+the [Colab notebook](notebooks/local_sdft_colab.ipynb).
 
 ### AlpacaEval 2.0 (held-out generations)
 
@@ -167,6 +240,13 @@ attention and conv blocks — a plain list target `["out_proj"]` would adapt bot
 To also adapt MLPs or conv blocks, extend the regex, e.g.
 `.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])`.
 
+## Docs
+
+- [Architecture](docs/architecture.md) — package map + entry points
+- [Shared contract](docs/shared-contract.md) — CLI/web persistence schemas
+- [OpenClaw-RL eval](docs/openclaw-rl-eval.md)
+- [OpenClaw tool-use SDFT](docs/openclaw-tooluse-sdft.md)
+
 ## Notes
 
 - **Default dataset** is `yahma/alpaca-cleaned` as a stand-in; point
@@ -178,5 +258,8 @@ To also adapt MLPs or conv blocks, extend the regex, e.g.
 - To *cross*-distill instead (bigger teacher → 230M student), run `sdft.generate`
   with a config whose `model.name` is e.g. `LiquidAI/LFM2.5-1.2B`, then train
   with the 230M config.
+- GRPO's `instruction` reward is a local heuristic (refusal / length / gold
+  overlap). For verifiable math/tool tasks, set `grpo.reward: boxed`.
 - LFM2.5 is released under the [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-230M)
   (free below $10M annual revenue).
+- This project code is MIT (see `LICENSE`).

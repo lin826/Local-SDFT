@@ -5,7 +5,7 @@ from __future__ import annotations
 import statistics
 from typing import Any
 
-from sdft.records.benchmark import _percentile
+from sdft.records.latency import percentile as _percentile
 
 from .schema import OnlineTurn, TurnLatency
 

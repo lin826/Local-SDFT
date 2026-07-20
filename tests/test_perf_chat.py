@@ -118,8 +118,8 @@ def test_perf_online_adapter_option_and_chat(client: TestClient, tmp_path: Path,
         captured["base_model"] = cfg.model.name
         return _fake_chat_result(messages, run_id="bench-online-1")
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ):
         resp = client.post(
             "/perf/chat",
@@ -266,12 +266,12 @@ def test_chat_stream_sse_tokens_and_done(client: TestClient):
             result.metadata["latency_phases"] = phases.to_list()
         yield ("result", result)
 
-    with patch("web.app.iter_measure_chat", side_effect=fake_iter_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.iter_measure_chat", side_effect=fake_iter_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ), patch(
-        "web.app.save_performance_result", lambda path, r: None
+        "web.perf_runtime.save_performance_result", lambda path, r: None
     ), patch(
-        "web.app.load_config",
+        "web.perf_runtime.load_config",
         return_value=type(
             "Cfg",
             (),
@@ -310,8 +310,8 @@ def test_chat_stream_error_event(client: TestClient):
         raise RuntimeError("mock generate failed")
         yield  # make this a generator  # noqa: unreachable
 
-    with patch("web.app.iter_measure_chat", side_effect=boom), patch(
-        "web.app.load_config",
+    with patch("web.perf_runtime.iter_measure_chat", side_effect=boom), patch(
+        "web.perf_runtime.load_config",
         return_value=type(
             "Cfg",
             (),
@@ -373,7 +373,7 @@ def test_iter_measure_chat_yields_tokens_with_mock_streamer(monkeypatch):
             return None
 
     monkeypatch.setattr(bench, "load_tokenizer", lambda model: FakeTok())
-    monkeypatch.setattr(bench, "load_model", lambda model, device: FakeModel())
+    monkeypatch.setattr(bench, "_load_chat_model", lambda cfg, device, adapter_dir=None: FakeModel())
     monkeypatch.setattr(bench, "pick_device", lambda: "cpu")
     monkeypatch.setattr(bench, "TextIteratorStreamer", lambda *a, **k: FakeStreamer())
 
@@ -452,10 +452,10 @@ def test_htmx_chat_returns_partial_not_redirect(client: TestClient):
     def fake_measure_chat(cfg, messages, **kwargs):
         return _fake_measure_chat_with_phases(cfg, messages, _run_id="bench-htmx-1", **kwargs)
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ), patch(
-        "web.app.save_performance_result", lambda path, r: None
+        "web.perf_runtime.save_performance_result", lambda path, r: None
     ):
         resp = client.post(
             "/perf/chat",
@@ -495,8 +495,8 @@ def test_chat_persists_design_summary(client: TestClient):
     def fake_measure_chat(cfg, messages, **kwargs):
         return _fake_chat_result(messages, run_id="bench-design-1")
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result",
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result",
         side_effect=lambda r: saved.setdefault(r.id, r),
     ):
         resp = client.post(
@@ -525,8 +525,8 @@ def test_chat_ignores_user_instruction_for_alpacaeval_configs(client: TestClient
         captured.append(list(messages))
         return _fake_chat_result(messages, run_id="bench-ignore-1")
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ):
         resp = client.post(
             "/perf/chat",
@@ -562,8 +562,8 @@ def test_multi_turn_chat_transcript(client: TestClient):
         saved[result.id] = result
         return result
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", side_effect=lambda r: saved.setdefault(r.id, r)
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", side_effect=lambda r: saved.setdefault(r.id, r)
     ):
         r1 = client.post(
             "/perf/chat",
@@ -680,8 +680,8 @@ def test_fixed_system_instruction_shown_readonly_and_used(client: TestClient, mo
         captured.append(list(messages))
         return _fake_chat_result(messages, run_id="bench-fixed-1")
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ):
         page = client.get("/perf")
         assert page.status_code == 200
@@ -728,8 +728,8 @@ def test_cot_strategy_appends_cue_to_user_message(client: TestClient):
         captured.append(list(messages))
         return _fake_chat_result(messages, run_id="bench-cot-1")
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", lambda r: None
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", lambda r: None
     ):
         resp = client.post(
             "/perf/chat",
@@ -843,10 +843,10 @@ def test_chat_persists_latency_phases(client: TestClient):
     def capture_persist(r):
         saved[r.id] = r
 
-    with patch("web.app.measure_chat", side_effect=fake_measure_chat), patch(
-        "web.app.persist_performance_result", side_effect=capture_persist
+    with patch("web.perf_runtime.measure_chat", side_effect=fake_measure_chat), patch(
+        "web.perf_runtime.persist_performance_result", side_effect=capture_persist
     ), patch(
-        "web.app.save_performance_result",
+        "web.perf_runtime.save_performance_result",
         side_effect=lambda path, r: saved.setdefault(r.id, r),
     ):
         resp = client.post(

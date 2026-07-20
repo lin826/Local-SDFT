@@ -1,58 +1,56 @@
 """Local-SDFT web UI for data collection and performance testing.
 
-Uses the shared contract in ``sdft.records`` only — see ``docs/shared-contract.md``.
+Uses the shared contract in ``sdft.records`` — see ``docs/shared-contract.md``.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import queue
 import threading
 from pathlib import Path
-from typing import Any, Iterator
-from urllib.parse import quote
+from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from sdft.alpacaeval_ablation import build_perf_chat_messages
 from sdft.config import load_config
 from sdft.online_learning import build_session, load_session, run_online_turn
-from sdft.online_learning.session import list_sessions, resolve_session, save_session, session_persisted
+from sdft.online_learning.session import adapter_ready, list_sessions, resolve_session, save_session, session_persisted
 from sdft.records import (
     collect_record,
     collected_records_path,
     export_collected_for_training,
-    iter_measure_chat,
+    iter_measure_chat,  # noqa: F401 — re-exported for tests that patch web.app
     list_performance_results,
     load_collected_records,
     load_performance_index,
     load_performance_result,
-    measure_chat,
+    measure_chat,  # noqa: F401
     performance_dir,
     performance_index_path,
     performance_result_path,
-    persist_performance_result,
+    persist_performance_result,  # noqa: F401
     run_benchmark,
 )
-from sdft.records.benchmark import LatencyPhases
-from sdft.records.store import save_performance_result
+from sdft.records.benchmark import LatencyPhases  # noqa: F401 — tests may patch
+from sdft.records.store import save_performance_result  # noqa: F401
 
+from web.chat_context import (
+    CONFIG_OPTIONS,  # noqa: F401
+    chat_context_from_continue,
+    chat_context_from_result,
+    instruction_ui_context,
+    parse_messages_json,
+)
 from web.demo_conditions import (
     DEFAULT_CONFIG,
     DEFAULT_DEMO_CONDITION,
     DEFAULT_PROMPT_STRATEGY,
-    build_design_summary,
-    config_ignores_user_instruction,
-    fixed_system_instruction,
     get_condition,
     get_prompt_strategy,
-    instruction_display_text,
-    instruction_field_hint,
-    instruction_field_locked,
     prompt_strategy_options,
 )
 from web.perf_models import (
@@ -61,6 +59,12 @@ from web.perf_models import (
     perf_model_options,
     resolve_perf_config,
     resolve_perf_config_from_adapter,
+)
+from web.perf_runtime import (
+    continue_url,
+    format_sse,
+    iter_chat_inference_events,
+    run_chat_inference,
 )
 from web.transcript_parse import (
     display_assistant_content,
@@ -80,10 +84,11 @@ templates.env.filters["display_assistant"] = display_assistant_content
 app = FastAPI(title="Local-SDFT", description="Data collection and performance testing")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
-CONFIG_OPTIONS = [
+ONLINE_CONFIG_OPTIONS = [
+    "configs/online_learning.yaml",
     DEFAULT_CONFIG,
-    "configs/lfm25_alpacaeval2_trained.yaml",
 ]
+DEFAULT_ONLINE_CONFIG = ONLINE_CONFIG_OPTIONS[0]
 
 
 def _perf_config_options() -> list[dict[str, str]]:
@@ -97,32 +102,6 @@ def _normalize_perf_config(config_path: str) -> str:
     return normalize_perf_config_path(config_path)
 
 
-def _load_perf_chat_cfg(selection: Any) -> Any:
-    cfg = load_config(selection.yaml_config_path)
-    if selection.base_model:
-        cfg.model.name = selection.base_model
-    return cfg
-
-ONLINE_CONFIG_OPTIONS = [
-    "configs/online_learning.yaml",
-    DEFAULT_CONFIG,
-]
-DEFAULT_ONLINE_CONFIG = ONLINE_CONFIG_OPTIONS[0]
-DEFAULT_INSTRUCTION = "Answer helpfully and directly in plain text."
-ALLOWED_CHAT_ROLES = {"system", "user", "assistant"}
-
-
-def _include_message_for_display(m: dict) -> bool:
-    if not isinstance(m, dict):
-        return False
-    role = m.get("role")
-    if role not in ALLOWED_CHAT_ROLES:
-        return False
-    if role == "assistant":
-        return True
-    return bool(str(m.get("content", "")).strip())
-
-
 def _index_entries(limit: int = 50) -> list[dict]:
     rows = load_performance_index(performance_index_path())
     return list(reversed(rows[-limit:]))
@@ -131,268 +110,6 @@ def _index_entries(limit: int = 50) -> list[dict]:
 def _load_results(limit: int = 20):
     results = list_performance_results(performance_dir())
     return list(reversed(results[-limit:]))
-
-
-def _parse_messages_json(raw: str) -> list[dict[str, str]]:
-    """Parse request-carried chat history (OpenAI-style role/content list)."""
-    text = (raw or "").strip()
-    if not text:
-        return []
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail=f"invalid messages_json: {exc}") from exc
-    if not isinstance(data, list):
-        raise HTTPException(status_code=400, detail="messages_json must be a JSON array")
-    cleaned: list[dict[str, str]] = []
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise HTTPException(status_code=400, detail=f"messages_json[{i}] must be an object")
-        role = str(item.get("role", "")).strip()
-        content = str(item.get("content", "")).strip()
-        if role not in ALLOWED_CHAT_ROLES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"messages_json[{i}].role must be system|user|assistant",
-            )
-        if not content:
-            continue
-        cleaned.append({"role": role, "content": content})
-    return cleaned
-
-
-def _history_without_system(messages: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [m for m in messages if m["role"] != "system"]
-
-
-def _system_from_messages(messages: list[dict[str, str]]) -> str:
-    return next((m["content"] for m in messages if m["role"] == "system"), "")
-
-
-def _instruction_ui_context(
-    config_path: str,
-    *,
-    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
-    stored_instruction: str = "",
-) -> dict[str, Any]:
-    """Instruction textarea state for /perf (display text + whether user input is ignored)."""
-    locked = instruction_field_locked(config_path, prompt_strategy)
-    if locked:
-        return {
-            "instruction": instruction_display_text(
-                config_path,
-                prompt_strategy=prompt_strategy,
-                stored_instruction=stored_instruction,
-            ),
-            "instruction_ignored": True,
-            "instruction_hint": instruction_field_hint(config_path, prompt_strategy),
-        }
-    text = stored_instruction.strip() or DEFAULT_INSTRUCTION
-    return {
-        "instruction": text,
-        "instruction_ignored": False,
-        "instruction_hint": "",
-    }
-
-
-def _build_chat_messages(
-    instruction: str,
-    history: list[dict[str, str]],
-    user_message: str,
-    *,
-    config_path: str,
-    prompt_strategy: str,
-) -> list[dict[str, str]]:
-    """Assemble model input for /perf chat."""
-    ablation_config = config_path
-    try:
-        ablation_config = resolve_perf_config(config_path).ablation_config_path
-    except ValueError:
-        ablation_config = DEFAULT_CONFIG
-    fixed = fixed_system_instruction(ablation_config)
-    if fixed or ablation_config not in CONFIG_OPTIONS:
-        messages: list[dict[str, str]] = []
-        instr = (fixed or instruction).strip()
-        if instr:
-            messages.append({"role": "system", "content": instr})
-        for m in history:
-            role = m["role"]
-            if role == "system":
-                continue
-            messages.append({"role": role, "content": m["content"]})
-        messages.append({"role": "user", "content": user_message.strip()})
-        return messages
-    return build_perf_chat_messages(
-        get_prompt_strategy(prompt_strategy),
-        history,
-        user_message,
-    )
-
-
-def _attach_run_metadata(
-    result: Any,
-    *,
-    demo_condition: str,
-    config_path: str,
-    model_path: str,
-    prompt_strategy: str,
-    online_session_id: str | None = None,
-    adapter_dir: str | None = None,
-) -> None:
-    result.config_path = config_path
-    result.metadata = result.metadata or {}
-    result.metadata["config_path"] = config_path
-    result.metadata["demo_condition"] = demo_condition
-    result.metadata["prompt_strategy"] = prompt_strategy
-    result.metadata["model_path"] = model_path
-    if online_session_id:
-        result.metadata["online_session_id"] = online_session_id
-    if adapter_dir:
-        result.metadata["adapter_dir"] = adapter_dir
-    result.metadata["design_summary"] = build_design_summary(
-        demo_condition=demo_condition,
-        config_path=config_path,
-        model_path=model_path,
-        prompt_strategy=prompt_strategy,
-        online_session_id=online_session_id,
-        adapter_dir=adapter_dir,
-    )
-
-
-def _chat_context_from_result(
-    result: Any,
-    *,
-    instruction_fallback: str = "",
-) -> dict[str, Any]:
-    """Build chat UI context from a just-finished PerformanceResult."""
-    meta = result.metadata or {}
-    messages = meta.get("messages")
-    typed: list[dict[str, str]] = []
-    if isinstance(messages, list):
-        typed = [
-            {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
-            for m in messages
-            if _include_message_for_display(m)
-        ]
-    config_path = str(result.config_path or meta.get("config_path") or DEFAULT_CONFIG)
-    stored_instruction = _system_from_messages(typed) or instruction_fallback
-    instruction_ctx = _instruction_ui_context(
-        config_path,
-        prompt_strategy=str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
-        stored_instruction=stored_instruction,
-    )
-    history = _history_without_system(typed)
-    return {
-        **instruction_ctx,
-        "messages": history,
-        "messages_json": json.dumps(history, ensure_ascii=False),
-        "last_run_id": result.id,
-        "composer_prefill": "",
-        "demo_condition": str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION),
-        "prompt_strategy": str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
-        "config_path": config_path,
-        "metrics": result.metrics,
-        "max_new_tokens": meta.get("max_new_tokens"),
-        "output_tokens_total": getattr(result.metrics, "output_tokens_total", None),
-        "latency_phases": meta.get("latency_phases") or [],
-    }
-
-
-def _chat_context_from_continue(run_id: str | None) -> dict[str, Any]:
-    """Load sticky instruction + history from a prior chat run for ?continue=."""
-    empty_instruction = _instruction_ui_context(DEFAULT_CONFIG)
-    empty = {
-        **empty_instruction,
-        "messages": [],
-        "messages_json": "[]",
-        "last_run_id": None,
-        "demo_condition": DEFAULT_DEMO_CONDITION,
-        "prompt_strategy": DEFAULT_PROMPT_STRATEGY,
-        "config_path": DEFAULT_CONFIG,
-        "metrics": None,
-        "max_new_tokens": None,
-        "output_tokens_total": None,
-        "latency_phases": [],
-    }
-    if not run_id:
-        return empty
-    path = performance_result_path(run_id)
-    if not path.is_file():
-        return empty
-    result = load_performance_result(path)
-    meta = result.metadata or {}
-    demo_condition = str(meta.get("demo_condition") or DEFAULT_DEMO_CONDITION)
-    config_path = str(result.config_path or meta.get("config_path") or DEFAULT_CONFIG)
-    messages = meta.get("messages")
-    if not isinstance(messages, list) or not messages:
-        # Fall back to single-turn examples for re-run compatibility.
-        examples = meta.get("examples") or []
-        if examples:
-            ex = examples[0]
-            stored_instruction = str(ex.get("instruction") or "")
-            user_text = str(ex.get("input") or "").strip() or stored_instruction
-            history = [{"role": "user", "content": user_text}]
-            if ex.get("output"):
-                history.append({"role": "assistant", "content": str(ex["output"])})
-            instruction_ctx = _instruction_ui_context(
-                config_path,
-                prompt_strategy=str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
-                stored_instruction=stored_instruction if ex.get("input") else "",
-            )
-            return {
-                **instruction_ctx,
-                "messages": history,
-                "messages_json": json.dumps(history, ensure_ascii=False),
-                "last_run_id": run_id,
-                "demo_condition": demo_condition,
-                "prompt_strategy": str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY),
-                "config_path": config_path,
-                "metrics": result.metrics,
-                "max_new_tokens": meta.get("max_new_tokens"),
-                "output_tokens_total": result.metrics.output_tokens_total,
-                "latency_phases": meta.get("latency_phases") or [],
-            }
-        return {**empty, "last_run_id": run_id}
-
-    typed = [
-        {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
-        for m in messages
-        if _include_message_for_display(m)
-    ]
-    stored_instruction = _system_from_messages(typed)
-    prompt_strategy = str(meta.get("prompt_strategy") or DEFAULT_PROMPT_STRATEGY)
-    instruction_ctx = _instruction_ui_context(
-        config_path,
-        prompt_strategy=prompt_strategy,
-        stored_instruction=stored_instruction,
-    )
-    history = _history_without_system(typed)
-    return {
-        **instruction_ctx,
-        "messages": history,
-        "messages_json": json.dumps(history, ensure_ascii=False),
-        "last_run_id": run_id,
-        "demo_condition": demo_condition,
-        "prompt_strategy": prompt_strategy,
-        "config_path": config_path,
-        "metrics": result.metrics,
-        "max_new_tokens": meta.get("max_new_tokens"),
-        "output_tokens_total": result.metrics.output_tokens_total,
-        "latency_phases": meta.get("latency_phases") or [],
-    }
-
-
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
-    records = load_collected_records(collected_records_path())
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "collected_count": len(records),
-            "bench_index": _index_entries(5),
-        },
-    )
 
 
 def _online_data_context(
@@ -408,6 +125,19 @@ def _online_data_context(
         "prefill": prefill or {"message": ""},
         "last_turn": last_turn,
     }
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request) -> HTMLResponse:
+    records = load_collected_records(collected_records_path())
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "collected_count": len(records),
+            "bench_index": _index_entries(5),
+        },
+    )
 
 
 @app.get("/data", response_class=HTMLResponse)
@@ -451,7 +181,6 @@ async def online_session_detail(request: Request, session_id: str) -> HTMLRespon
         session = load_session(session_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    from sdft.online_learning.session import adapter_ready
 
     perf_infer_url = perf_infer_url_for_session(session_id) if adapter_ready(session.adapter_dir) else None
     return templates.TemplateResponse(
@@ -572,8 +301,7 @@ async def export_data(export_name: str = Form("geek-jokes-export")) -> RedirectR
 @app.get("/perf", response_class=HTMLResponse)
 async def perf_page(request: Request) -> HTMLResponse:
     continue_id = request.query_params.get("continue")
-    chat = _chat_context_from_continue(continue_id)
-    # Query overrides for legacy Re-run links (instruction + input → seed chat).
+    chat = chat_context_from_continue(continue_id)
     q_instruction = request.query_params.get("instruction")
     q_input = request.query_params.get("input", "")
     q_config = request.query_params.get("config_path")
@@ -591,39 +319,26 @@ async def perf_page(request: Request) -> HTMLResponse:
         seed: list[dict[str, str]] = []
         selected_for_seed = chat.get("config_path", DEFAULT_CONFIG)
         selected_strategy = chat.get("prompt_strategy", DEFAULT_PROMPT_STRATEGY)
-        instruction_ctx = _instruction_ui_context(
+        instruction_ctx = instruction_ui_context(
             selected_for_seed,
             prompt_strategy=selected_strategy,
             stored_instruction=q_instruction,
         )
-        if q_input.strip():
-            chat = {
-                **instruction_ctx,
-                "messages": seed,
-                "messages_json": "[]",
-                "last_run_id": None,
-                "demo_condition": DEFAULT_DEMO_CONDITION,
-                "prompt_strategy": selected_strategy,
-                "config_path": selected_for_seed,
-            }
-            # Prefill composer via placeholder template var
-            chat["composer_prefill"] = q_input
-        else:
-            chat = {
-                **instruction_ctx,
-                "messages": seed,
-                "messages_json": "[]",
-                "last_run_id": None,
-                "composer_prefill": "",
-                "demo_condition": DEFAULT_DEMO_CONDITION,
-                "prompt_strategy": selected_strategy,
-                "config_path": selected_for_seed,
-            }
+        chat = {
+            **instruction_ctx,
+            "messages": seed,
+            "messages_json": "[]",
+            "last_run_id": None,
+            "composer_prefill": q_input.strip() if q_input.strip() else "",
+            "demo_condition": DEFAULT_DEMO_CONDITION,
+            "prompt_strategy": selected_strategy,
+            "config_path": selected_for_seed,
+        }
     else:
         chat.setdefault("composer_prefill", "")
         if "instruction_ignored" not in chat:
             chat.update(
-                _instruction_ui_context(
+                instruction_ui_context(
                     chat.get("config_path", DEFAULT_CONFIG),
                     prompt_strategy=chat.get("prompt_strategy", DEFAULT_PROMPT_STRATEGY),
                 )
@@ -682,152 +397,6 @@ def _run_benchmark_task(
     return run_benchmark(benchmark, **kwargs)
 
 
-def format_sse(event: str, data: dict[str, Any]) -> str:
-    """Encode one Server-Sent Event (``event`` + JSON ``data`` lines)."""
-    payload = json.dumps(data, ensure_ascii=False)
-    return f"event: {event}\ndata: {payload}\n\n"
-
-
-def _prepare_chat_inputs(
-    *,
-    config_path: str,
-    condition_id: str,
-    prompt_strategy: str,
-    instruction: str,
-    history: list[dict[str, str]],
-    user_message: str,
-) -> tuple[Any, str, list[dict[str, str]]]:
-    """Validate inputs and build model messages (no model load).
-
-    Returns ``(selection, demo_condition_id, messages)``.
-    """
-    condition = get_condition(condition_id)
-    selection = resolve_perf_config(config_path)
-    get_prompt_strategy(prompt_strategy)
-    messages = _build_chat_messages(
-        instruction,
-        history,
-        user_message,
-        config_path=selection.config_path,
-        prompt_strategy=prompt_strategy,
-    )
-    return selection, condition.id, messages
-
-
-def _finalize_chat_result(
-    result: Any,
-    *,
-    phases: LatencyPhases,
-    demo_condition: str,
-    selection: Any,
-    prompt_strategy: str,
-) -> Any:
-    """Attach design metadata, persist once, rewrite latency_phases with persist span."""
-    model_path = selection.model_path
-    adapter_dir = str(selection.adapter_dir) if selection.adapter_dir else None
-    _attach_run_metadata(
-        result,
-        demo_condition=demo_condition,
-        config_path=selection.config_path,
-        model_path=model_path,
-        prompt_strategy=prompt_strategy,
-        online_session_id=selection.online_session_id,
-        adapter_dir=adapter_dir,
-    )
-    with phases.span("persist"):
-        result.metadata["latency_phases"] = phases.to_list()
-        persist_performance_result(result)
-    result.metadata["latency_phases"] = phases.to_list()
-    save_performance_result(performance_result_path(result.id), result)
-    return result
-
-
-def _run_chat_inference(
-    *,
-    config_path: str,
-    condition_id: str,
-    prompt_strategy: str,
-    instruction: str,
-    history: list[dict[str, str]],
-    user_message: str,
-) -> Any:
-    """Sync plain multi-turn chat inference."""
-    phases = LatencyPhases()
-    selection, demo_condition, messages = _prepare_chat_inputs(
-        config_path=config_path,
-        condition_id=condition_id,
-        prompt_strategy=prompt_strategy,
-        instruction=instruction,
-        history=history,
-        user_message=user_message,
-    )
-    with phases.span("config_load"):
-        cfg = _load_perf_chat_cfg(selection)
-    result = measure_chat(
-        cfg,
-        messages,
-        latency_phases=phases,
-        adapter_dir=selection.adapter_dir,
-        model_name=selection.model_path,
-    )
-    return _finalize_chat_result(
-        result,
-        phases=phases,
-        demo_condition=demo_condition,
-        selection=selection,
-        prompt_strategy=prompt_strategy,
-    )
-
-
-def _iter_chat_inference_events(
-    *,
-    config_path: str,
-    condition_id: str,
-    prompt_strategy: str,
-    instruction: str,
-    history: list[dict[str, str]],
-    user_message: str,
-) -> Iterator[tuple[str, Any]]:
-    """Yield ``(\"token\", text)`` then ``(\"result\", PerformanceResult)`` for SSE."""
-    phases = LatencyPhases()
-    selection, demo_condition, messages = _prepare_chat_inputs(
-        config_path=config_path,
-        condition_id=condition_id,
-        prompt_strategy=prompt_strategy,
-        instruction=instruction,
-        history=history,
-        user_message=user_message,
-    )
-    with phases.span("config_load"):
-        cfg = _load_perf_chat_cfg(selection)
-    for kind, payload in iter_measure_chat(
-        cfg,
-        messages,
-        latency_phases=phases,
-        adapter_dir=selection.adapter_dir,
-        model_name=selection.model_path,
-    ):
-        if kind == "token":
-            yield ("token", payload)
-        elif kind == "result":
-            result = _finalize_chat_result(
-                payload,
-                phases=phases,
-                demo_condition=demo_condition,
-                selection=selection,
-                prompt_strategy=prompt_strategy,
-            )
-            yield ("result", result)
-        else:
-            raise ValueError(f"unexpected stream event {kind!r}")
-
-
-def _continue_url(result_id: str, config_path: str, prompt_strategy: str) -> str:
-    cfg_q = quote(config_path, safe="")
-    strat_q = quote(prompt_strategy, safe="")
-    return f"/perf?continue={result_id}&config_path={cfg_q}&prompt_strategy={strat_q}&sent=1"
-
-
 @app.post("/perf/chat")
 async def run_perf_chat(
     request: Request,
@@ -838,15 +407,12 @@ async def run_perf_chat(
     user_message: str = Form(...),
     messages_json: str = Form("[]"),
 ):
-    """Synchronous multi-turn chat: HTMX gets a panel fragment; else redirect.
-
-    Prefer ``POST /perf/chat/stream`` when JS is available for live tokens.
-    """
+    """Synchronous multi-turn chat: HTMX gets a panel fragment; else redirect."""
     user_message = user_message.strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="user_message is required")
 
-    history = _parse_messages_json(messages_json)
+    history = parse_messages_json(messages_json)
     config_path = _normalize_perf_config(config_path)
     try:
         get_condition(demo_condition)
@@ -856,7 +422,7 @@ async def run_perf_chat(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     result = await asyncio.to_thread(
-        _run_chat_inference,
+        run_chat_inference,
         config_path=config_path,
         condition_id=demo_condition,
         prompt_strategy=prompt_strategy,
@@ -864,26 +430,23 @@ async def run_perf_chat(
         history=history,
         user_message=user_message,
     )
-    continue_url = _continue_url(
+    url = continue_url(
         result.id,
         str(result.config_path or config_path),
         prompt_strategy,
     )
 
     if request.headers.get("HX-Request", "").lower() == "true":
-        chat = _chat_context_from_result(result, instruction_fallback=instruction)
+        chat = chat_context_from_result(result, instruction_fallback=instruction)
         response = templates.TemplateResponse(
             request,
             "chat_panel.html",
-            {
-                "chat": chat,
-                "show_sent_notice": True,
-            },
+            {"chat": chat, "show_sent_notice": True},
         )
-        response.headers["HX-Push-Url"] = continue_url
+        response.headers["HX-Push-Url"] = url
         return response
 
-    return RedirectResponse(url=continue_url, status_code=303)
+    return RedirectResponse(url=url, status_code=303)
 
 
 @app.post("/perf/chat/stream")
@@ -901,7 +464,7 @@ async def run_perf_chat_stream(
     if not user_message:
         raise HTTPException(status_code=400, detail="user_message is required")
 
-    history = _parse_messages_json(messages_json)
+    history = parse_messages_json(messages_json)
     config_path = _normalize_perf_config(config_path)
     try:
         get_condition(demo_condition)
@@ -914,7 +477,7 @@ async def run_perf_chat_stream(
 
     def _producer() -> None:
         try:
-            for kind, payload in _iter_chat_inference_events(
+            for kind, payload in iter_chat_inference_events(
                 config_path=config_path,
                 condition_id=demo_condition,
                 prompt_strategy=prompt_strategy,
@@ -939,7 +502,7 @@ async def run_perf_chat_stream(
             if kind == "token":
                 yield format_sse("token", {"text": str(payload)})
             elif kind == "result":
-                chat = _chat_context_from_result(payload, instruction_fallback=instruction)
+                chat = chat_context_from_result(payload, instruction_fallback=instruction)
                 html = templates.get_template("chat_panel.html").render(
                     {
                         "request": request,
@@ -947,7 +510,7 @@ async def run_perf_chat_stream(
                         "show_sent_notice": True,
                     }
                 )
-                continue_url = _continue_url(
+                url = continue_url(
                     payload.id,
                     str(payload.config_path or config_path),
                     prompt_strategy,
@@ -956,7 +519,7 @@ async def run_perf_chat_stream(
                     "done",
                     {
                         "run_id": payload.id,
-                        "continue_url": continue_url,
+                        "continue_url": url,
                         "html": html,
                         "messages": chat["messages"],
                         "latency_phases": chat.get("latency_phases") or [],

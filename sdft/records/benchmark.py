@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import statistics
 import time
-from contextlib import contextmanager
 from pathlib import Path
 from threading import Thread
 from typing import Any, Iterator
@@ -15,8 +14,10 @@ from transformers import TextIteratorStreamer
 
 from ..config import Config, load_config
 from ..data import build_teacher_messages, load_examples, sample_fewshots
+from ..peft_utils import adapter_ready, load_chat_model, peft_adapter_metadata
 from ..toolcall.loop import ToolLoopConfig, run_tool_loop
 from ..utils import load_model, load_tokenizer, pick_device
+from .latency import LatencyPhases, ms as _ms, percentile as _percentile
 from .paths import (
     new_run_id,
     performance_dir,
@@ -27,75 +28,10 @@ from .paths import (
 from .schema import PerformanceMetrics, PerformanceResult
 from .store import append_performance_index, save_performance_result
 
-
-def _adapter_ready(adapter_dir: Path | str) -> bool:
-    path = Path(adapter_dir)
-    return path.is_dir() and (path / "adapter_config.json").is_file()
-
-
-def _peft_adapter_metadata(model: Any) -> dict[str, Any]:
-    """Summarize whether a chat model has an active PEFT LoRA adapter."""
-    if not hasattr(model, "peft_config"):
-        return {"adapter_loaded": False, "peft_active_adapters": []}
-    active = getattr(model, "active_adapters", None)
-    if callable(active):
-        active = active()
-    adapters = list(active) if active else list(model.peft_config.keys())
-    return {"adapter_loaded": True, "peft_active_adapters": adapters}
-
-
-def _load_chat_model(cfg: Config, device: str, *, adapter_dir: Path | str | None = None):
-    """Load base causal LM, optionally wrapped with a PEFT LoRA adapter."""
-    base = load_model(cfg.model, device)
-    if adapter_dir is not None and _adapter_ready(adapter_dir):
-        from peft import PeftModel
-
-        return PeftModel.from_pretrained(base, str(adapter_dir))
-    return base
-
-
-def _percentile(values: list[float], pct: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    idx = max(0, min(len(ordered) - 1, int(round((pct / 100) * (len(ordered) - 1)))))
-    return ordered[idx]
-
-
-def _ms(seconds: float) -> float:
-    return round(seconds * 1000.0, 3)
-
-
-class LatencyPhases:
-    """Wall-clock phase timer; ``start_ms`` / ``end_ms`` are relative to construction."""
-
-    def __init__(self, t0: float | None = None) -> None:
-        self.t0 = time.perf_counter() if t0 is None else t0
-        self.phases: list[dict[str, Any]] = []
-
-    @contextmanager
-    def span(self, name: str) -> Iterator[None]:
-        start = time.perf_counter()
-        try:
-            yield
-        finally:
-            end = time.perf_counter()
-            self.phases.append(
-                {
-                    "name": name,
-                    "start_ms": _ms(start - self.t0),
-                    "end_ms": _ms(end - self.t0),
-                    "duration_ms": _ms(end - start),
-                }
-            )
-
-    def to_list(self) -> list[dict[str, Any]]:
-        return list(self.phases)
-
-    def total_ms(self) -> float:
-        if not self.phases:
-            return 0.0
-        return max(float(p["end_ms"]) for p in self.phases)
+# Back-compat aliases used by older imports / tests.
+_adapter_ready = adapter_ready
+_peft_adapter_metadata = peft_adapter_metadata
+_load_chat_model = load_chat_model
 
 
 @torch.inference_mode()

@@ -41,8 +41,7 @@ def build_train_examples(
     ]
 
     if not prior_turns:
-        buffer_size = cfg.online_learning.replay_buffer_size
-        rows = [current_row] if buffer_size <= 0 else [current_row]
+        rows = [current_row]
         return rows, preference_action, trained_on
 
     prev = prior_turns[-1]

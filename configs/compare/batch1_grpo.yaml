@@ -1,0 +1,38 @@
+# GRPO baseline — small group size for MPS (num_generations=2, batch_size=2).
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+data:
+  dataset: yahma/alpaca-cleaned
+  split: train
+  prompt_fields: [instruction, input]
+  response_field: output
+  num_examples: 32
+  seed: 0
+
+generation:
+  out_path: data/compare/batch1_grpo.jsonl
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+grpo:
+  output_dir: outputs/compare/batch1-grpo
+  epochs: 1
+  lr: 0.00005
+  batch_size: 2
+  grad_accum: 1
+  num_generations: 2
+  max_prompt_length: 384
+  max_completion_length: 192
+  temperature: 0.7
+  warmup_steps: 0
+  logging_steps: 1
+  save_strategy: "no"
+  seed: 0
+  reward: instruction

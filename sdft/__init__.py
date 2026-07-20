@@ -5,8 +5,12 @@ Language Model Fine-Tuning"):
 
 1. generate: the model rewrites each training target in its own distribution,
    using a few in-context demonstrations drawn from the original dataset.
-2. train:    LoRA SFT on (prompt -> model-generated response).
-3. merge:    fold the LoRA adapter back into the base weights.
+2. train:    LoRA SFT on (prompt -> model-generated response), or gold SFT via
+   ``--target gold``.
+3. grpo:     optional LoRA GRPO baseline (``python -m sdft.grpo_train``).
+4. merge:    fold the LoRA adapter back into the base weights.
+
+See ``docs/architecture.md`` for the package map and web/online-learning entry points.
 """
 
 __version__ = "0.1.0"

@@ -65,6 +65,30 @@ class TrainConfig:
     logging_steps: int = 10
     save_strategy: str = "epoch"
     seed: int = 0
+    # Which jsonl field to train on: "sdft_response" (SDFT) or "response" (gold SFT).
+    target_field: str = "sdft_response"
+
+
+@dataclass
+class GrpoConfig:
+    """Group Relative Policy Optimization (TRL GRPOTrainer) knobs."""
+
+    output_dir: str = "outputs/grpo-lfm25-230m"
+    epochs: float = 1.0
+    lr: float = 5e-5
+    # GRPO: per_device_train_batch_size must be divisible by num_generations.
+    batch_size: int = 2
+    grad_accum: int = 1
+    num_generations: int = 2
+    max_prompt_length: int = 512
+    max_completion_length: int = 256
+    temperature: float = 0.7
+    warmup_steps: int = 0
+    logging_steps: int = 1
+    save_strategy: str = "epoch"
+    seed: int = 0
+    # Reward: "instruction" (refusal + length + gold overlap) or "boxed" (tool/math).
+    reward: str = "instruction"
 
 
 @dataclass
@@ -113,6 +137,7 @@ class Config:
     generation: GenerateConfig = field(default_factory=GenerateConfig)
     lora: LoraConfig = field(default_factory=LoraConfig)
     training: TrainConfig = field(default_factory=TrainConfig)
+    grpo: GrpoConfig = field(default_factory=GrpoConfig)
     toolcall: ToolCallConfig = field(default_factory=ToolCallConfig)
     online_learning: OnlineLearningConfig = field(default_factory=OnlineLearningConfig)
     openclaw_eval: OpenClawEvalConfig = field(default_factory=OpenClawEvalConfig)
