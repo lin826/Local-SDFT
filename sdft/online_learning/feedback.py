@@ -100,6 +100,8 @@ def build_train_examples(
     else:
         preference_action = "neutral_skip_prev"
         trained_on.append({"role": "neutral_skip_prev"})
+        # Keep the prior turn in replay memory; skip only preference boosting.
+        prior_rows.append(_turn_train_row(prev))
 
     combined = [*prior_rows, current_row]
     buffer_size = cfg.online_learning.replay_buffer_size

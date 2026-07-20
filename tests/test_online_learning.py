@@ -19,6 +19,7 @@ from sdft.online_learning import (
     resolve_tone,
     run_online_turn,
 )
+from sdft.online_learning.generate_step import turns_to_fewshot_examples
 from sdft.online_learning.paths import online_session_path
 from sdft.online_learning.session import session_persisted
 from sdft.online_learning.schema import OnlineTurn, TurnLatency
@@ -152,7 +153,61 @@ def test_build_train_examples_neutral_skips_prev():
     )
     assert action == "neutral_skip_prev"
     assert not any(r["sdft_response"] == "reply-1" for r in rows)
+    assert any(r["sdft_response"] == "sdft-1" for r in rows)
     assert rows[-1]["sdft_response"] == "sdft-2"
+
+
+def test_neutral_turn_keeps_prior_in_fewshot_and_replay_buffer():
+    from sdft.config import load_config
+
+    cfg = load_config("configs/online_learning.yaml")
+    prior = [
+        OnlineTurn(
+            turn_index=1,
+            instruction="joke",
+            input="",
+            output="",
+            sdft_response="sdft-1",
+            assistant_reply="reply-1",
+            record_id="r1",
+            created_at="t1",
+            latency=TurnLatency(total_ms=1),
+        ),
+        OnlineTurn(
+            turn_index=2,
+            instruction="Another one please",
+            input="",
+            output="",
+            sdft_response="sdft-2",
+            assistant_reply="reply-2",
+            record_id="r2",
+            created_at="t2",
+            feedback_tone="neutral",
+            feedback_reward=0,
+            preference_action="neutral_skip_prev",
+            latency=TurnLatency(total_ms=1),
+        ),
+    ]
+
+    fewshots = turns_to_fewshot_examples(prior)
+    assert len(fewshots) == 2
+    assert any(ex["response"] == "sdft-1" for ex in fewshots)
+    assert any(ex["response"] == "sdft-2" for ex in fewshots)
+
+    rows, action, _ = build_train_examples(
+        cfg,
+        prior_turns=prior,
+        instruction="Third message",
+        user_input="",
+        sdft_response="sdft-3",
+        feedback_tone="neutral",
+        feedback_reward=0,
+    )
+    assert action == "neutral_skip_prev"
+    assert any(r["sdft_response"] == "sdft-1" for r in rows)
+    assert any(r["sdft_response"] == "sdft-2" for r in rows)
+    assert rows[-1]["sdft_response"] == "sdft-3"
+    assert not any(r["sdft_response"] == "reply-2" for r in rows)
 
 
 def test_aggregate_turn_latencies_stats():
