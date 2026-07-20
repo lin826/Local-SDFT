@@ -84,6 +84,18 @@
       <h2>Held-out replies</h2>
       <div class="heldout" id="heldout">click "Coach" or eval to populate</div>
     </div>
+    <div class="card">
+      <h2>Why not just prompt / retrieve?</h2>
+      <button class="act ghost" id="cmpBtn" onclick="compare()" style="width:100%">Compare vs ICL / RAG</button>
+      <table id="cmp" style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;display:none">
+        <thead><tr style="color:#8b93b8;text-align:left">
+          <th>approach</th><th style="text-align:right">held-out</th><th style="text-align:right">tok/call</th></tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+      <div style="font-size:11px;color:#8b93b8;margin-top:8px">
+        ICL/RAG get the same learned examples in-context. Finetuning folds them into
+        the weights — same-or-better accuracy at <b>+0 tokens</b> every call.</div>
+    </div>
   </aside>
   <div id="composer">
     <input id="input" placeholder="Chat with it (hover a reply to correct it)…" autofocus>
@@ -149,6 +161,24 @@ async function coachN(n){
     await evalNow();
   } else { notice('set online.reward_fn to enable coaching'); }
   document.getElementById('coachBtn').disabled=false;
+}
+async function compare(){
+  const btn=document.getElementById('cmpBtn'); btn.disabled=true; btn.textContent='running (base + ICL + RAG + finetuned)…';
+  const r=await fetch('/v1/demo/compare');
+  if(!r.ok){ notice('coach it first, then compare'); btn.disabled=false; btn.textContent='Compare vs ICL / RAG'; return; }
+  const d=await r.json();
+  const rows=[['base (no help)',d.base,'#8b93b8'],
+              ['ICL (all examples)',d.icl,'#e0af68'],
+              ['RAG (top-3)',d.rag,'#e0af68'],
+              ['finetuned (ours)',d.finetuned,'#9ece6a']];
+  document.getElementById('cmpBody').innerHTML = rows.map(([name,v,c])=>
+    `<tr><td style="color:${c}">${name}</td>`+
+    `<td style="text-align:right;color:${c}">${Math.round(v.success*100)}%</td>`+
+    `<td style="text-align:right;color:${v.extra_tokens>0?'#f7768e':'#9ece6a'}">+${v.extra_tokens}</td></tr>`).join('');
+  document.getElementById('cmp').style.display='table';
+  // A/B toggle rolled the adapter around; resync the badge + curve.
+  await evalNow();
+  btn.disabled=false; btn.textContent='Compare vs ICL / RAG';
 }
 async function toggleAdapter(){
   const on=document.getElementById('adapterToggle').checked;

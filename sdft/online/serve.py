@@ -182,6 +182,21 @@ def create_app(controller: OnlineController) -> FastAPI:
                 "adapter_version": run.adapter_version if run else None,
                 "loss": run.metrics.get("loss") if run else None}
 
+    @app.get("/v1/demo/compare")
+    def demo_compare(k: int = 3):
+        """Fair base / ICL / RAG / finetuned head-to-head: accuracy + token tax.
+
+        The "why finetune instead of prompt/retrieve?" screen — gives the base
+        model the same learned examples in-context and shows finetuning matches
+        or beats them at zero per-call context cost.
+        """
+        if controller._reward_fn is None:
+            raise HTTPException(400, "no online.reward_fn configured for the demo")
+        from .demo import four_way_compare
+
+        with controller._lock:
+            return four_way_compare(controller, k=k)
+
     return app
 
 

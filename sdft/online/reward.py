@@ -208,6 +208,71 @@ def shape_direct(prompt: str, reply: str) -> str:
     return "Answer: " + " ".join(words[:25])
 
 
+# ---- lifelong / skill-accumulation demo: a repertoire of trigger-keyed skills -
+# Each skill is a *conditional* behaviour keyed by a lexical trigger in the
+# prompt (Summarize: / List / Reply to: / arithmetic). Because the triggers and
+# output shapes are mutually exclusive, applying the WRONG skill fails the
+# reward — so evaluating every skill each round makes catastrophic forgetting
+# directly measurable. Small models can route on lexical triggers reliably, and
+# each output shape is a checkable format, so the repertoire is learnable on 230M.
+
+SIGNOFF = "— sent from my device"
+
+
+@reward("skill_summary")
+def skill_summary(prompt: str, reply: str) -> float:
+    """Trigger 'Summarize:' -> a single one-line summary (no bullets, no tool call)."""
+    s = reply.strip()
+    if not s or "\n" in s or s.startswith(("-", "*")) or "<tool" in s:
+        return 0.0
+    words = len(re.findall(r"\b[\w']+\b", s))
+    terminators = len(re.findall(r"[.!?]", s))
+    return 1.0 if terminators <= 1 and 4 <= words <= 30 else 0.0
+
+
+@shaper("skill_summary")
+def shape_skill_summary(prompt: str, reply: str) -> str:
+    s = (reply or "").strip().replace("\n", " ").lstrip("-* ")
+    first = re.split(r"(?<=[.!?])\s", s, maxsplit=1)[0] if s else ""
+    words = re.findall(r"[\w']+", first)
+    if len(words) < 4:  # fall back to summarising the prompt's own content
+        words = re.findall(r"[\w']+", prompt.split(":", 1)[-1])
+    return " ".join(words[:24]).rstrip(".") + "." if words else "A brief summary."
+
+
+@reward("skill_bullets")
+def skill_bullets(prompt: str, reply: str) -> float:
+    """Trigger 'List ...' -> 2-4 bullet lines."""
+    n = len(_BULLET.findall(reply))
+    return 1.0 if 2 <= n <= 4 else 0.0
+
+
+@shaper("skill_bullets")
+def shape_skill_bullets(prompt: str, reply: str) -> str:
+    raw = re.sub(r"^\s*[-*]\s*", "", reply.strip(), flags=re.MULTILINE)
+    sents = [s.strip(" -*") for s in _SENT.findall(raw) if len(s.strip()) > 2]
+    if len(sents) < 3:
+        sents = (sents + ["First point", "Second point", "Third point"])[:3]
+    return "\n".join(f"- {s.rstrip('.')}." for s in sents[:3])
+
+
+@reward("skill_signoff")
+def skill_signoff(prompt: str, reply: str) -> float:
+    """Trigger 'Reply to:' -> a reply that ends with the fixed sign-off."""
+    return 1.0 if reply.rstrip().endswith(SIGNOFF) else 0.0
+
+
+@shaper("skill_signoff")
+def shape_skill_signoff(prompt: str, reply: str) -> str:
+    body = reply.strip()
+    if body.endswith(SIGNOFF):
+        body = body[: -len(SIGNOFF)].rstrip()
+    body = re.sub(r"\n*\s*—.*$", "", body).strip()  # drop any prior sign-off line
+    sents = [s.strip() for s in _SENT.findall(body.replace("\n", " ")) if s.strip()]
+    body = " ".join(sents[:2]) if sents else "Thanks for your note; I'll follow up shortly."
+    return f"{body}\n\n{SIGNOFF}"
+
+
 @reward("terse")
 def terse(prompt: str, reply: str) -> float:
     """Reward short, punchy replies (<= 25 words, single paragraph)."""

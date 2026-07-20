@@ -106,13 +106,17 @@ class OnlineController:
             target = best
         else:
             return  # nothing worth imitating this turn
+        # Tag with the active skill (reward task) so the replay buffer's
+        # per-topic balancing rehearses each learned skill evenly — this is what
+        # keeps a multi-skill repertoire from collapsing as new skills are added.
+        topic = o.reward_fn or auto_topic(
+            [Message(conversation_id=conversation_id, role="user", content=prompt_text)])
         demo = Demonstration(
             source="accepted",
             conversation_id=conversation_id,
             messages=history,
             demonstration=target,
-            topic=auto_topic([Message(conversation_id=conversation_id, role="user",
-                                      content=prompt_text)]),
+            topic=topic,
             weight=o.correction_weight * best_r,
         )
         self.store.add_demonstration(demo)

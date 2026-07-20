@@ -80,3 +80,38 @@ def test_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "SDFT" in r.text or "sdft" in r.text
+
+
+@pytest.fixture()
+def reward_client(tmp_path):
+    cfg = Config()
+    cfg.online.backend = "echo"
+    cfg.online.reward_fn = "skill_summary"  # has a shaper -> always harvests
+    cfg.online.reward_num_samples = 2
+    cfg.online.db_path = str(tmp_path / "online.db")
+    cfg.online.adapters_dir = str(tmp_path / "adapters")
+    cfg.online.min_new_demos = 1
+    cfg.online.eval_every_n_updates = 0
+    ctrl = OnlineController.build(cfg)
+    yield ctrl, TestClient(create_app(ctrl))
+    ctrl.store.close()
+
+
+class TestCompare:
+    def test_compare_requires_reward_fn(self, client):
+        assert client.get("/v1/demo/compare").status_code == 400
+
+    def test_compare_shape_and_adapter_restore(self, reward_client):
+        ctrl, client = reward_client
+        ctrl.chat("c1", "Summarize: a paragraph about budgets and hiring plans")
+        ctrl.maybe_update(force=True)  # -> adapter v1
+        assert ctrl.stats()["adapter_versions"] == 2
+        d = client.get("/v1/demo/compare").json()
+        for variant in ("base", "icl", "rag", "finetuned"):
+            assert set(d[variant]) == {"success", "extra_tokens"}
+            assert 0.0 <= d[variant]["success"] <= 1.0
+        # base/finetuned add no context; icl/rag do (examples exist)
+        assert d["base"]["extra_tokens"] == 0 and d["finetuned"]["extra_tokens"] == 0
+        assert d["icl"]["extra_tokens"] > 0
+        # the compare must leave the finetuned (latest) adapter active
+        assert ctrl.store.get_active_adapter().version == 1
