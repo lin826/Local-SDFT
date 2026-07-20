@@ -75,6 +75,81 @@ uv sync --extra toolcall
 bash scripts/run_openclaw_rl_eval.sh
 ```
 
+## Evaluation results
+
+Numbers below are from local runs on Apple Silicon (MPS). Artifacts live under
+`outputs/benchmarks/` (gitignored). Official AlpacaEval 2 **LC win-rate** was
+**not** computed (no `OPENAI_API_KEY` / GPT-4 Turbo judge).
+
+### AlpacaEval 2.0 (held-out generations)
+
+- **Train:** `yahma/alpaca-cleaned` (128 SDFT pairs) — never AlpacaEval prompts
+- **Eval:** first **64 / 805** instructions from `tatsu-lab/alpaca_eval`
+- **Merged LFM checkpoint:** `outputs/lfm25-230m-alpacaeval2-sdft-merged`
+  (`configs/lfm25_alpacaeval2_trained.yaml`)
+
+| Condition | Model | n | Mean output chars | Identical to base | Train loss | Notes |
+|---|---|---:|---:|---:|---|---|
+| LFM base | `LiquidAI/LFM2.5-230M` | 64 | 1173 | — | — | Healthy greedy generations |
+| LFM SDFT | LFM + LoRA merge | 64 | 1118 | **6 / 64** | 0.599 | Real merge (`adapter maxabs≈0.032`, no NaNs); **58 / 64** outputs differ |
+| Qwen base | `Qwen/Qwen3.5-0.8B` | 64 | 1828 | — | — | Healthy |
+| Qwen SDFT | Qwen + early LoRA (`checkpoint-2`) | 64 | 1816 | 41 / 64 | 0.076 (final) | Final adapter collapsed to NaNs on MPS — score `checkpoint-2` only |
+
+**LC win-rate / raw win-rate:** not available yet. Score existing generations with:
+
+```bash
+export OPENAI_API_KEY=sk-...
+uv sync --extra alpacaeval
+# From the alpacaeval worktree that produced the merges:
+SCORE=1 SKIP_SDFT=1 NUM_EVAL=64 bash scripts/run_lfm25_alpacaeval2.sh
+```
+
+#### `/perf` qualitative (AlpacaEval-faithful ZS)
+
+Side-by-side chat on open-ended prompts (base vs SDFT merge):
+
+| Prompt | Base LFM2.5-230M | LFM SDFT merge |
+|---|---|---|
+| Sew a button on a shirt | Refusal: *“I'm sorry, but I can't assist with that.”* | Step-by-step sewing guide (~246 tok, ~124 tok/s) |
+| How do I make apple juice? | Refusal / capability hedge | Ingredient list + recipe (~168 tok, ~117 tok/s) |
+
+Prompt-strategy ablations in `/perf` (ZS / FS1 / FS3 / CoT / FS+CoT / SysHelpful)
+use train-side ICL demos only, with a leakage guard against AlpacaEval instructions.
+
+### OpenClaw tool-use (held-out math, `format: lfm`)
+
+Identity SDFT on curated tool-call trajectories → `outputs/openclaw-tooluse-merged`.
+Held-out bank: **29** questions (`outputs/benchmarks/openclaw-rl/ablation/comparison.json`).
+
+| Arm | Model | pass@1 | Mean tool calls | Mean score |
+|---|---|---:|---:|---:|
+| ZS | base | 20.7% | 0.03 | −0.586 |
+| OS | base | 17.2% | 1.00 | −0.655 |
+| OS+CoT | base | 20.7% | 0.00 | −0.586 |
+| CoT-only | base | 20.7% | 0.00 | −0.586 |
+| SDFT-ZS | SDFT merge | 20.7% | 0.03 | −0.586 |
+| SDFT+OS | SDFT merge | 13.8% | 1.24 | −0.724 |
+| **SDFT+OS+CoT** | SDFT merge | **24.1%** | 0.03 | **−0.517** |
+
+Best arm is **SDFT+OS+CoT** (+3.4 pp over ZS). Most failures are format quality
+(prose / missing `\boxed{}`), not token truncation — see
+[docs/openclaw-tooluse-sdft.md](docs/openclaw-tooluse-sdft.md).
+
+#### Smoke / demos (smaller sets)
+
+| Run | n | pass@1 | Notes |
+|---|---:|---:|---|
+| AIME-2024 smoke (ZS / OS / SDFT) | 3 | 0% | Expect low; smoke wiring only |
+| Demo bank, base / ZS / SDFT | 20 | 0% | OpenClaw-format tool loop |
+| Demo bank, one-shot (OS) | 20 | **15%** | Best small-bank prompt-only arm |
+
+Reproduce the full ablation:
+
+```bash
+uv sync --extra toolcall
+uv run python scripts/run_openclaw_ablation.py --skip-data --skip-train --format lfm
+```
+
 ## LoRA targets for the LFM2 architecture
 
 LFM2.5-230M is a hybrid: **6 attention blocks + 8 short-convolution blocks**.
