@@ -4,8 +4,8 @@
 {% set total_ms = phases | map(attribute='end_ms') | max %}
 {% if total_ms <= 0 %}{% set total_ms = 1 %}{% endif %}
 <section class="latency-gantt" aria-label="Latency phases">
-  <h3 class="latency-gantt-title">Latency phases</h3>
-  <p class="latency-gantt-lead">Wall-clock spans relative to request start · {{ "%.0f"|format(total_ms) }} ms total</p>
+  <h3 class="latency-gantt-title">Latency analysis</h3>
+  <p class="latency-gantt-lead">End-to-end wall-clock from request start · {{ "%.0f"|format(total_ms) }} ms total (load, tokenize, generate, persist)</p>
   <div class="gantt" style="--gantt-total: {{ total_ms }};">
     <div class="gantt-axis" aria-hidden="true">
       <span>0</span>

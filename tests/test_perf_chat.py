@@ -651,6 +651,8 @@ def test_run_detail_shows_design_summary(client: TestClient):
     assert 'class="latency-gantt"' in detail.text
     assert 'data-phase="model_load"' in detail.text
     assert "1200" in detail.text  # model_load duration
+    assert "ms generate" in detail.text
+    assert "ms total" in detail.text
 
 
 def test_generate_still_background(client: TestClient):

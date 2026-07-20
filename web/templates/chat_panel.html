@@ -9,7 +9,9 @@
     Reply ready. Saved as
     <a href="/perf/{{ chat.last_run_id }}"><code>{{ chat.last_run_id }}</code></a>
     {% if chat.metrics %}
-    · {{ "%.0f"|format(chat.metrics.latency_ms_mean) }} ms
+    {% set wall_clock_ms = (chat.latency_phases | map(attribute='end_ms') | max) if chat.latency_phases else none %}
+    · {{ "%.0f"|format(chat.metrics.latency_ms_mean) }} ms generate
+    {% if wall_clock_ms %} · {{ "%.0f"|format(wall_clock_ms) }} ms total{% endif %}
     · {{ "%.1f"|format(chat.metrics.tokens_per_second) }} tok/s
     {% endif %}
     {% if is_truncated %}

@@ -6,6 +6,9 @@
 <h1 class="page-title">Benchmark {{ result.benchmark }}</h1>
 <p class="lead"><code>{{ result.id }}</code> · {{ result.run_at }}</p>
 
+{% set latency_phases = result.metadata.get('latency_phases') if result.metadata else none %}
+{% set wall_clock_ms = (latency_phases | map(attribute='end_ms') | max) if latency_phases else none %}
+
 <div class="pill-row">
   <span class="pill">{{ result.benchmark }}</span>
   <span class="pill pill-muted">{{ result.model }}</span>
@@ -20,17 +23,20 @@
   <span class="pill pill-muted">{{ result.metadata.tool_call_count }} tool call(s)</span>
   {% endif %}
   <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.tokens_per_second) }} tok/s</span>
-  <span class="pill pill-accent">{{ "%.1f"|format(result.metrics.latency_ms_mean) }} ms latency</span>
+  <span class="pill pill-accent" title="model.generate wall time (throughput basis)">{{ "%.1f"|format(result.metrics.latency_ms_mean) }} ms generate</span>
+  {% if wall_clock_ms %}
+  <span class="pill pill-muted" title="End-to-end request wall clock (see Latency phases)">{{ "%.0f"|format(wall_clock_ms) }} ms total</span>
+  {% endif %}
 </div>
 
 <details class="howto-collapsed">
   <summary class="howto-summary">How to use this page</summary>
   {% with page_id='detail', tip='Do not confuse Metrics (input_tokens_total / output_tokens_total) with the transcript below — those counters are token counts, not message text.' %}
   {% set steps = [
-    'Header pills (top): benchmark, model, device, config, and headline speed.',
+    'Header pills (top): benchmark, model, device, config, tok/s, generate ms (model.generate), and total ms when phases exist.',
     'Design summary: persisted metadata describing demo purpose, config, and eval surface.',
     'Transcript or Prompt · Reply: the conversation / Alpaca fields for this run.',
-    'Latency phases: Gantt + table of wall-clock spans (model_load, generate, …).',
+    'Latency analysis: Gantt + table of wall-clock spans (model_load, generate, …).',
     'Metrics / Advanced (bottom): timing, throughput, and raw metadata only.',
     'Continue chat to resume multi-turn from this run’s messages.',
   ] %}
@@ -150,7 +156,6 @@
 </section>
 {% endif %}
 
-{% set latency_phases = result.metadata.get('latency_phases') if result.metadata else none %}
 {% if latency_phases %}
 <section class="section" id="latency-phases">
   {% with phases=latency_phases %}
@@ -165,9 +170,9 @@
   {% set metrics = result.metrics.to_dict() %}
   {% set friendly = {
     'tokens_per_second': 'Tokens/sec',
-    'latency_ms_mean': 'Avg latency (ms)',
-    'latency_ms_p50': 'P50 latency (ms)',
-    'latency_ms_p95': 'P95 latency (ms)',
+    'latency_ms_mean': 'Generate latency (ms)' if latency_phases else 'Avg latency (ms)',
+    'latency_ms_p50': 'P50 generate (ms)' if latency_phases else 'P50 latency (ms)',
+    'latency_ms_p95': 'P95 generate (ms)' if latency_phases else 'P95 latency (ms)',
     'samples': 'Samples',
     'batch_size': 'Batch size',
     'input_tokens_total': 'Input tokens',
