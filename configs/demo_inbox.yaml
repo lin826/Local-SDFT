@@ -1,0 +1,30 @@
+# Realistic "learn while doing" demo: a personal inbox assistant that learns
+# YOUR triage policy from corrections as you clear your mail.
+#
+#   python scripts/demo_inbox.py --rounds 4
+#
+# Correction-driven (no reward_fn): you fix the assistant's suggestion, that
+# becomes the training target (stable completion-NLL / SFT).
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  loss_type: "sft"           # corrections are exact targets -> supervised NLL
+  serve_temperature: 0.0     # deterministic handling suggestions
+  serve_max_new_tokens: 24
+  lr: 2.0e-4
+  min_new_demos: 4
+  steps_per_update: 6
+  demos_per_step: 4
+  replay_ratio: 0.5
+  eval_every_n_updates: 0
+  db_path: "data/demo_inbox.db"
+  adapters_dir: "data/demo_inbox_adapters"
