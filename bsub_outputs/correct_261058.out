@@ -1,0 +1,75 @@
+─────────────── Correct it once — the fix generalizes, on-device ───────────────
+model=LiquidAI/LFM2.5-230M  offline  your rule: 'answer in ONE sentence'  ·  
+correct on cooking, test on programming
+loading model…
+trainable params: 6,193,152 || all params: 235,886,336 || trainable%: 2.6255
+─────────────── Before — you haven't told it your preference yet ───────────────
+  base                       one-sentence on held-out   0.0%  
+  e.g. Q: What is a hash map?
+       A: 'A hash map, also known as a hash table, is a data structure that 
+stores key-value pairs in an array using a hash functio'…
+─────────── You fix its replies a few times (cooking questions only) ───────────
+  after 1 correction(s)      one-sentence on held-out   0.0%  
+  after 2 correction(s)      one-sentence on held-out   0.0%  
+  after 3 correction(s)      one-sentence on held-out   0.0%  
+  after 4 correction(s)      one-sentence on held-out  33.3%  ████████
+─────────── It consolidates on its own (replaying your corrections) ────────────
+  consolidation 1            one-sentence on held-out  66.7%  ████████████████
+  consolidation 2            one-sentence on held-out  66.7%  ████████████████
+  consolidation 3            one-sentence on held-out  83.3%  
+████████████████████
+  consolidation 4            one-sentence on held-out  83.3%  
+████████████████████
+  consolidation 5            one-sentence on held-out 100.0%  
+████████████████████████
+─────────────────── After — a held-out programming question ────────────────────
+  adapter ON (learned)       one-sentence on held-out 100.0%  
+████████████████████████
+  Q: What is a hash map?
+  A: 'A hash map is a data structure that stores key-value pairs in an efficient
+manner.'   ✓ one sentence
+──────── The honest test: RAG / in-context vs finetuning (no training) ─────────
+  ICL: rule + all 4 corrections      one-sentence  66.7%   +146 tokens/call
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p1-r09-n4>
+Subject: Job 261058: <sdft_c1> in cluster <BLUEVELA_LSF> Exited
+
+Job <sdft_c1> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 07:39:59 2026
+Job was executed on host(s) <p1-r09-n4>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 07:39:59 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Mon Jul 20 07:39:59 2026
+Terminated at Mon Jul 20 07:41:09 2026
+Results reported at Mon Jul 20 07:41:09 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/demo_correct_once.sh
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   82.94 sec.
+    Max Memory :                                 1769 MB
+    Average Memory :                             1249.00 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                264
+    Run time :                                   74 sec.
+    Turnaround time :                            70 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/correct_261058.err> for stderr output of this job.
+
