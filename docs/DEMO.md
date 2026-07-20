@@ -81,6 +81,47 @@ Reward = a valid `calc()` call whose expression evaluates to the right answer
 guaranteed-correct tool call as the SFT target; arithmetic is evaluated with an
 AST-safe evaluator (`sdft/online/tools.py`), never `eval`.
 
+## Interact with REAL software: text→SQL against a live SQLite engine
+
+The "it drives real software, not a simulated tool" demo. The model answers
+natural-language questions about an actual database by emitting a query; a real
+SQLite engine runs it; the reward is whether the returned rows match a **gold
+query's** rows. Coach and held-out questions use **disjoint** categories/cities
+(`Books`/`Seattle` in coaching, `Toys`/`Denver` at test), so a correct executed
+answer can only come from writing correct SQL, never from memorizing a value.
+
+```bash
+python scripts/demo_sqlite.py            # narrated; prints the SQL it wrote + real rows
+```
+
+The model's SQL is untrusted, so execution is jailed (`sdft/online/sqlenv.py`):
+read-only connection + `PRAGMA query_only` + a **SQLite authorizer that permits
+only reads** (SELECT/READ/FUNCTION; denies every write/DDL/ATTACH/pragma even if
+the parser is fooled) + one statement per call + an instruction-budget timeout.
+A unit test asserts `DROP`/`UPDATE`/`INSERT`/stacked-statement/`ATTACH` all fail
+and leave the DB byte-for-byte unchanged.
+
+Served **schema-less** — the schema is only a sampling-time teacher hint
+(`coach_instruction`), so the trained model has genuinely learned the database
+into its weights. Validated on LFM2.5-230M (H100, offline):
+
+```
+base (no adapter):   0%   — writes no query at all
+after coaching:     50%   (peaked 83% in an earlier run; run-to-run variance)
+
+Held-out questions, executed against the real DB:
+  "products in the 'Toys' category?"  → SELECT COUNT(*) FROM products WHERE category='Toys'   → (2)   ✓
+  "customers from Denver"              → SELECT name FROM customers WHERE city='Denver'        → Bob, Eve ✓
+  "name of the cheapest product?"      → SELECT name FROM products WHERE price < 10            → ✗ (wanted ORDER BY price LIMIT 1)
+```
+
+Honest edges: the 230M reliably learns **COUNT / WHERE-filter** patterns and
+transfers them to unseen categories/cities; **superlatives** (`ORDER BY … LIMIT
+1`) and **JOINs** are hazier and account for most misses — the larger on-device
+model (LFM2-1.2B) is the lever there, same as the inbox note below. The point
+stands regardless: base 0% → a model writing real SQL a real engine runs
+correctly, learned live and on-device.
+
 ## Variant: continual learning — adapt now, recover old skills fast
 
 Answers the plasticity/fast-recovery story ("forgetting is fine as long as you
