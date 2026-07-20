@@ -135,3 +135,23 @@ adapter ON: 100%      adapter OFF (base): 0%
 Mechanism (honest): a few corrections quickly solve the coaching domain; then the
 loop **consolidates** (replays those corrections, no new user input) until the
 habit generalizes. You told it once; nothing left the device.
+
+### Why not just prompt (ICL) or retrieve (RAG)?
+
+The correct-once demo includes a fair head-to-head: the *base* model gets the
+same corrections in-context (ICL = rule + all corrections; RAG = rule + top-3
+retrieved) vs the finetuned adapter. On LFM2.5-230M (held-out programming, the
+one-sentence habit):
+
+| approach | held-out accuracy | extra tokens/call |
+|---|---|---|
+| base (no help) | 0% | 0 |
+| ICL (rule + all corrections) | 67% | +144, every call |
+| RAG (rule + top-3 retrieved) | 100% | +107, every call |
+| **finetuned (ours)** | **100%** | **+0** |
+
+ICL is worse on accuracy (small models follow long prompts unreliably); RAG can
+match accuracy but pays a permanent per-call token tax + a retrieval step, and
+degrades when retrieval misses or preferences accumulate. Finetuning folds the
+corrections into the weights: equal-or-better quality at constant zero context
+cost, on-device.
