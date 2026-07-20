@@ -1,0 +1,17 @@
+# Local BFCL-v3 subset eval for LiquidAI/LFM2.5-1.2B-Instruct.
+# On Apple Silicon MPS, float32 can be heavy — prefer float16 when supported.
+# Same LoRA attention regex as 230M (6 GQA blocks + LIV conv hybrid).
+
+model:
+  name: LiquidAI/LFM2.5-1.2B-Instruct
+  dtype: float16
+
+bfcl_eval:
+  categories: [simple, multiple, parallel, irrelevance]
+  num_examples: 32
+  cache_dir: data/bfcl
+  out_dir: outputs/benchmarks/bfcl/1_2b
+  max_new_tokens: 192
+  temperature: 0.0
+  force_download: false
+  seed: 0

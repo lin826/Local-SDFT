@@ -1,8 +1,8 @@
 # Architecture
 
 Local-SDFT is a small, Apple-Silicon-friendly toolkit for **Self-Distillation
-Fine-Tuning** (SDFT) on Liquid AI's LFM2.5-230M, plus comparable baselines
-(gold SFT, GRPO) and a live online-learning demo.
+Fine-Tuning** (SDFT) on Liquid AI's LFM2.5-230M / LFM2.5-1.2B-Instruct, plus
+comparable baselines (gold SFT, GRPO) and a live online-learning demo.
 
 ```mermaid
 flowchart LR
@@ -47,10 +47,12 @@ flowchart LR
 | `sdft/peft_utils.py` | Shared `adapter_ready` / chat model loading |
 | `sdft/online_learning/` | Per-turn tone feedback → tiny SDFT → reply |
 | `sdft/toolcall/` | ReTool-style tool loop + OpenClaw eval |
+| `sdft/bfcl/` | Local BFCL-v3 AST/irrelevance subset eval |
 | `sdft/records/` | Shared collect + benchmark persistence |
 | `web/` | FastAPI + HTMX UI (`/`, `/data`, `/perf`) |
-| `configs/compare/` | Batch-size-1 baseline suite |
+| `configs/compare/` | Batch-size-1 baseline suite (230M + 1.2B) |
 | `scripts/run_batch1_comparison.py` | Train + score base / SFT / SDFT / GRPO |
+| `scripts/run_bfcl_eval.py` | BFCL local subset wrapper |
 
 ## Entry points
 
@@ -71,6 +73,11 @@ uv run python -m web.app   # http://127.0.0.1:8765
 
 # Batch-size-1 comparison (blog / notebook numbers)
 uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
+uv run python scripts/run_batch1_comparison.py --suite 1_2b --num-train 16 --num-eval 8
+
+# BFCL local AST subset (simple/multiple/parallel/irrelevance)
+uv run python -m sdft.bfcl.eval --config configs/bfcl_eval.yaml --num-examples 32
+uv run python scripts/run_bfcl_eval.py --suite 1_2b --num-examples 32
 ```
 
 ## Batch-size-1 philosophy

@@ -1,0 +1,59 @@
+# Batch-size-1 comparison suite for LiquidAI/LFM2.5-1.2B-Instruct.
+# Smaller context / completions than 230M to fit MPS; GRPO uses num_generations=2.
+
+model:
+  name: LiquidAI/LFM2.5-1.2B-Instruct
+  dtype: float16
+
+data:
+  dataset: yahma/alpaca-cleaned
+  split: train
+  prompt_fields: [instruction, input]
+  response_field: output
+  num_examples: 16
+  seed: 0
+
+generation:
+  num_shots: 2
+  batch_size: 2
+  max_new_tokens: 128
+  temperature: 0.0
+  top_p: 1.0
+  min_response_chars: 1
+  out_path: data/compare/batch1_1_2b_sdft.jsonl
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  # Same LFM2 hybrid attention regex as 230M (6 GQA blocks).
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/compare/batch1-1_2b-sdft
+  epochs: 1
+  lr: 0.0001
+  batch_size: 1
+  grad_accum: 1
+  max_length: 384
+  warmup_steps: 0
+  logging_steps: 4
+  save_strategy: "no"
+  seed: 0
+  target_field: sdft_response
+
+grpo:
+  output_dir: outputs/compare/batch1-1_2b-grpo
+  epochs: 1
+  lr: 0.00005
+  batch_size: 2
+  grad_accum: 1
+  num_generations: 2
+  max_prompt_length: 256
+  max_completion_length: 128
+  temperature: 0.7
+  warmup_steps: 0
+  logging_steps: 1
+  save_strategy: "no"
+  seed: 0
+  reward: instruction

@@ -12,8 +12,8 @@ import yaml
 
 @dataclass
 class ModelConfig:
-    name: str = "LiquidAI/LFM2.5-230M"  # post-trained chat checkpoint
-    dtype: str = "float32"  # 230M params: full fp32 is cheap and stable on MPS
+    name: str = "LiquidAI/LFM2.5-230M"  # or LiquidAI/LFM2.5-1.2B-Instruct
+    dtype: str = "float32"  # 230M: fp32 on MPS; 1.2B: prefer float16
     attn_implementation: str | None = None  # None -> transformers default (sdpa)
 
 
@@ -131,6 +131,24 @@ class OpenClawEvalConfig:
 
 
 @dataclass
+class BfclEvalConfig:
+    """Local BFCL-v3 single-turn subset (AST + irrelevance), not full leaderboard."""
+
+    # Categories: simple | multiple | parallel | parallel_multiple | irrelevance
+    categories: list[str] = field(
+        default_factory=lambda: ["simple", "multiple", "parallel", "irrelevance"]
+    )
+    # Per-category cap; None = full category file.
+    num_examples: int | None = 32
+    cache_dir: str = "data/bfcl"
+    out_dir: str = "outputs/benchmarks/bfcl"
+    max_new_tokens: int = 256
+    temperature: float = 0.0
+    force_download: bool = False
+    seed: int = 0
+
+
+@dataclass
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     data: DataConfig = field(default_factory=DataConfig)
@@ -141,6 +159,7 @@ class Config:
     toolcall: ToolCallConfig = field(default_factory=ToolCallConfig)
     online_learning: OnlineLearningConfig = field(default_factory=OnlineLearningConfig)
     openclaw_eval: OpenClawEvalConfig = field(default_factory=OpenClawEvalConfig)
+    bfcl_eval: BfclEvalConfig = field(default_factory=BfclEvalConfig)
 
 
 def _apply(section: Any, values: dict[str, Any], path: str) -> None:

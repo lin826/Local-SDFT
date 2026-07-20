@@ -1,0 +1,32 @@
+# Gold SFT at batch_size=1 for LFM2.5-1.2B-Instruct.
+
+model:
+  name: LiquidAI/LFM2.5-1.2B-Instruct
+  dtype: float16
+
+data:
+  dataset: yahma/alpaca-cleaned
+  split: train
+  prompt_fields: [instruction, input]
+  response_field: output
+  num_examples: 16
+  seed: 0
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/compare/batch1-1_2b-sft-gold
+  epochs: 1
+  lr: 0.0001
+  batch_size: 1
+  grad_accum: 1
+  max_length: 384
+  warmup_steps: 0
+  logging_steps: 4
+  save_strategy: "no"
+  seed: 0
+  target_field: response

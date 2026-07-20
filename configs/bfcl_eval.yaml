@@ -1,0 +1,17 @@
+# Local BFCL-v3 subset eval for LiquidAI/LFM2.5-230M.
+# Not the official leaderboard (no vLLM / live / multi-turn / executable).
+# Categories: simple, multiple, parallel, irrelevance (AST + relevance).
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+bfcl_eval:
+  categories: [simple, multiple, parallel, irrelevance]
+  num_examples: 32          # per category; set null for full files
+  cache_dir: data/bfcl
+  out_dir: outputs/benchmarks/bfcl/230m
+  max_new_tokens: 256
+  temperature: 0.0
+  force_download: false
+  seed: 0

@@ -63,11 +63,12 @@ def _generate_eval(
     *,
     adapter_dir: Path | None,
     max_new_tokens: int = 192,
+    dtype: str = "float32",
 ) -> list[str]:
     device = pick_device()
     from sdft.config import ModelConfig
 
-    cfg = ModelConfig(name=model_name)
+    cfg = ModelConfig(name=model_name, dtype=dtype)
     tokenizer = load_tokenizer(cfg)
     tokenizer.padding_side = "left"
     base = load_model(cfg, device)
@@ -108,17 +109,49 @@ def _score_arm(name: str, prompts: list[str], golds: list[str], generations: lis
     }
 
 
+_SUITES = {
+    "230m": {
+        "sdft": "configs/compare/batch1_sdft.yaml",
+        "sft_gold": "configs/compare/batch1_sft_gold.yaml",
+        "grpo": "configs/compare/batch1_grpo.yaml",
+        "prefix": "batch1",
+        "max_new_tokens": 192,
+    },
+    "1_2b": {
+        "sdft": "configs/compare/batch1_1_2b_sdft.yaml",
+        "sft_gold": "configs/compare/batch1_1_2b_sft_gold.yaml",
+        "grpo": "configs/compare/batch1_1_2b_grpo.yaml",
+        "prefix": "batch1_1_2b",
+        "max_new_tokens": 128,
+    },
+}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--num-train", type=int, default=32)
     parser.add_argument("--num-eval", type=int, default=16)
+    parser.add_argument(
+        "--suite",
+        choices=sorted(_SUITES),
+        default="230m",
+        help="Model suite: 230m (default) or 1_2b (LFM2.5-1.2B-Instruct)",
+    )
+    parser.add_argument("--model", default=None, help="Override model.name for all arms")
+    parser.add_argument("--dtype", default=None, help="Override model.dtype for eval loads")
     parser.add_argument("--skip-train", action="store_true")
     parser.add_argument("--skip-grpo", action="store_true", help="skip GRPO (slowest arm)")
     parser.add_argument("--max-grpo-steps", type=int, default=None)
-    parser.add_argument("--out", default="outputs/compare/batch1_comparison.json")
+    parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
-    sdft_cfg = load_config(ROOT / "configs/compare/batch1_sdft.yaml")
+    suite = _SUITES[args.suite]
+    prefix = suite["prefix"]
+    sdft_cfg = load_config(ROOT / suite["sdft"])
+    if args.model:
+        sdft_cfg.model.name = args.model
+    if args.dtype:
+        sdft_cfg.model.dtype = args.dtype
     sdft_cfg.data.num_examples = args.num_train + args.num_eval
     all_examples = load_examples(sdft_cfg.data)
     train_ex = all_examples[: args.num_train]
@@ -126,20 +159,22 @@ def main() -> None:
     if len(train_ex) < args.num_train or len(eval_ex) < args.num_eval:
         raise SystemExit("not enough examples; lower --num-train/--num-eval")
 
-    gold_path = ROOT / "data/compare/batch1_gold.jsonl"
-    sdft_path = ROOT / "data/compare/batch1_sdft.jsonl"
-    grpo_path = ROOT / "data/compare/batch1_grpo.jsonl"
+    gold_path = ROOT / f"data/compare/{prefix}_gold.jsonl"
+    sdft_path = ROOT / f"data/compare/{prefix}_sdft.jsonl"
+    grpo_path = ROOT / f"data/compare/{prefix}_grpo.jsonl"
     _write_jsonl(
         gold_path,
         [{"prompt": e["prompt"], "response": e["response"], "sdft_response": e["response"]} for e in train_ex],
     )
     examples_to_grpo_jsonl(train_ex, grpo_path)
 
+    sft_gold_cfg = load_config(ROOT / suite["sft_gold"])
+    grpo_cfg = load_config(ROOT / suite["grpo"])
     arms: dict[str, Path | None] = {
         "base": None,
-        "sft_gold": ROOT / "outputs/compare/batch1-sft-gold",
-        "sdft": ROOT / "outputs/compare/batch1-sdft",
-        "grpo": ROOT / "outputs/compare/batch1-grpo",
+        "sft_gold": ROOT / sft_gold_cfg.training.output_dir,
+        "sdft": ROOT / sdft_cfg.training.output_dir,
+        "grpo": ROOT / grpo_cfg.grpo.output_dir,
     }
     train_times: dict[str, float] = {k: 0.0 for k in arms}
 
@@ -162,7 +197,7 @@ def main() -> None:
         _run_module(
             "sdft.train",
             "--config",
-            "configs/compare/batch1_sft_gold.yaml",
+            suite["sft_gold"],
             "--data",
             str(gold_path),
             "--target",
@@ -176,7 +211,7 @@ def main() -> None:
         _run_module(
             "sdft.train",
             "--config",
-            "configs/compare/batch1_sdft.yaml",
+            suite["sdft"],
             "--data",
             str(sdft_path),
             "--target",
@@ -191,7 +226,7 @@ def main() -> None:
             grpo_args = [
                 "sdft.grpo_train",
                 "--config",
-                "configs/compare/batch1_grpo.yaml",
+                suite["grpo"],
                 "--data",
                 str(grpo_path),
                 "--output-dir",
@@ -206,6 +241,7 @@ def main() -> None:
     golds = [e["response"] for e in eval_ex]
     results = []
     model_name = sdft_cfg.model.name
+    max_new = int(suite["max_new_tokens"])
     for name, adapter in arms.items():
         if name == "grpo" and args.skip_grpo:
             continue
@@ -213,15 +249,28 @@ def main() -> None:
             print(f"skip {name}: adapter missing at {adapter}")
             continue
         print(f"evaluating {name}…", flush=True)
-        gens = _generate_eval(model_name, prompts, adapter_dir=adapter)
+        gens = _generate_eval(
+            model_name,
+            prompts,
+            adapter_dir=adapter,
+            max_new_tokens=max_new,
+            dtype=sdft_cfg.model.dtype,
+        )
         results.append(_score_arm(name, prompts, golds, gens, train_times.get(name, 0.0)))
 
-    out_path = ROOT / args.out
+    out_default = (
+        "outputs/compare/batch1_comparison.json"
+        if args.suite == "230m"
+        else "outputs/compare/batch1_1_2b_comparison.json"
+    )
+    out_path = ROOT / (args.out or out_default)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     summary = {
         "num_train": args.num_train,
         "num_eval": args.num_eval,
         "model": model_name,
+        "suite": args.suite,
+        "dtype": sdft_cfg.model.dtype,
         "batch_size": 1,
         "arms": [{k: v for k, v in r.items() if k != "generations"} for r in results],
         "details": results,
