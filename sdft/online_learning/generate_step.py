@@ -9,7 +9,7 @@ import torch
 
 from sdft.config import Config
 from sdft.data import build_teacher_messages
-from sdft.utils import load_model, load_tokenizer, pick_device
+from sdft.utils import load_model, load_tokenizer, pick_device, to_model_device
 
 if TYPE_CHECKING:
     from .schema import OnlineTurn
@@ -70,7 +70,7 @@ def generate_sdft_response(
         add_generation_prompt=True,
     )
     enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
-    enc = enc.to(device)
+    enc = to_model_device(enc, model)
     input_tokens = int(enc["input_ids"].numel())
 
     out = model.generate(

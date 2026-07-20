@@ -8,7 +8,7 @@ from collections import Counter
 import torch.nn as nn
 
 from .config import load_config
-from .utils import load_model, pick_device
+from .utils import load_model, model_device, pick_device
 
 
 def main() -> None:
@@ -21,7 +21,7 @@ def main() -> None:
     model = load_model(cfg.model, device)
 
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"model: {cfg.model.name} on {device}")
+    print(f"model: {cfg.model.name} on {device} (params @ {model_device(model)})")
     print(f"parameters: {n_params / 1e6:.1f}M")
     print(f"model class: {type(model).__name__}")
 

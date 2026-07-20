@@ -43,7 +43,7 @@ _SUITES = {
         "manifest": "data/bfcl/split_manifest.json",
     },
     "1_2b": {
-        "model": "LiquidAI/LFM2.5-1.2B-Instruct",
+        "model": "LiquidAI/LFM2.5-1.2B-Thinking",
         "prefix": "bfcl_1_2b",
         "manifest": "data/bfcl/split_manifest_1_2b.json",
     },

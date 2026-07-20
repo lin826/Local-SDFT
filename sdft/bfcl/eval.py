@@ -29,7 +29,7 @@ from sdft.bfcl.data import (
 from sdft.bfcl.parse import parse_function_calls
 from sdft.config import Config, load_config
 from sdft.peft_utils import adapter_ready, load_chat_model
-from sdft.utils import load_tokenizer, pick_device
+from sdft.utils import load_tokenizer, pick_device, to_model_device
 
 
 def _json_default(obj: Any) -> Any:
@@ -83,7 +83,10 @@ def _generate_one(
             add_generation_prompt=True,
         )
 
-    enc = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
+    enc = to_model_device(
+        tokenizer(prompt, return_tensors="pt", add_special_tokens=False),
+        model,
+    )
     gen_kwargs: dict[str, Any] = {
         "max_new_tokens": max_new_tokens,
         "pad_token_id": tokenizer.pad_token_id,

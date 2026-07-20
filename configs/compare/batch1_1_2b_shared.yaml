@@ -1,8 +1,8 @@
-# Batch-size-1 comparison suite for LiquidAI/LFM2.5-1.2B-Instruct.
+# Batch-size-1 comparison suite for LiquidAI/LFM2.5-1.2B-Thinking.
 # Smaller context / completions than 230M to fit MPS; GRPO uses num_generations=2.
 
 model:
-  name: LiquidAI/LFM2.5-1.2B-Instruct
+  name: LiquidAI/LFM2.5-1.2B-Thinking
   dtype: float16
 
 data:

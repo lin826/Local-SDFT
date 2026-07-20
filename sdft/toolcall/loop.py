@@ -24,6 +24,7 @@ from .format import (
     with_cot_line,
 )
 from .sandbox import CODE_INTERPRETER_TOOL, execute_code_interpreter
+from ..utils import to_model_device
 
 # Fixed demos for few-shot eval (must stay out of train and held-out eval).
 _ONE_SHOT_QUESTION = "What is 3 + 5?"
@@ -165,8 +166,8 @@ def run_tool_loop(
     system_prompt = with_cot_line(base_system, cot_str)
     tool_specs = tools or [CODE_INTERPRETER_TOOL]
 
-    if device is None:
-        device = str(next(model.parameters()).device)
+    # ``device`` is kept for call-site back-compat; encodings always follow the
+    # model via ``to_model_device`` (no tokenizer.to — HF tokenizers aren't Modules).
 
     prefix = few_shot_messages
     if prefix is None and cfg.few_shot_k > 0:
@@ -205,7 +206,7 @@ def run_tool_loop(
             break
 
         enc = tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
-        enc = {k: v.to(device) for k, v in enc.items()}
+        enc = to_model_device(enc, model)
         out = model.generate(**enc, **gen_kwargs)
         new_tokens = out[:, enc["input_ids"].shape[1] :]
         raw = tokenizer.decode(new_tokens[0], skip_special_tokens=False)

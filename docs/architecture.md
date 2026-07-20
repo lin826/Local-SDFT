@@ -1,7 +1,7 @@
 # Architecture
 
 Local-SDFT is a small, Apple-Silicon-friendly toolkit for **Self-Distillation
-Fine-Tuning** (SDFT) on Liquid AI's LFM2.5-230M / LFM2.5-1.2B-Instruct, plus
+Fine-Tuning** (SDFT) on Liquid AI's LFM2.5-230M / LFM2.5-1.2B-Thinking, plus
 comparable baselines (gold SFT, GRPO) and a live online-learning demo.
 
 ```mermaid
@@ -44,6 +44,8 @@ flowchart LR
 | `sdft/merge.py` | Fold adapter into base weights |
 | `sdft/config.py` | YAML → dataclasses (single source of knobs) |
 | `sdft/rewards.py` | Local reward fns for GRPO (`instruction`, `boxed`, `bfcl`) |
+| `sdft/alpacaeval_ablation.py` | AE2 prompt strategies (ZS / FS / CoT) for `/perf` + Colab |
+| `sdft/alpacaeval_score.py` | Official `alpaca_eval.evaluate` wrapper (win-rate / LC) |
 | `sdft/peft_utils.py` | Shared `adapter_ready` / chat model loading |
 | `sdft/online_learning/` | Per-turn tone feedback → tiny SDFT → reply |
 | `sdft/toolcall/` | ReTool-style tool loop + OpenClaw eval |
@@ -52,6 +54,7 @@ flowchart LR
 | `web/` | FastAPI + HTMX UI (`/`, `/data`, `/perf`) |
 | `configs/compare/` | Batch-size-1 baselines (Alpaca + BFCL; 230M + 1.2B) |
 | `scripts/run_batch1_comparison.py` | Train + score base / SFT / SDFT / GRPO (Alpaca) |
+| `scripts/run_alpaca_eval.py` | Official AlpacaEval 2 judge on model_outputs JSON |
 | `scripts/run_bfcl_baselines.py` | Train + score BFCL gold / SDFT / GRPO |
 | `scripts/run_bfcl_eval.py` | BFCL local subset wrapper |
 | `scripts/build_bfcl_train_data.py` | BFCL gold/GRPO jsonl + split manifest |
@@ -69,13 +72,20 @@ uv run python -m web.app   # http://127.0.0.1:8765
 
 # BFCL local AST (showcase; flags match README tables)
 uv run python scripts/run_bfcl_baselines.py \
-  --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+  --suite 230m --num-train-per-cat 64 --num-eval-per-cat 32 --max-grpo-steps 256 \
+  --out outputs/compare/bfcl_comparison_full.json
+uv run python scripts/run_bfcl_baselines.py \
+  --suite 1_2b --num-train-per-cat 64 --num-eval-per-cat 32 --max-grpo-steps 256 \
+  --out outputs/compare/bfcl_1_2b_comparison_full.json
 uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
 
 # Batch-size-1 Alpaca heuristic (secondary)
 uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
 
-# Colab in-sample AE2 (805 train + same-pool score): notebooks/local_sdft_colab.ipynb SMOKE=False
+# Colab official AE2 win-rate (train alpaca-cleaned → generate AE2 → alpaca_eval):
+#   notebooks/local_sdft_colab.ipynb
+#   uv sync --extra alpacaeval && OPENAI_API_KEY=... \
+#     uv run python scripts/run_alpaca_eval.py --model-outputs ... --name sdft
 ```
 
 ## Batch-size-1 philosophy

@@ -17,7 +17,7 @@ import torch
 
 from .config import Config, load_config
 from .data import build_teacher_messages, load_examples, sample_fewshots
-from .utils import load_model, load_tokenizer, pick_device
+from .utils import load_model, load_tokenizer, pick_device, to_model_device
 
 
 @torch.inference_mode()
@@ -47,7 +47,7 @@ def generate_responses(cfg: Config, examples: list[dict], device: str) -> list[s
         ]
         # The chat template already emits BOS; don't add another.
         enc = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False)
-        enc = enc.to(device)
+        enc = to_model_device(enc, model)
         out = model.generate(
             **enc,
             max_new_tokens=gen.max_new_tokens,

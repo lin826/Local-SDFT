@@ -37,7 +37,9 @@ def load_alpaca_eval_examples(
     """Load AlpacaEval 2.0 instructions as ``{"prompt", "response"}`` pairs.
 
     Never train on these prompts (leakage). ``response`` is the dataset
-    reference (text-davinci-003) for local heuristic scoring only — not for SFT.
+    reference (text-davinci-003) for optional local heuristics only — not for
+    SFT. Prefer training on ``yahma/alpaca-cleaned`` and judging AE2 with
+    ``sdft.alpacaeval_score`` / official ``alpaca_eval``.
 
     Loads the hub JSON file directly: ``datasets>=4`` no longer runs the legacy
     ``alpaca_eval.py`` script on ``tatsu-lab/alpaca_eval``.

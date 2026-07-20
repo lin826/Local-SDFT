@@ -16,7 +16,7 @@ from ..config import Config, load_config
 from ..data import build_teacher_messages, load_examples, sample_fewshots
 from ..peft_utils import adapter_ready, load_chat_model, peft_adapter_metadata
 from ..toolcall.loop import ToolLoopConfig, run_tool_loop
-from ..utils import load_model, load_tokenizer, pick_device
+from ..utils import load_model, load_tokenizer, pick_device, to_model_device
 from .latency import LatencyPhases, ms as _ms, percentile as _percentile
 from .paths import (
     new_run_id,
@@ -82,7 +82,7 @@ def measure_generation(
             for i, example in enumerate(batch)
         ]
         enc = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False)
-        enc = enc.to(device)
+        enc = to_model_device(enc, model)
         batch_input_tokens = int(enc["input_ids"].numel())
 
         t0 = time.perf_counter()
@@ -187,7 +187,7 @@ def measure_inference(
             for m in messages_batch
         ]
         enc = tokenizer(texts, return_tensors="pt", padding=True, add_special_tokens=False)
-        enc = enc.to(device)
+        enc = to_model_device(enc, model)
         batch_input_tokens = int(enc["input_ids"].numel())
 
         t0 = time.perf_counter()
@@ -488,7 +488,7 @@ def measure_chat(
             add_generation_prompt=True,
         )
         enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
-        enc = enc.to(device)
+        enc = to_model_device(enc, model)
         input_tokens = int(enc["input_ids"].numel())
 
     with phases.span("generate"):
@@ -558,7 +558,7 @@ def iter_measure_chat(
             add_generation_prompt=True,
         )
         enc = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
-        enc = enc.to(device)
+        enc = to_model_device(enc, model)
         input_tokens = int(enc["input_ids"].numel())
 
     streamer = TextIteratorStreamer(

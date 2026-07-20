@@ -5,7 +5,7 @@ Fine-tune a **230M** or **1.2B** language model on your laptop — with
 and watch it learn live in a browser.
 
 Built on [Liquid AI LFM2.5-230M](https://huggingface.co/LiquidAI/LFM2.5-230M) and
-[LFM2.5-1.2B-Instruct](https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct).
+[LFM2.5-1.2B-Thinking](https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking).
 Base weights stay frozen; only small LoRA adapters train.
 
 Recipe per [Shenfeld et al., 2026 — *Self-Distillation Enables Continual
@@ -25,7 +25,8 @@ Also in this repo:
 - **Online learning** chat (`/data`) — tone as implicit feedback, tiny LoRA updates
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-  (`SMOKE=True` for a tiny in-sample run; `False` for full AE2 **805** train + same-pool score)
+  (ZS / ICL / CoT inference + gold SFT + SDFT LoRA; train on alpaca-cleaned,
+  generate on AE2, official `alpaca_eval` win-rate / LC win-rate; no GRPO)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -39,10 +40,13 @@ See [docs/architecture.md](docs/architecture.md) for the package map.
 
 ```bash
 uv sync
+# optional: official AlpacaEval 2 judge
+uv sync --extra alpacaeval
 ```
 
 Dependencies: `torch>=2.6` · `transformers>=4.54` (`Lfm2ForCausalLM`, no
 trust-remote-code) · `trl>=0.19` (`SFTTrainer` / `GRPOTrainer`) · `peft>=0.15`.
+Optional: `alpaca-eval` via the `alpacaeval` extra (needs `OPENAI_API_KEY`).
 
 ## Quick start — offline SDFT
 
@@ -78,7 +82,8 @@ module names.
 Numbers are from local Apple Silicon runs (MPS, ~32 GB). Artifacts under
 `outputs/compare/` and `outputs/benchmarks/` (gitignored). BFCL scores are a
 **local AST subset**, not the official Berkeley Function-Calling Leaderboard.
-Official AlpacaEval 2 LC win-rate was not computed (no GPT-4 judge key).
+Official AlpacaEval 2 LC win-rate needs `OPENAI_API_KEY` + the `alpacaeval`
+optional extra (Colab notebook / `scripts/run_alpaca_eval.py`).
 
 ### BFCL-v3 local AST — where SDFT shines
 
@@ -88,35 +93,39 @@ generates with transformers + LFM `apply_chat_template(..., tools=...)`, and
 scores AST accuracy against `possible_answer` lists. Categories:
 `simple` · `multiple` · `parallel` · `irrelevance`.
 
+**Local category bank sizes** (cached under `data/bfcl/`): simple **400**,
+multiple **200**, parallel **200**, irrelevance **240**.
+
 **Split:** eval = first N / category; train = the following M / category
-(overlap guarded by id + normalized question). Gold targets are LFM JSON
+(overlap guarded by id + normalized question). Showcase tables use
+`N=32`, `M=64` (128 eval / 256 train total). Gold targets are LFM JSON
 tool-call blocks from `possible_answer`; GRPO uses `bfcl_reward` (+1/−1).
 
-#### LFM2.5-230M — BFCL-trained (`16` train + `32` eval / cat, GRPO `max_steps=32`, fp32)
+#### LFM2.5-230M — BFCL-trained (`64` train + `32` eval / cat, GRPO `max_steps=256`, fp32)
 
 | Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s | Train s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| base | **71.1%** | 84.4% | 71.9% | 50.0% | 78.1% | 0.40 | 106 | — |
-| gold SFT | 54.7% | 84.4% | 75.0% | 0.0% | 59.4% | 0.58 | 97 | 18.1 |
-| SDFT | 68.0% | 81.2% | 78.1% | 59.4% | 53.1% | 0.38 | 100 | 18.2 |
-| GRPO | 69.5% | 84.4% | 75.0% | 56.2% | 62.5% | 0.42 | 98 | 40.8 |
+| base | **71.1%** | 84.4% | 71.9% | 50.0% | 78.1% | 0.38 | 113 | — |
+| gold SFT | 58.6% | 81.2% | 65.6% | 0.0% | 87.5% | 0.47 | 103 | 61.3 |
+| SDFT | 66.4% | 81.2% | 81.2% | 53.1% | 50.0% | 0.36 | 102 | 55.2 |
+| GRPO | **71.1%** | 81.2% | 75.0% | 62.5% | 65.6% | 0.40 | 103 | 243.9 |
 
-Adapters: `outputs/compare/bfcl-{sft-gold,sdft,grpo}`. Small-n gold SFT collapses
-**parallel** (0% — format overfitting); SDFT recovers parallel above base (59.4%
-vs 50.0%) while trading some irrelevance. That parallel recovery is the cleanest
-local SDFT signal in this repo.
+Adapters: `outputs/compare/bfcl-{sft-gold,sdft,grpo}`
+(`outputs/compare/bfcl_comparison_full.json`). Gold SFT still collapses
+**parallel** (0% — format overfitting); SDFT recovers parallel above base
+(53.1% vs 50.0%) while trading irrelevance. GRPO matches base overall and
+lifts parallel to 62.5%.
 
-#### LFM2.5-1.2B-Instruct — BFCL-trained (`8` train + `16` eval / cat, GRPO `max_steps=8`, fp16)
+#### LFM2.5-1.2B-Thinking — BFCL-trained (`64` train + `32` eval / cat, GRPO `max_steps=256`, fp16)
 
 | Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s | Train s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| base | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.72 | 69 | — |
-| gold SFT | **78.1%** | 75.0% | 62.5% | 81.2% | 93.8% | 0.70 | 64 | 28.1 |
-| SDFT | 76.6% | 81.2% | 62.5% | 68.8% | 93.8% | 0.67 | 64 | 24.0 |
-| GRPO | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.78 | 64 | 27.4 |
+| base | — | — | — | — | — | — | — | — |
+| gold SFT | — | — | — | — | — | — | — | — |
+| SDFT | — | — | — | — | — | — | — | — |
+| GRPO | — | — | — | — | — | — | — | — |
 
-On this smaller 1.2B slice, gold edges overall; SDFT stays near base without the
-230M-style parallel collapse.
+*Table filled when `outputs/compare/bfcl_1_2b_comparison_full.json` completes.*
 
 ### Qualitative — `/perf` (refusals → answers)
 
@@ -134,13 +143,15 @@ Flags below match the published tables. Artifacts land in `outputs/compare/`
 (gitignored). Configs: [`configs/compare/`](configs/compare/).
 
 ```bash
-# BFCL 230M (showcase table)
+# BFCL 230M (showcase table → outputs/compare/bfcl_comparison_full.json)
 uv run python scripts/run_bfcl_baselines.py \
-  --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+  --suite 230m --num-train-per-cat 64 --num-eval-per-cat 32 --max-grpo-steps 256 \
+  --out outputs/compare/bfcl_comparison_full.json
 
-# BFCL 1.2B Instruct
+# BFCL 1.2B Thinking (showcase → outputs/compare/bfcl_1_2b_comparison_full.json)
 uv run python scripts/run_bfcl_baselines.py \
-  --suite 1_2b --num-train-per-cat 8 --num-eval-per-cat 16 --max-grpo-steps 8
+  --suite 1_2b --num-train-per-cat 64 --num-eval-per-cat 32 --max-grpo-steps 256 \
+  --out outputs/compare/bfcl_1_2b_comparison_full.json
 
 # Eval only (base or any adapter)
 uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
@@ -156,9 +167,19 @@ uv run python -m web.app   # → http://127.0.0.1:8765/perf
 Custom local JSONL: point a config at an Alpaca-style file (`dataset: json` +
 `data_files: ...`) and run the Quick-start three steps with `--config`.
 
-Colab (in-sample AE2): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-— `SMOKE=False` trains and scores all **805** AlpacaEval 2.0 instructions on the
-same pool (train-set average, not held-out).
+Colab (official AE2 win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
+— train gold SFT / SDFT on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT +
+adapters on AE2 instructions, then `alpaca_eval.evaluate` for `win_rate` /
+`length_controlled_winrate` (requires `OPENAI_API_KEY`; API $ cost; no GRPO).
+
+```bash
+uv sync --extra alpacaeval
+export OPENAI_API_KEY=...
+# after writing model_outputs JSON (see notebook / sdft.alpacaeval_score):
+uv run python scripts/run_alpaca_eval.py \
+  --model-outputs outputs/alpacaeval/sdft/model_outputs.json \
+  --name sdft --output-dir outputs/alpacaeval/sdft
+```
 
 ## Web demo
 
@@ -242,7 +263,7 @@ To also adapt MLPs or conv blocks, extend the regex, e.g.
   that is the expected SDFT trade-off. For a 230M model, more few-shot demos
   (`generation.num_shots`) or a task-matched demo pool helps.
 - To *cross*-distill instead (bigger teacher → 230M student), run `sdft.generate`
-  with a config whose `model.name` is `LiquidAI/LFM2.5-1.2B-Instruct`, then train
+  with a config whose `model.name` is `LiquidAI/LFM2.5-1.2B-Thinking`, then train
   with the 230M config. On MPS, prefer `dtype: float16` for 1.2B.
 - GRPO's `instruction` reward is a local heuristic (refusal / length / gold
   overlap). For verifiable math/tool tasks, set `grpo.reward: boxed`.

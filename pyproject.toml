@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 toolcall = ["jinja2>=3.0"]
+alpacaeval = ["alpaca-eval>=0.6"]
 dev = ["pytest>=7.0"]
 
 [tool.uv]

@@ -161,7 +161,7 @@ def test_load_bfcl_train_configs():
     assert grpo.grpo.batch_size == 2
 
     g12 = load_config(root / "configs/compare/bfcl_1_2b_grpo.yaml")
-    assert g12.model.name == "LiquidAI/LFM2.5-1.2B-Instruct"
+    assert g12.model.name == "LiquidAI/LFM2.5-1.2B-Thinking"
     assert g12.model.dtype == "float16"
     assert g12.grpo.reward == "bfcl"
 

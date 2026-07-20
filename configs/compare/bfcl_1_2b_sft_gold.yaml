@@ -1,7 +1,7 @@
-# BFCL gold SFT for LFM2.5-1.2B-Instruct (fp16, shorter context).
+# BFCL gold SFT for LFM2.5-1.2B-Thinking (fp16, shorter context).
 
 model:
-  name: LiquidAI/LFM2.5-1.2B-Instruct
+  name: LiquidAI/LFM2.5-1.2B-Thinking
   dtype: float16
 
 data:

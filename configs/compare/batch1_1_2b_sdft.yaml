@@ -1,7 +1,7 @@
-# SDFT at batch_size=1 for LFM2.5-1.2B-Instruct.
+# SDFT at batch_size=1 for LFM2.5-1.2B-Thinking.
 
 model:
-  name: LiquidAI/LFM2.5-1.2B-Instruct
+  name: LiquidAI/LFM2.5-1.2B-Thinking
   dtype: float16
 
 data:

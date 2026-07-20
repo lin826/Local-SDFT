@@ -338,6 +338,8 @@ def test_chat_stream_error_event(client: TestClient):
 
 def test_iter_measure_chat_yields_tokens_with_mock_streamer(monkeypatch):
     """Unit-test streamer helper without a real model/GPU."""
+    import torch
+
     from sdft.records import benchmark as bench
     from sdft.config import Config, GenerateConfig, ModelConfig, DataConfig
 
@@ -365,7 +367,11 @@ def test_iter_measure_chat_yields_tokens_with_mock_streamer(monkeypatch):
         def encode(self, text, add_special_tokens=False):
             return list(range(max(1, len(text))))
 
-    class FakeModel:
+    class FakeModel(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self._p = torch.nn.Parameter(torch.zeros(1))
+
         def eval(self):
             return self
 

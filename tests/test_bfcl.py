@@ -158,7 +158,7 @@ def test_load_bfcl_configs():
     assert cfg230.bfcl_eval.num_examples == 32
 
     cfg12 = load_config(root / "configs/bfcl_eval_1_2b.yaml")
-    assert cfg12.model.name == "LiquidAI/LFM2.5-1.2B-Instruct"
+    assert cfg12.model.name == "LiquidAI/LFM2.5-1.2B-Thinking"
     assert cfg12.model.dtype == "float16"
 
     suite = load_config(root / "configs/compare/batch1_1_2b_sdft.yaml")

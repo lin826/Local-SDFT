@@ -12,7 +12,7 @@ import yaml
 
 @dataclass
 class ModelConfig:
-    name: str = "LiquidAI/LFM2.5-230M"  # or LiquidAI/LFM2.5-1.2B-Instruct
+    name: str = "LiquidAI/LFM2.5-230M"  # or LiquidAI/LFM2.5-1.2B-Thinking
     dtype: str = "float32"  # 230M: fp32 on MPS; 1.2B: prefer float16
     attn_implementation: str | None = None  # None -> transformers default (sdpa)
 

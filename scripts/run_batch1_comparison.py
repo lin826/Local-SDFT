@@ -31,7 +31,7 @@ from sdft.generate import generate_responses
 from sdft.grpo_train import examples_to_grpo_jsonl
 from sdft.peft_utils import adapter_ready
 from sdft.rewards import instruction_reward
-from sdft.utils import load_model, load_tokenizer, pick_device
+from sdft.utils import load_model, load_tokenizer, pick_device, to_model_device
 
 REFUSAL_RE = re.compile(
     r"(?i)\b(i('m| am) sorry|i can('t|not) (assist|help)|as an ai)\b"
@@ -79,7 +79,10 @@ def _generate_eval(
     for prompt in prompts:
         messages = [{"role": "user", "content": prompt}]
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        enc = tokenizer(text, return_tensors="pt", add_special_tokens=False).to(device)
+        enc = to_model_device(
+            tokenizer(text, return_tensors="pt", add_special_tokens=False),
+            model,
+        )
         out = model.generate(
             **enc,
             max_new_tokens=max_new_tokens,
@@ -135,7 +138,7 @@ def main() -> None:
         "--suite",
         choices=sorted(_SUITES),
         default="230m",
-        help="Model suite: 230m (default) or 1_2b (LFM2.5-1.2B-Instruct)",
+        help="Model suite: 230m (default) or 1_2b (LFM2.5-1.2B-Thinking)",
     )
     parser.add_argument("--model", default=None, help="Override model.name for all arms")
     parser.add_argument("--dtype", default=None, help="Override model.dtype for eval loads")

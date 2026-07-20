@@ -1,7 +1,7 @@
-# BFCL GRPO for LFM2.5-1.2B-Instruct (fp16, smallest group).
+# BFCL GRPO for LFM2.5-1.2B-Thinking (fp16, smallest group).
 
 model:
-  name: LiquidAI/LFM2.5-1.2B-Instruct
+  name: LiquidAI/LFM2.5-1.2B-Thinking
   dtype: float16
 
 data:
