@@ -106,9 +106,17 @@ def main() -> int:
     # 3. Held-out inbox -----------------------------------------------------
     console.print(Rule("3. Tomorrow's inbox — new senders/subjects it never saw", style="dim"))
     learned_acc, detail = held_out_accuracy("adapter ON (learned)")
-    for e, pred, want, ok, _ in detail[:5]:
+    # per-category breakdown
+    from collections import defaultdict
+    by_cat = defaultdict(lambda: [0, 0])
+    for e, pred, want, ok, _ in detail:
+        by_cat[e["category"]][0] += ok
+        by_cat[e["category"]][1] += 1
+    console.print("  by category: " + "  ".join(
+        f"{c}={h}/{n}" for c, (h, n) in sorted(by_cat.items())))
+    for e, pred, want, ok, _ in detail[:6]:
         mark = "[green]✓[/]" if ok else "[red]✗[/]"
-        console.print(f"  {mark} {e['sender']:<26} {e['subject']!r:<28} → {pred} (you: {want})")
+        console.print(f"  {mark} {e['sender']:<26} {e['subject']!r:<26} → {pred} (you: {want})")
 
     # 4. A/B ----------------------------------------------------------------
     console.print(Rule("4. A/B: toggle the learned adapter off", style="dim"))

@@ -7,7 +7,15 @@ from sdft.online.inbox import (
 def test_policy_covers_all_categories():
     cats = {e["category"] for e in COACH_EMAILS + HELDOUT_EMAILS}
     assert cats <= set(POLICY)
-    assert all(POLICY[c][0] in ACTIONS for c in POLICY)
+    assert all(POLICY[c] in ACTIONS for c in POLICY)
+
+
+def test_datasets_balanced_across_categories():
+    from collections import Counter
+    coach = Counter(e["category"] for e in COACH_EMAILS)
+    held = Counter(e["category"] for e in HELDOUT_EMAILS)
+    assert set(coach) == set(POLICY) and min(coach.values()) >= 5
+    assert set(held) == set(POLICY) and min(held.values()) >= 3
 
 
 def test_heldout_disjoint_from_coach():

@@ -19,10 +19,10 @@ online:
   backend: "torch"
   loss_type: "sft"           # corrections are exact targets -> supervised NLL
   serve_temperature: 0.0     # deterministic handling suggestions
-  serve_max_new_tokens: 24
+  serve_max_new_tokens: 16
   lr: 2.0e-4
   min_new_demos: 4
-  steps_per_update: 6
+  steps_per_update: 10
   demos_per_step: 4
   replay_ratio: 0.5
   eval_every_n_updates: 0
