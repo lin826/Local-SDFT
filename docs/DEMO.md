@@ -75,3 +75,38 @@ Reward = a valid `calc()` call whose expression evaluates to the right answer
 (rewards tool *use*, so freehand-correct scores 0); a shaper supplies a
 guaranteed-correct tool call as the SFT target; arithmetic is evaluated with an
 AST-safe evaluator (`sdft/online/tools.py`), never `eval`.
+
+## Variant: continual learning — adapt now, recover old skills fast
+
+Answers the plasticity/fast-recovery story ("forgetting is fine as long as you
+pick up fast"). The assistant's response mode changes with context: mode A =
+structured briefing, mode B = a direct one-line answer. It runs **A → B → A**
+and reports success on *both* modes each phase.
+
+```bash
+python scripts/demo_continual.py
+```
+
+Validated on LFM2.5-230M (H100, offline):
+
+```
+Phase 1  learn briefing (A):   A 0% → 100% in 3 passes
+Phase 2  switch to direct (B): B → 67%, A fades 100% → 33%   (forgetting is fine)
+Phase 3  back to briefing (A): A recovers to 83% in ONE pass
+Savings: A reached competence in 3 passes first time, 1 on return.
+```
+
+The point is not "never forget" — it's cheap recovery. A small on-device replay
+buffer plus primed weights bring an old task back in a fraction of the original
+steps. Switch mode B via `MODE_B` in the script (`direct`, `terse`, `five_words`,
+`house_style`, or your own reward+shaper).
+
+## A note on task difficulty (honest)
+
+Format/style/tool-call skills (the demos above) imprint reliably on LFM2.5-230M
+because they're pattern/policy learning. The **inbox triage** demo
+(`scripts/demo_inbox.py`) is a harder *semantic* task (understand an email →
+your action across 5 categories): the 230M learns only the lexical categories
+(newsletter/manager) and overfits; it wants the larger on-device model
+(LFM2-1.2B, still laptop-class) and more coaching. Use it to show the current
+capability edge, not a polished 100%.
