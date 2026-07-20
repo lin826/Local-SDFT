@@ -161,6 +161,32 @@ def shape_five_words(prompt: str, reply: str) -> str:
     return " ".join(words)
 
 
+@reward("one_sentence")
+def one_sentence(prompt: str, reply: str) -> float:
+    """A single, one-line sentence — the pet-peeve rule for the 'correct once' demo.
+
+    A verbose base model reliably violates this, so the before/after is dramatic;
+    it's a *behavior* (not tied to any topic), so a fix on one domain should
+    transfer to another.
+    """
+    s = reply.strip()
+    if not s or "\n" in s:
+        return 0.0
+    terminators = len(re.findall(r"[.!?]", s))
+    words = len(re.findall(r"\b[\w']+\b", s))
+    return 1.0 if terminators <= 1 and 1 <= words <= 30 else 0.0
+
+
+@shaper("one_sentence")
+def shape_one_sentence(prompt: str, reply: str) -> str:
+    """How the user would 'fix' a reply: keep just the first sentence, one line."""
+    s = (reply or "").strip().replace("\n", " ")
+    first = re.split(r"(?<=[.!?])\s", s, maxsplit=1)[0] if s else ""
+    words = re.findall(r"[\w']+", first)
+    out = " ".join(words[:28]) if words else "Here is the answer"
+    return out.rstrip(".") + "."
+
+
 @reward("direct")
 def direct(prompt: str, reply: str) -> float:
     """A single-line 'Answer: …' — the opposite of the multi-line briefing style."""

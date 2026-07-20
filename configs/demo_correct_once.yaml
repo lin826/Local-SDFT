@@ -1,0 +1,28 @@
+# "Correct it once, never again" demo: fix a few replies in plain language and
+# the one-sentence habit generalizes across topics. Correction-driven (no
+# reward_fn) — the realistic mechanism.
+#
+#   python scripts/demo_correct_once.py
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  loss_type: "sft"           # your correction is the exact target
+  serve_temperature: 0.0
+  serve_max_new_tokens: 64
+  lr: 2.0e-4
+  min_new_demos: 1
+  steps_per_update: 4
+  demos_per_step: 2
+  replay_ratio: 0.5
+  eval_every_n_updates: 0
+  db_path: "data/demo_correct_once.db"
+  adapters_dir: "data/demo_correct_once_adapters"

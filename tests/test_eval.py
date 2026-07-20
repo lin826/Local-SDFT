@@ -97,3 +97,13 @@ def test_controller_set_task_switches(tmp_path):
         assert c._reward_fn is None
     finally:
         c.store.close()
+
+
+def test_one_sentence_rule_and_fixer():
+    from sdft.online.reward import get_reward_fn, get_shaper
+    ok = get_reward_fn("one_sentence"); fix = get_shaper("one_sentence")
+    assert ok("q", "A hash map stores key-value pairs.") == 1.0
+    assert ok("q", "First this. Then that. Also this.") == 0.0   # multiple sentences
+    assert ok("q", "line one\nline two") == 0.0                    # multi-line
+    verbose = "Great question! A hash map is a data structure. It stores pairs.\nIt is fast."
+    assert ok("q", fix("q", verbose)) == 1.0                       # fixer yields a passing target
