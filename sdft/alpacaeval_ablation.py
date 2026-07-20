@@ -7,10 +7,12 @@ Eval instructions from ``tatsu-lab/alpaca_eval`` are never used as demos (leakag
 from __future__ import annotations
 
 import hashlib
+import json
 import random
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from .config import DataConfig
@@ -19,7 +21,58 @@ from .data import load_examples
 DEFAULT_COT_LINE = "Let's think step by step."
 DEFAULT_SYSTEM_HELPFUL = "You are a helpful assistant."
 
+# Full AlpacaEval 2.0 instruction set (``alpaca_eval.json`` on the HF dataset).
+ALPACA_EVAL_HF_REPO = "tatsu-lab/alpaca_eval"
+ALPACA_EVAL_JSON = "alpaca_eval.json"
+ALPACA_EVAL_FULL_N = 805
+
 _WS_RE = re.compile(r"\s+")
+
+
+def load_alpaca_eval_examples(
+    *,
+    num_examples: int | None = None,
+    json_path: str | Path | None = None,
+) -> list[dict[str, str]]:
+    """Load AlpacaEval 2.0 instructions as ``{"prompt", "response"}`` pairs.
+
+    Never train on these prompts (leakage). ``response`` is the dataset
+    reference (text-davinci-003) for local heuristic scoring only — not for SFT.
+
+    Loads the hub JSON file directly: ``datasets>=4`` no longer runs the legacy
+    ``alpaca_eval.py`` script on ``tatsu-lab/alpaca_eval``.
+    """
+    if json_path is None:
+        from huggingface_hub import hf_hub_download
+
+        path = Path(
+            hf_hub_download(
+                ALPACA_EVAL_HF_REPO,
+                ALPACA_EVAL_JSON,
+                repo_type="dataset",
+            )
+        )
+    else:
+        path = Path(json_path)
+
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list):
+        raise ValueError(f"expected a JSON list in {path}, got {type(rows).__name__}")
+
+    examples: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        prompt = str(row.get("instruction", "")).strip()
+        response = str(row.get("output", "")).strip()
+        if prompt:
+            examples.append({"prompt": prompt, "response": response})
+
+    if num_examples is not None:
+        if num_examples < 0:
+            raise ValueError("num_examples must be non-negative")
+        examples = examples[:num_examples]
+    return examples
 
 
 def normalize_instruction(text: str) -> str:

@@ -64,23 +64,18 @@ uv run python -m sdft.generate --config configs/default.yaml
 uv run python -m sdft.train    --config configs/default.yaml
 uv run python -m sdft.merge    --config configs/default.yaml
 
-# Gold SFT baseline (same jsonl, train on response field)
-uv run python -m sdft.train --config configs/compare/batch1_sft_gold.yaml --target gold
-
-# GRPO baseline
-uv run python -m sdft.grpo_train --config configs/compare/batch1_grpo.yaml --data data/compare/batch1_grpo.jsonl
-
 # Web demo
 uv run python -m web.app   # http://127.0.0.1:8765
 
-# Batch-size-1 comparison (blog / notebook numbers)
-uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
-uv run python scripts/run_batch1_comparison.py --suite 1_2b --num-train 16 --num-eval 8
+# BFCL local AST (showcase; flags match README tables)
+uv run python scripts/run_bfcl_baselines.py \
+  --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
 
-# BFCL local AST subset (simple/multiple/parallel/irrelevance)
-uv run python -m sdft.bfcl.eval --config configs/bfcl_eval.yaml --num-examples 32
-uv run python scripts/run_bfcl_eval.py --suite 1_2b --num-examples 32
-uv run python scripts/run_bfcl_baselines.py --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+# Batch-size-1 Alpaca heuristic (secondary)
+uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
+
+# Colab in-sample AE2 (805 train + same-pool score): notebooks/local_sdft_colab.ipynb SMOKE=False
 ```
 
 ## Batch-size-1 philosophy

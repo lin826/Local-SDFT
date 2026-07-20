@@ -10,6 +10,7 @@ from sdft.alpacaeval_ablation import (
     build_eval_messages,
     build_perf_chat_messages,
     get_ablation_arm,
+    load_alpaca_eval_examples,
     normalize_instruction,
     verify_no_eval_leakage,
 )
@@ -52,3 +53,19 @@ def test_leakage_guard_raises_on_exact_match():
 
 def test_normalize_instruction_collapses_whitespace():
     assert normalize_instruction("  Hello \n World ") == "hello world"
+
+
+def test_load_alpaca_eval_examples_from_json(tmp_path):
+    path = tmp_path / "alpaca_eval.json"
+    path.write_text(
+        '[{"instruction": "A?", "output": "a"},'
+        '{"instruction": "B?", "output": "b"},'
+        '{"instruction": "", "output": "skip"}]',
+        encoding="utf-8",
+    )
+    full = load_alpaca_eval_examples(json_path=path)
+    assert full == [
+        {"prompt": "A?", "response": "a"},
+        {"prompt": "B?", "response": "b"},
+    ]
+    assert load_alpaca_eval_examples(json_path=path, num_examples=1) == full[:1]
