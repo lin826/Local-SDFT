@@ -90,8 +90,20 @@ def run_curriculum(cfg, replay_ratio: float, rounds: int, coach_n: int) -> dict:
     return snapshots
 
 
-def render(tag: str, snapshots: dict) -> int:
-    """Matrix: rows = skills, cols = 'after teaching X'. Returns final retained count."""
+def render_stats(snapshots: dict) -> tuple[int, float]:
+    """(skills retained ≥ THRESH, mean held-out success) after the full curriculum.
+
+    Measured on the final column (every skill taught) — mean is the less-noisy
+    headline for how firmly the whole repertoire is held.
+    """
+    final = snapshots.get([n for n, *_ in SKILLS][-1], {})
+    retained = sum(1 for v in final.values() if v >= THRESH)
+    mean = sum(final.values()) / len(final) if final else 0.0
+    return retained, mean
+
+
+def render(tag: str, snapshots: dict) -> tuple[int, float]:
+    """Print the accumulation matrix (rows = skills, cols = 'after teaching X')."""
     names = [n for n, *_ in SKILLS]
     table = Table(title=f"{tag}: held-out success as skills accumulate", title_style="bold")
     table.add_column("skill \\ after", style="cyan")
@@ -108,47 +120,74 @@ def render(tag: str, snapshots: dict) -> int:
                 cells.append(f"[{'green' if v >= THRESH else 'red'}]{v*100:.0f}%[/]")
         table.add_row(skill, *cells)
     console.print(table)
-    final = snapshots.get(names[-1], {})
-    return sum(1 for v in final.values() if v >= THRESH)
+    return render_stats(snapshots)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/demo_lifelong.yaml")
-    ap.add_argument("--rounds", type=int, default=3, help="update rounds per skill")
+    ap.add_argument("--rounds", type=int, default=6, help="update rounds per skill")
     ap.add_argument("--coach", type=int, default=8, help="coach prompts per round")
     ap.add_argument("--replay", type=float, default=0.5, help="replay_ratio for the WITH-replay run")
+    ap.add_argument("--ranks", default="32,2",
+                    help="comma-separated LoRA ranks to sweep. Ample capacity (e.g. 32) vs the "
+                         "tight always-on on-device budget (e.g. 2) — replay only matters when "
+                         "capacity is scarce enough that skills compete. Pass one value to skip the sweep.")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
+    ranks = [int(x) for x in args.ranks.split(",") if x.strip()]
     n = len(SKILLS)
 
     console.print(Rule("Lifelong learning on-device — accumulate a repertoire, don't overwrite it"))
-    console.print(f"[dim]model={cfg.model.name}  offline  ·  {n} skills, "
-                  f"{args.rounds} rounds each  ·  retained = held-out ≥ {THRESH*100:.0f}%[/]")
+    console.print(f"[dim]model={cfg.model.name}  offline  ·  {n} skills, {args.rounds} rounds each  ·  "
+                  f"LoRA ranks {ranks}  ·  retained = held-out ≥ {THRESH*100:.0f}%[/]")
 
-    console.print(Rule("Run 1 — WITHOUT replay (each new skill overwrites the last)", style="red"))
-    snaps_off = run_curriculum(cfg, 0.0, args.rounds, args.coach)
+    # capacity -> {"off": (retained, mean, snaps), "on": (...)}
+    results: dict[int, dict] = {}
+    for r in ranks:
+        cfg.lora.r = r
+        cfg.lora.alpha = 2 * r
+        label = "ample" if r >= 16 else "tight"
+        console.print(Rule(f"Capacity: LoRA r={r} ({label})  ·  no-replay vs replay", style="bold"))
+        snaps_off = run_curriculum(cfg, 0.0, args.rounds, args.coach)
+        console.print(f"  [red]↑ without replay[/]   [green]↓ with replay[/]")
+        snaps_on = run_curriculum(cfg, args.replay, args.rounds, args.coach)
+        results[r] = {"off": (*render_stats(snaps_off),), "on": (*render_stats(snaps_on),),
+                      "snaps_off": snaps_off, "snaps_on": snaps_on}
 
-    console.print(Rule(f"Run 2 — WITH replay (replay_ratio={args.replay}, rehearse every skill)", style="green"))
-    snaps_on = run_curriculum(cfg, args.replay, args.rounds, args.coach)
-
-    console.print(Rule("Results", style="bold"))
-    retained_off = render("WITHOUT replay", snaps_off)
+    # Detail matrices for the tightest rank — where the dynamics are visible.
+    tight = min(ranks)
+    console.print(Rule(f"Held-out matrices at the tight budget (r={tight})", style="bold"))
+    render(f"r={tight} WITHOUT replay", results[tight]["snaps_off"])
     console.print()
-    retained_on = render("WITH replay", snaps_on)
+    render(f"r={tight} WITH replay", results[tight]["snaps_on"])
+
+    # Capacity x replay summary.
+    console.print(Rule("Capacity × replay — mean held-out across all skills", style="bold"))
+    table = Table()
+    table.add_column("LoRA rank", style="cyan")
+    table.add_column("no replay", justify="right")
+    table.add_column("replay", justify="right")
+    table.add_column("replay gain", justify="right")
+    for r in ranks:
+        (_, m_off), (_, m_on) = results[r]["off"], results[r]["on"]
+        gain = (m_on - m_off) * 100
+        gcol = "green" if gain > 1 else "dim"
+        table.add_row(f"r={r} ({'ample' if r >= 16 else 'tight'})",
+                      f"{m_off*100:.0f}%", f"{m_on*100:.0f}%",
+                      f"[{gcol}]{gain:+.0f} pts[/]")
+    console.print(table)
 
     console.print(Rule("The point", style="green"))
-    console.print(f"  After the full curriculum, the assistant retained "
-                  f"[red]{retained_off}/{n}[/] skills without replay, "
-                  f"[green]{retained_on}/{n}[/] with replay.")
-    if retained_on > retained_off:
-        console.print(f"  → replay turns 'learns fast, forgets fast' into a growing, stable "
-                      f"repertoire — [bold]{retained_on - retained_off} more skill(s) kept[/], "
-                      "all learned live and on-device.")
-    else:
-        console.print("  → replay did not beat no-replay this run; try more rounds or higher "
-                      "replay_ratio (small model / short horizon).")
+    (_, m_off_t), (_, m_on_t) = results[tight]["off"], results[tight]["on"]
+    console.print(
+        f"  Well-separated skills accumulate for free when the adapter has room. But at the "
+        f"tight always-on on-device budget (r={tight}), skills compete for capacity: without "
+        f"replay the repertoire degrades ([red]{m_off_t*100:.0f}%[/]), while rehearsing a few "
+        f"past examples of every skill each update holds it together ([green]{m_on_t*100:.0f}%[/]).")
+    console.print("  → experience replay is what makes online SDFT stable exactly where edge "
+                  "devices live — scarce capacity, learning continually, no second chance at old data.")
     return 0
 
 

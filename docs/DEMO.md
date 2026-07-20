@@ -29,6 +29,11 @@ python -m sdft.online.cli demo --config configs/demo_house_style.yaml --rounds 6
    learned, a second apart.
 4. **✈︎ OFFLINE** — inference *and* training happen on-device; feedback never leaves it.
 
+The web UI also has a **"Why not just prompt / retrieve?"** card: one click runs a
+live base/ICL/RAG/finetuned head-to-head (`/v1/demo/compare`) and shows held-out
+accuracy alongside the per-call **token tax** — ICL/RAG get the same learned
+examples in-context, finetuning matches or beats them at **+0 tokens/call**.
+
 ## The task and the learning rule
 
 Default task `house_style` (in `sdft/online/reward.py`): a reply must open with a **TL;DR**,

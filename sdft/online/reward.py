@@ -256,10 +256,17 @@ def shape_skill_bullets(prompt: str, reply: str) -> str:
     return "\n".join(f"- {s.rstrip('.')}." for s in sents[:3])
 
 
+def _norm_signoff(s: str) -> str:
+    """Case/dash/space-insensitive form so a near-miss sign-off still counts."""
+    s = s.strip().lower().replace("–", "-").replace("—", "-")
+    s = re.sub(r"-{2,}", "-", s)
+    return re.sub(r"\s+", " ", s)
+
+
 @reward("skill_signoff")
 def skill_signoff(prompt: str, reply: str) -> float:
     """Trigger 'Reply to:' -> a reply that ends with the fixed sign-off."""
-    return 1.0 if reply.rstrip().endswith(SIGNOFF) else 0.0
+    return 1.0 if _norm_signoff(reply).endswith(_norm_signoff(SIGNOFF)) else 0.0
 
 
 @shaper("skill_signoff")

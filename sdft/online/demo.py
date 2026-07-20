@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from .reward import SIGNOFF
+
 # Prompts used to COACH (train) — the model gets feedback on these.
 COACH_PROMPTS = [
     "How do I center a div in CSS?",
@@ -122,13 +124,13 @@ HELDOUT_SIGNOFF = [
 # name, reward_fn, (coach, held-out), one-line description, cold-start hint
 SKILLS = [
     ("summarize", "skill_summary", (COACH_SUMMARY, HELDOUT_SUMMARY),
-     "one-line summary", "Reply with a single short sentence."),
+     "one-line summary", "Reply with a single short sentence, no bullets."),
     ("calc", "calc_tool", (COACH_CALC, HELDOUT_CALC),
      "calculator tool call", 'To do math, emit <tool>calc("EXPR")</tool>.'),
     ("list", "skill_bullets", (COACH_LIST, HELDOUT_LIST),
-     "3 bullet points", "Answer as three short bullet points."),
+     "3 bullet points", "Answer as three short bullet points, one per line."),
     ("signoff", "skill_signoff", (COACH_SIGNOFF, HELDOUT_SIGNOFF),
-     "fixed e-mail sign-off", "End every reply with the sign-off line."),
+     "fixed e-mail sign-off", "Write a one-line reply, then end with exactly: " + SIGNOFF),
 ]
 
 
