@@ -110,3 +110,28 @@ your action across 5 categories): the 230M learns only the lexical categories
 (newsletter/manager) and overfits; it wants the larger on-device model
 (LFM2-1.2B, still laptop-class) and more coaching. Use it to show the current
 capability edge, not a polished 100%.
+
+## Flagship: "Correct it once, never again" (cross-domain generalization)
+
+The demo for the most universal AI frustration — repeating yourself. Your pet
+peeve: one-sentence answers. You fix a few replies in plain language (the
+correction path), and the habit transfers to a topic it was never corrected on.
+Proof it's a learned behavior, not memorized answers: correct only **cooking**
+answers, measure on held-out **programming** questions.
+
+```bash
+python scripts/demo_correct_once.py
+```
+
+Validated on LFM2.5-230M (H100, offline):
+
+```
+Before:                                 0%  one-sentence on held-out programming
+4 plain corrections (cooking only):   → 50%
+consolidation (replays those 4):        50% → 83% → 100%
+adapter ON: 100%      adapter OFF (base): 0%
+```
+
+Mechanism (honest): a few corrections quickly solve the coaching domain; then the
+loop **consolidates** (replays those corrections, no new user input) until the
+habit generalizes. You told it once; nothing left the device.
