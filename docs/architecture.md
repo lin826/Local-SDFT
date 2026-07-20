@@ -43,16 +43,18 @@ flowchart LR
 | `sdft/grpo_train.py` | LoRA GRPO baseline via TRL `GRPOTrainer` |
 | `sdft/merge.py` | Fold adapter into base weights |
 | `sdft/config.py` | YAML → dataclasses (single source of knobs) |
-| `sdft/rewards.py` | Local reward fns for GRPO (`instruction`, `boxed`) |
+| `sdft/rewards.py` | Local reward fns for GRPO (`instruction`, `boxed`, `bfcl`) |
 | `sdft/peft_utils.py` | Shared `adapter_ready` / chat model loading |
 | `sdft/online_learning/` | Per-turn tone feedback → tiny SDFT → reply |
 | `sdft/toolcall/` | ReTool-style tool loop + OpenClaw eval |
-| `sdft/bfcl/` | Local BFCL-v3 AST/irrelevance subset eval |
+| `sdft/bfcl/` | Local BFCL-v3 AST/irrelevance eval + train-data helpers |
 | `sdft/records/` | Shared collect + benchmark persistence |
 | `web/` | FastAPI + HTMX UI (`/`, `/data`, `/perf`) |
-| `configs/compare/` | Batch-size-1 baseline suite (230M + 1.2B) |
-| `scripts/run_batch1_comparison.py` | Train + score base / SFT / SDFT / GRPO |
+| `configs/compare/` | Batch-size-1 baselines (Alpaca + BFCL; 230M + 1.2B) |
+| `scripts/run_batch1_comparison.py` | Train + score base / SFT / SDFT / GRPO (Alpaca) |
+| `scripts/run_bfcl_baselines.py` | Train + score BFCL gold / SDFT / GRPO |
 | `scripts/run_bfcl_eval.py` | BFCL local subset wrapper |
+| `scripts/build_bfcl_train_data.py` | BFCL gold/GRPO jsonl + split manifest |
 
 ## Entry points
 
@@ -78,6 +80,7 @@ uv run python scripts/run_batch1_comparison.py --suite 1_2b --num-train 16 --num
 # BFCL local AST subset (simple/multiple/parallel/irrelevance)
 uv run python -m sdft.bfcl.eval --config configs/bfcl_eval.yaml --num-examples 32
 uv run python scripts/run_bfcl_eval.py --suite 1_2b --num-examples 32
+uv run python scripts/run_bfcl_baselines.py --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
 ```
 
 ## Batch-size-1 philosophy

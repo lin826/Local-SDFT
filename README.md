@@ -9,8 +9,9 @@ Built on [Liquid AI LFM2.5-230M](https://huggingface.co/LiquidAI/LFM2.5-230M) an
 (HF has no bare `LFM2.5-1.2B` id — use the Instruct checkpoint).
 Base weights stay frozen; only small LoRA adapters train.
 
-Recipe per [Yang et al., 2024 — *Self-Distillation Bridges Distribution Gap in
-Language Model Fine-Tuning*](https://arxiv.org/abs/2406.13629):
+Recipe per [Shenfeld et al., 2026 — *Self-Distillation Enables Continual
+Learning*](https://self-distillation.github.io/SDFT)
+([arXiv](https://arxiv.org/abs/2601.19897)):
 
 1. **Generate** — the model rewrites each training target *in its own distribution*:
    for every example it sees a few in-context demonstrations (gold pairs from the
@@ -25,6 +26,7 @@ Also in this repo:
 - **Online learning** chat (`/data`) — tone as implicit feedback, tiny LoRA updates
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
+  (setup cell uninstalls Colab's preinstalled `torchao<0.16`, which otherwise breaks peft≥0.19 LoRA)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -95,8 +97,9 @@ Same update style as the online demo — small LoRA, `batch_size=1` for SFT/SDFT
 and the smallest valid GRPO group (`num_generations=2`):
 
 ```bash
-# 230M (default)
-uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
+# 230M (default; --max-grpo-steps 16 matches the published table below)
+uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
+# omit --max-grpo-steps for a full uncapped GRPO run (may differ from the table)
 # 1.2B Instruct (float16, smaller context — see configs/compare/batch1_1_2b_*.yaml)
 uv run python scripts/run_batch1_comparison.py --suite 1_2b --num-train 16 --num-eval 8 --max-grpo-steps 8
 # faster smoke:
@@ -118,18 +121,33 @@ uv run python -m sdft.grpo_train --config configs/compare/batch1_grpo.yaml --dat
 Local BFCL-v3 single-turn subset (no vLLM / official leaderboard). Categories:
 `simple`, `multiple`, `parallel`, `irrelevance`.
 
+Train gold SFT / SDFT / GRPO **on BFCL** (held-out first-N/category for eval), then
+score with the AST harness:
+
+```bash
+# 230M: 16 train + 32 eval per category (64 / 128 total), GRPO capped at 32 steps
+uv run python scripts/run_bfcl_baselines.py --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+# 1.2B Instruct smoke (fp16): 8 train + 16 eval per category, GRPO 8 steps
+uv run python scripts/run_bfcl_baselines.py --suite 1_2b --num-train-per-cat 8 --num-eval-per-cat 16 --max-grpo-steps 8
+```
+
+Eval only (base or any adapter):
+
 ```bash
 uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
 uv run python scripts/run_bfcl_eval.py --suite 1_2b --num-examples 32
-# with a trained LoRA adapter:
-uv run python scripts/run_bfcl_eval.py --suite 230m --adapter outputs/compare/batch1-sdft --arm sdft
+uv run python scripts/run_bfcl_eval.py --suite 230m --adapter outputs/compare/bfcl-sdft --arm sdft
 ```
 
-### Geek jokes (PHD comics)
+Configs: `configs/compare/bfcl_*.yaml`. Results:
+`outputs/compare/bfcl_comparison.json` / `bfcl_1_2b_comparison.json`.
 
-`configs/geek_jokes.yaml` is a ready template: drop your data at
-`data/geek_jokes.jsonl` (one JSON per line: `{"instruction": ..., "input": ...,
-"output": ...}`) and run the three steps with `--config configs/geek_jokes.yaml`.
+### Custom local JSONL
+
+Point a config at your own Alpaca-style file (`dataset: json` +
+`data_files: data/my_dataset.jsonl`, one JSON object per line with
+`instruction` / `input` / `output`) and run the three steps with
+`--config path/to/your.yaml`.
 
 ### OpenClaw-RL tool-calling eval
 
@@ -172,10 +190,10 @@ Score = `instruction_reward` (non-refusal + length + gold lexical overlap) — n
 | GRPO | 1.400 | 0.000 | 333.0 | 30.9 |
 
 On the local heuristic the arms stay close (expected without a GPT-4 judge).
-Reproduce:
+Reproduce (include `--max-grpo-steps` to match the caps above; omit it for a full uncapped GRPO run):
 
 ```bash
-uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16
+uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
 uv run python scripts/run_batch1_comparison.py --suite 1_2b --num-train 16 --num-eval 8 --max-grpo-steps 8
 ```
 
@@ -190,32 +208,52 @@ scores AST accuracy against `possible_answer` lists. Categories run:
 `simple` · `multiple` · `parallel` · `irrelevance`. Skipped: live, multi-turn,
 executable, web-search, Java/JS.
 
-#### 230M — full subset (`n=32` / category, 128 total, fp32 MPS)
+**Split:** eval = first N examples/category (same slice as default BFCL eval);
+train = the following M examples/category. Overlap guarded by example id and
+normalized question text. Gold targets are LFM JSON tool-call blocks derived from
+`possible_answer`; GRPO uses `bfcl_reward` (+1/−1 AST / irrelevance).
 
-| Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| base | **71.1%** | 84.4% | 71.9% | 50.0% | 78.1% | 0.40 | 107 |
-| gold SFT† | 71.1% | 84.4% | 71.9% | 50.0% | 78.1% | 0.46 | 96 |
-| SDFT† | 68.8% | 81.2% | 71.9% | 50.0% | 71.9% | 0.46 | 92 |
-| GRPO† | 70.3% | 81.2% | 71.9% | 50.0% | 78.1% | 0.48 | 89 |
+#### 230M — BFCL-trained (`16` train + `32` eval / category, GRPO `max_steps=32`, fp32 MPS)
 
-† Adapters from alpaca batch1 compare (`outputs/compare/batch1-*`) — not tool-call SDFT.
-
-#### 1.2B-Instruct — base full subset (`n=32` / category); adapters smoke (`n=16`)
-
-| Arm | n/cat | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s |
+| Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s | Train s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| base | 32 | **77.3%** | 78.1% | 78.1% | 65.6% | 87.5% | 0.70 | 67 |
-| gold SFT† | 16 | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.77 | 64 |
-| SDFT† | 16 | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.77 | 64 |
-| GRPO† | 16 | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.78 | 65 |
+| base | **71.1%** | 84.4% | 71.9% | 50.0% | 78.1% | 0.40 | 106 | — |
+| gold SFT | 54.7% | 84.4% | 75.0% | 0.0% | 59.4% | 0.58 | 97 | 18.1 |
+| SDFT | 68.0% | 81.2% | 78.1% | 59.4% | 53.1% | 0.38 | 100 | 18.2 |
+| GRPO | 69.5% | 84.4% | 75.0% | 56.2% | 62.5% | 0.42 | 98 | 40.8 |
 
-† Adapters from 1.2B alpaca smoke (`num_train=16`); BFCL on first 16/category only.
+Adapters: `outputs/compare/bfcl-{sft-gold,sdft,grpo}`. Small-n gold SFT collapsed
+parallel (format overfitting); SDFT/GRPO lift parallel vs base while trading some
+irrelevance accuracy.
+
+#### 1.2B-Instruct — BFCL-trained smoke (`8` train + `16` eval / category, GRPO `max_steps=8`, fp16)
+
+| Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s | Train s |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| base | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.72 | 69 | — |
+| gold SFT | **78.1%** | 75.0% | 62.5% | 81.2% | 93.8% | 0.70 | 64 | 28.1 |
+| SDFT | 76.6% | 81.2% | 62.5% | 68.8% | 93.8% | 0.67 | 64 | 24.0 |
+| GRPO | 75.0% | 75.0% | 62.5% | 68.8% | 93.8% | 0.78 | 64 | 27.4 |
+
+Reproduce:
 
 ```bash
-uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
-uv run python scripts/run_bfcl_eval.py --suite 1_2b --num-examples 32
+uv run python scripts/run_bfcl_baselines.py --suite 230m --num-train-per-cat 16 --num-eval-per-cat 32 --max-grpo-steps 32
+uv run python scripts/run_bfcl_baselines.py --suite 1_2b --num-train-per-cat 8 --num-eval-per-cat 16 --max-grpo-steps 8
 ```
+
+#### Reference — Alpaca-trained adapters on BFCL (not tool-call SDFT)
+
+Earlier smoke scored Alpaca batch1 adapters on the same first-32/category slice.
+They barely move BFCL (expected — instruction SFT, not tool-call training):
+
+| Arm | Overall (230M, n=32/cat) | Note |
+|---|---:|---|
+| base | **71.1%** | same held-out slice |
+| gold SFT† / SDFT† / GRPO† | 68.8–71.1% | `outputs/compare/batch1-*` |
+
+† Alpaca batch1 compare adapters. Full per-category tables live in git history /
+`outputs/benchmarks/bfcl/` when re-run with `--adapter outputs/compare/batch1-sdft`.
 
 ### AlpacaEval 2.0 (held-out generations)
 
@@ -316,7 +354,7 @@ To also adapt MLPs or conv blocks, extend the regex, e.g.
 
 - **Default dataset** is `yahma/alpaca-cleaned` as a stand-in; point
   `data.dataset` at any HF dataset, or use `dataset: json` + `data_files: ...`
-  for a local `.jsonl` (see `configs/geek_jokes.yaml`).
+  for a local `.jsonl` (Alpaca-style `instruction` / `input` / `output`).
 - Self-generated targets are in-distribution but not necessarily *correct* —
   that is the expected SDFT trade-off. For a 230M model, more few-shot demos
   (`generation.num_shots`) or a task-matched demo pool helps.

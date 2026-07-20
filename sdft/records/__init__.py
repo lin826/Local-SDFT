@@ -5,12 +5,10 @@ parallel schemas or storage locations.
 """
 
 from .benchmark import (
-    geek_jokes_generations_path,
     iter_measure_chat,
     measure_chat,
     measure_toolcall_chat,
     measure_generation,
-    measure_geek_jokes,
     measure_inference,
     persist_performance_result,
     run_benchmark,
@@ -62,12 +60,10 @@ __all__ = [
     "load_collected_records",
     "load_performance_index",
     "load_performance_result",
-    "geek_jokes_generations_path",
     "iter_measure_chat",
     "measure_chat",
     "measure_toolcall_chat",
     "measure_generation",
-    "measure_geek_jokes",
     "measure_inference",
     "new_collected_record",
     "performance_dir",

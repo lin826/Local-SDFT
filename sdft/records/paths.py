@@ -22,7 +22,7 @@ def collected_records_path(root: Path | None = None) -> Path:
 
 
 def collected_export_path(name: str, root: Path | None = None) -> Path:
-    """Training-ready JSONL export (Alpaca / geek-jokes shape)."""
+    """Training-ready JSONL export (Alpaca-style shape)."""
     safe = name.replace("/", "-").strip() or "export"
     return project_root(root) / "data" / "collected" / f"{safe}.jsonl"
 

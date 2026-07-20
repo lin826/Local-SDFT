@@ -78,7 +78,7 @@ def import_training_row(
     source: str = "import",
     path: Path | None = None,
 ) -> CollectedRecord:
-    """Import an Alpaca/geek-jokes JSONL row into the collected store."""
+    """Import an Alpaca-style JSONL row into the collected store."""
     return collect_record(
         str(row.get("instruction", "")),
         input=str(row.get("input", "")),

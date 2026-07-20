@@ -29,9 +29,9 @@ def main() -> None:
             path=records_path,
         )
         collect_record(
-            "Geek joke setup",
-            input="Why did the grad student quit?",
-            output="The p-value was not significant enough.",
+            "Summarize LoRA",
+            input="In one sentence.",
+            output="Low-rank adapters for parameter-efficient fine-tuning.",
             source="web",
             path=records_path,
         )

@@ -1,0 +1,36 @@
+# BFCL gold SFT — batch_size=1 on held-out-safe tool-call trajectories.
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+data:
+  dataset: json
+  data_files: data/compare/bfcl_gold.jsonl
+  split: train
+  prompt_fields: [prompt]
+  response_field: response
+  num_examples: null
+  seed: 0
+
+generation:
+  out_path: data/compare/bfcl_gold.jsonl
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/compare/bfcl-sft-gold
+  epochs: 1
+  lr: 0.0001
+  batch_size: 1
+  grad_accum: 1
+  max_length: 1024
+  warmup_steps: 0
+  logging_steps: 4
+  save_strategy: "no"
+  seed: 0
+  target_field: response

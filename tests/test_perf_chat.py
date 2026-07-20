@@ -411,9 +411,6 @@ def test_config_options_include_alpacaeval_sdft():
         "configs/lfm25_alpacaeval2_trained.yaml",
     ]
     assert "configs/openclaw_demo_eval.yaml" not in CONFIG_OPTIONS
-    assert "configs/geek_jokes.yaml" not in CONFIG_OPTIONS
-    assert "configs/geek_jokes_trained.yaml" not in CONFIG_OPTIONS
-    assert "configs/geek_jokes_bench.yaml" not in CONFIG_OPTIONS
 
 
 def test_build_design_summary_variants():
@@ -570,8 +567,8 @@ def test_multi_turn_chat_transcript(client: TestClient):
             data={
                 "config_path": "configs/default.yaml",
                 "demo_condition": "plain",
-                "instruction": "You are a witty PhD comic narrator.",
-                "user_message": "Tell a joke about grading.",
+                "instruction": "You are a concise technical assistant.",
+                "user_message": "Explain LoRA in one sentence.",
                 "messages_json": "[]",
             },
             follow_redirects=False,
@@ -584,21 +581,21 @@ def test_multi_turn_chat_transcript(client: TestClient):
         page1 = client.get(loc1)
         assert page1.status_code == 200
         body1 = page1.text
-        assert "Tell a joke about grading." in body1
-        assert "echo:Tell a joke about grading." in body1
+        assert "Explain LoRA in one sentence." in body1
+        assert "echo:Explain LoRA in one sentence." in body1
         assert "AlpacaEval-faithful ZS" in body1
-        assert "You are a witty PhD comic narrator." not in body1
+        assert "You are a concise technical assistant." not in body1
 
         history = [
-            {"role": "user", "content": "Tell a joke about grading."},
-            {"role": "assistant", "content": "echo:Tell a joke about grading."},
+            {"role": "user", "content": "Explain LoRA in one sentence."},
+            {"role": "assistant", "content": "echo:Explain LoRA in one sentence."},
         ]
         r2 = client.post(
             "/perf/chat",
             data={
                 "config_path": "configs/default.yaml",
                 "demo_condition": "plain",
-                "instruction": "You are a witty PhD comic narrator.",
+                "instruction": "You are a concise technical assistant.",
                 "user_message": "Make it shorter.",
                 "messages_json": json.dumps(history),
             },
@@ -611,7 +608,7 @@ def test_multi_turn_chat_transcript(client: TestClient):
         page2 = client.get(loc2)
         assert page2.status_code == 200
         body2 = page2.text
-        assert "Tell a joke about grading." in body2
+        assert "Explain LoRA in one sentence." in body2
         assert "Make it shorter." in body2
         assert "echo:Make it shorter." in body2
 

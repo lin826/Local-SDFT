@@ -21,8 +21,11 @@ def test_instruction_reward_prefers_helpful_non_refusal():
 
 
 def test_resolve_reward_names():
+    from sdft.rewards import bfcl_reward
+
     assert resolve_reward("instruction") is instruction_reward
     assert resolve_reward("boxed") is boxed_reward
+    assert resolve_reward("bfcl") is bfcl_reward
 
 
 def test_boxed_reward_uses_strict_box():

@@ -1,0 +1,40 @@
+# BFCL SDFT for LFM2.5-1.2B-Instruct (fp16).
+
+model:
+  name: LiquidAI/LFM2.5-1.2B-Instruct
+  dtype: float16
+
+data:
+  dataset: json
+  data_files: data/compare/bfcl_1_2b_sdft.jsonl
+  split: train
+  prompt_fields: [prompt]
+  response_field: response
+  num_examples: null
+  seed: 0
+
+generation:
+  num_shots: 0
+  batch_size: 1
+  max_new_tokens: 192
+  temperature: 0.0
+  out_path: data/compare/bfcl_1_2b_sdft.jsonl
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+training:
+  output_dir: outputs/compare/bfcl-1_2b-sdft
+  epochs: 1
+  lr: 0.0001
+  batch_size: 1
+  grad_accum: 1
+  max_length: 768
+  warmup_steps: 0
+  logging_steps: 4
+  save_strategy: "no"
+  seed: 0
+  target_field: sdft_response

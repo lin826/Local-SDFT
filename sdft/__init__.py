@@ -1,7 +1,7 @@
 """Local self-distillation fine-tuning (SDFT) of Liquid AI LFM2.5-230M with LoRA.
 
-Recipe (Yang et al., 2024, "Self-Distillation Bridges Distribution Gap in
-Language Model Fine-Tuning"):
+Recipe (Shenfeld et al., 2026, "Self-Distillation Enables Continual Learning";
+https://self-distillation.github.io/SDFT, arXiv:2601.19897):
 
 1. generate: the model rewrites each training target in its own distribution,
    using a few in-context demonstrations drawn from the original dataset.

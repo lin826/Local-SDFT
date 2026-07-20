@@ -615,131 +615,6 @@ def iter_measure_chat(
     yield ("result", result)
 
 
-def geek_jokes_generations_path(run_id: str, root: Path | None = None) -> Path:
-    """Sidecar JSONL of geek-jokes benchmark completions."""
-    return performance_dir(root) / f"{run_id}_geek_jokes.jsonl"
-
-
-@torch.inference_mode()
-def measure_geek_jokes(
-    cfg: Config,
-    *,
-    num_examples: int | None = None,
-    warmup_samples: int = 2,
-    device: str | None = None,
-    generations_path: Path | None = None,
-) -> PerformanceResult:
-    """Generate geek-joke completions on the configured JSONL benchmark set."""
-    device = device or pick_device()
-    examples = load_examples(cfg.data)
-    if num_examples is not None:
-        examples = examples[: min(num_examples, len(examples))]
-    if not examples:
-        raise ValueError("no geek-jokes examples found (check data.geek_jokes.jsonl)")
-
-    tokenizer = load_tokenizer(cfg.model)
-    tokenizer.padding_side = "left"
-    model = load_model(cfg.model, device)
-    model.eval()
-
-    gen = cfg.generation
-    do_sample = gen.temperature > 0
-    batch_size = max(1, gen.batch_size)
-    run_id = new_run_id("bench")
-    gen_path = generations_path or geek_jokes_generations_path(run_id)
-
-    latencies_ms: list[float] = []
-    input_tokens = 0
-    output_tokens = 0
-    samples = 0
-    generation_rows: list[dict[str, Any]] = []
-
-    for batch_idx, start in enumerate(range(0, len(examples), batch_size)):
-        batch = examples[start : start + batch_size]
-        prompts = [ex["prompt"] for ex in batch]
-        messages_batch = [[{"role": "user", "content": p}] for p in prompts]
-        texts = [
-            tokenizer.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
-            for m in messages_batch
-        ]
-        enc = tokenizer(texts, return_tensors="pt", padding=True, add_special_tokens=False)
-        enc = enc.to(device)
-        batch_input_tokens = int(enc["input_ids"].numel())
-
-        t0 = time.perf_counter()
-        out = model.generate(
-            **enc,
-            max_new_tokens=gen.max_new_tokens,
-            do_sample=do_sample,
-            temperature=gen.temperature if do_sample else None,
-            top_p=gen.top_p if do_sample else None,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-
-        new_tokens = out[:, enc["input_ids"].shape[1] :]
-        batch_output_tokens = int(new_tokens.numel())
-        per_sample_ms = elapsed_ms / len(batch)
-        decoded = tokenizer.batch_decode(new_tokens, skip_special_tokens=True)
-
-        for example, text in zip(batch, decoded, strict=True):
-            generation_rows.append(
-                {
-                    "prompt": example["prompt"],
-                    "reference": example["response"],
-                    "generated": text.strip(),
-                }
-            )
-
-        global_idx_end = start + len(batch)
-        if global_idx_end <= warmup_samples:
-            continue
-        count_start = max(start, warmup_samples)
-        counted = global_idx_end - count_start
-        if counted <= 0:
-            continue
-        ratio = counted / len(batch)
-        latencies_ms.extend([per_sample_ms] * counted)
-        input_tokens += int(batch_input_tokens * ratio)
-        output_tokens += int(batch_output_tokens * ratio)
-        samples += counted
-
-    gen_path.parent.mkdir(parents=True, exist_ok=True)
-    gen_path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in generation_rows) + "\n",
-        encoding="utf-8",
-    )
-
-    total_tokens = input_tokens + output_tokens
-    total_s = sum(latencies_ms) / 1000 if latencies_ms else 0.0
-    tps = total_tokens / total_s if total_s > 0 else 0.0
-
-    return PerformanceResult(
-        id=run_id,
-        run_at=utc_now_iso(),
-        benchmark="geek_jokes",
-        model=cfg.model.name,
-        metrics=PerformanceMetrics(
-            latency_ms_mean=statistics.mean(latencies_ms) if latencies_ms else 0.0,
-            latency_ms_p50=_percentile(latencies_ms, 50),
-            latency_ms_p95=_percentile(latencies_ms, 95),
-            tokens_per_second=tps,
-            samples=samples,
-            batch_size=batch_size,
-            input_tokens_total=input_tokens,
-            output_tokens_total=output_tokens,
-            device=device,
-            warmup_samples=warmup_samples,
-        ),
-        metadata={
-            "num_examples": len(examples),
-            "max_new_tokens": gen.max_new_tokens,
-            "dataset": cfg.data.data_files,
-            "generations_path": str(gen_path),
-        },
-    )
-
-
 def run_benchmark(
     benchmark: str,
     *,
@@ -782,11 +657,9 @@ def run_benchmark(
             if warmup_batches is not None:
                 infer_kwargs["warmup_batches"] = warmup_batches
             result = measure_inference(cfg, sample_prompts, **infer_kwargs)
-    elif benchmark == "geek_jokes":
-        result = measure_geek_jokes(cfg, num_examples=num_examples)
     else:
         raise ValueError(
-            f"unknown benchmark {benchmark!r} (use generate, inference, or geek_jokes)"
+            f"unknown benchmark {benchmark!r} (use generate or inference)"
         )
 
     result.config_path = str(config_path)

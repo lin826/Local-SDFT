@@ -39,7 +39,7 @@ def test_empty_user_message_stays_empty():
 
 
 def test_plain_prose_unchanged():
-    text = "Hello! Here is a geek joke about Emacs."
+    text = "Hello! Here is a short note about Emacs."
     segments = parse_message_content("assistant", text)
     assert len(segments) == 1
     assert segments[0].kind == "prose"

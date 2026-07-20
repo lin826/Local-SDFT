@@ -77,8 +77,15 @@ def load_bfcl_category(
     cache_dir: str | Path = "data/bfcl",
     num_examples: int | None = None,
     force_download: bool = False,
+    example_ids: set[str] | list[str] | None = None,
+    exclude_ids: set[str] | list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Return joined question + ground-truth rows for one category."""
+    """Return joined question + ground-truth rows for one category.
+
+    When ``example_ids`` is set, only those ids are kept (order preserved from
+    the file). ``exclude_ids`` drops matching rows. ``num_examples`` still caps
+    the result after filtering (first-N of the filtered list).
+    """
     q_path, a_path = ensure_category_files(category, cache_dir, force=force_download)
     questions = _read_jsonl(q_path)
     answers_by_id: dict[str, Any] = {}
@@ -86,9 +93,16 @@ def load_bfcl_category(
         for row in _read_jsonl(a_path):
             answers_by_id[str(row["id"])] = row.get("ground_truth")
 
+    include = {str(x) for x in example_ids} if example_ids is not None else None
+    exclude = {str(x) for x in exclude_ids} if exclude_ids else set()
+
     rows: list[dict[str, Any]] = []
     for q in questions:
         qid = str(q["id"])
+        if include is not None and qid not in include:
+            continue
+        if qid in exclude:
+            continue
         rows.append(
             {
                 "id": qid,

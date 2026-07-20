@@ -290,7 +290,7 @@ async def add_entry(
 
 
 @app.post("/data/export")
-async def export_data(export_name: str = Form("geek-jokes-export")) -> RedirectResponse:
+async def export_data(export_name: str = Form("training-export")) -> RedirectResponse:
     path, count = export_collected_for_training(export_name)
     return RedirectResponse(
         url=f"/data?exported={count}&path={path.name}",

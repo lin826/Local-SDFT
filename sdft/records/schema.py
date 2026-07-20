@@ -13,7 +13,7 @@ SCHEMA_VERSION = "1"
 class CollectedRecord:
     """One user-collected training example (CLI/web/manual).
 
-    Field names align with ``configs/geek_jokes.yaml`` / Alpaca-style JSONL so
+    Field names align with Alpaca-style JSONL so
     records can be exported directly for ``sdft.generate`` / ``sdft.train``.
     """
 
@@ -36,7 +36,7 @@ class CollectedRecord:
         return cls(**{k: v for k, v in raw.items() if k in known})
 
     def to_training_row(self) -> dict[str, str]:
-        """Alpaca / geek-jokes JSONL row for the SDFT pipeline."""
+        """Alpaca-style JSONL row for the SDFT pipeline."""
         return {
             "instruction": self.instruction.strip(),
             "input": self.input.strip(),
@@ -79,7 +79,7 @@ class PerformanceMetrics:
 class PerformanceResult:
     """One persisted benchmark run."""
 
-    benchmark: str  # generate | inference | geek_jokes | train_smoke
+    benchmark: str  # generate | inference | train_smoke
     model: str
     metrics: PerformanceMetrics
     id: str = ""

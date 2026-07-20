@@ -1,0 +1,39 @@
+# BFCL GRPO — AST reward, smallest valid group (num_generations=2).
+
+model:
+  name: LiquidAI/LFM2.5-230M
+  dtype: float32
+
+data:
+  dataset: json
+  data_files: data/compare/bfcl_grpo.jsonl
+  split: train
+  prompt_fields: [prompt]
+  response_field: response
+  num_examples: null
+  seed: 0
+
+generation:
+  out_path: data/compare/bfcl_grpo.jsonl
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: .*self_attn\.(q|k|v|out)_proj
+
+grpo:
+  output_dir: outputs/compare/bfcl-grpo
+  epochs: 1
+  lr: 0.00005
+  batch_size: 2
+  grad_accum: 1
+  num_generations: 2
+  max_prompt_length: 768
+  max_completion_length: 256
+  temperature: 0.7
+  warmup_steps: 0
+  logging_steps: 1
+  save_strategy: "no"
+  seed: 0
+  reward: bfcl

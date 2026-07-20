@@ -115,6 +115,8 @@ def run_bfcl_eval(
     num_examples: int | None = None,
     adapter_dir: str | Path | None = None,
     arm_name: str = "base",
+    example_ids: set[str] | list[str] | None = None,
+    exclude_ids: set[str] | list[str] | None = None,
 ) -> dict[str, Any]:
     bfcl = cfg.bfcl_eval
     cats = _parse_categories(categories, list(bfcl.categories))
@@ -125,6 +127,10 @@ def run_bfcl_eval(
     print(f"arm: {arm_name}")
     print(f"categories: {cats}")
     print(f"num_examples/category: {n}")
+    if example_ids is not None:
+        print(f"example_ids filter: {len(set(example_ids))} ids")
+    if exclude_ids:
+        print(f"exclude_ids filter: {len(set(exclude_ids))} ids")
 
     tokenizer = load_tokenizer(cfg.model)
     model = load_chat_model(cfg, device, adapter_dir=adapter_dir)
@@ -139,9 +145,14 @@ def run_bfcl_eval(
         rows = load_bfcl_category(
             cat,
             cache_dir=bfcl.cache_dir,
-            num_examples=n,
+            num_examples=n if example_ids is None else None,
             force_download=bfcl.force_download,
+            example_ids=example_ids,
+            exclude_ids=exclude_ids,
         )
+        if example_ids is not None and n is not None:
+            # Keep category order but still allow a per-cat cap when filtering by ids.
+            rows = rows[:n]
         correct = 0
         cat_details: list[dict[str, Any]] = []
         print(f"\n=== {cat} (n={len(rows)}) ===", flush=True)

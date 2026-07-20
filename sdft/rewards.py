@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -93,9 +94,76 @@ def boxed_reward(
     return rewards
 
 
+def _as_list(value: Any, n: int) -> list[Any]:
+    if value is None:
+        return [None] * n
+    if isinstance(value, list) and len(value) == n:
+        return value
+    if isinstance(value, list) and len(value) == 1 and n > 1:
+        return value * n
+    # Single scalar broadcast (TRL sometimes passes one shared value).
+    return [value] * n
+
+
+def _parse_json_field(raw: Any) -> Any:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, (dict, list)):
+        return raw
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return raw
+
+
+def bfcl_reward(
+    completions: list[Any],
+    bfcl_category: list[str] | str | None = None,
+    bfcl_functions: list[Any] | str | None = None,
+    bfcl_ground_truth: list[Any] | str | None = None,
+    category: list[str] | str | None = None,
+    **kwargs: Any,
+) -> list[float]:
+    """+1/−1 BFCL AST / irrelevance reward (see ``sdft.bfcl.ast_score``).
+
+    Expects dataset columns ``bfcl_category``, ``bfcl_functions`` (JSON), and
+    ``bfcl_ground_truth`` (JSON or empty for irrelevance). ``category`` is an
+    accepted alias for ``bfcl_category``.
+    """
+    del kwargs
+    from sdft.bfcl.ast_score import score_bfcl_example
+    from sdft.bfcl.parse import parse_function_calls
+
+    n = len(completions)
+    cats = _as_list(bfcl_category if bfcl_category is not None else category, n)
+    funcs = _as_list(bfcl_functions, n)
+    gts = _as_list(bfcl_ground_truth, n)
+
+    rewards: list[float] = []
+    for i, completion in enumerate(completions):
+        text = _completion_text(completion)
+        cat = cats[i] or "simple"
+        try:
+            functions = _parse_json_field(funcs[i]) or []
+            ground_truth = _parse_json_field(gts[i])
+        except (json.JSONDecodeError, TypeError):
+            rewards.append(-1.0)
+            continue
+        calls = parse_function_calls(text)
+        scored = score_bfcl_example(
+            category=str(cat),
+            model_calls=calls,
+            ground_truth=ground_truth,
+            functions=functions if isinstance(functions, list) else [],
+        )
+        rewards.append(1.0 if scored["acc"] else -1.0)
+    return rewards
+
+
 def resolve_reward(name: str):
     if name == "instruction":
         return instruction_reward
     if name == "boxed":
         return boxed_reward
-    raise ValueError(f"unknown GRPO reward {name!r}; use instruction|boxed")
+    if name == "bfcl":
+        return bfcl_reward
+    raise ValueError(f"unknown GRPO reward {name!r}; use instruction|boxed|bfcl")

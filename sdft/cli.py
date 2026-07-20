@@ -65,7 +65,10 @@ def _cmd_export(args: argparse.Namespace) -> None:
     )
     print(f"exported {count} training row(s) -> {out}")
     if count:
-        print("point a config at this path, e.g. data.data_files in configs/geek_jokes.yaml")
+        print(
+            "point a config at this path, e.g. data.data_files with "
+            "data.dataset: json in your YAML config"
+        )
 
 
 def _cmd_bench(args: argparse.Namespace) -> None:
@@ -133,12 +136,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  uv run python -m sdft.cli collect "
-            '-i "Tell a geek joke" -o "My commit speaks fluent jargon."\n'
-            "  uv run python -m sdft.cli collect --file data/geek_jokes.jsonl\n"
-            "  uv run python -m sdft.cli export geek-jokes-batch\n"
+            '-i "Explain LoRA in one sentence." -o "Low-rank adapters for fine-tuning."\n'
+            "  uv run python -m sdft.cli collect --file data/my_dataset.jsonl\n"
+            "  uv run python -m sdft.cli export my-batch\n"
             "  uv run python -m sdft.cli bench generate --num-examples 4\n"
             "  uv run python -m sdft.cli bench inference --prompt \"What is LoRA?\"\n"
-            "  uv run python -m sdft.cli bench geek_jokes --config configs/geek_jokes_trained.yaml\n"
             "  uv run python -m sdft.cli list records\n"
             "  uv run python -m sdft.cli list benchmarks\n"
         ),
@@ -157,7 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_collect.add_argument(
         "--file",
         default=None,
-        help="Import Alpaca/geek-jokes JSONL rows (source=cli)",
+        help="Import Alpaca-style JSONL rows (source=cli)",
     )
     p_collect.set_defaults(func=_cmd_collect)
 
@@ -175,11 +177,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bench = sub.add_parser(
         "bench",
-        help="Run generate, inference, or geek-jokes benchmark",
+        help="Run generate or inference benchmark",
     )
     p_bench.add_argument(
         "benchmark",
-        choices=["generate", "inference", "geek_jokes"],
+        choices=["generate", "inference"],
         help="Benchmark kind",
     )
     p_bench.add_argument("--config", default="configs/default.yaml")
@@ -187,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--num-examples",
         type=int,
         default=8,
-        help="Examples for generate/geek_jokes benchmark (default: 8)",
+        help="Examples for generate benchmark (default: 8)",
     )
     p_bench.add_argument(
         "--prompt",

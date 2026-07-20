@@ -21,22 +21,36 @@ from .utils import load_model, load_tokenizer, pick_device
 
 
 def load_grpo_dataset(path: str) -> Dataset:
-    """Build a GRPO dataset with ``prompt`` (+ optional ``gold``) columns."""
+    """Build a GRPO dataset with ``prompt`` (+ optional gold / BFCL columns).
+
+    Plain instruction strings are wrapped as a single user message. Pre-rendered
+    chat prefixes (containing ``<|im_start|>``) are kept as strings so TRL
+    tokenizes them without re-applying the chat template.
+    """
+    from sdft.bfcl.train_data import is_rendered_prompt
+
     rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
     items: list[dict] = []
     for row in rows:
         prompt = row.get("prompt")
         if isinstance(prompt, str):
-            prompt_messages = [{"role": "user", "content": prompt}]
+            if is_rendered_prompt(prompt):
+                prompt_value: str | list = prompt
+            else:
+                prompt_value = [{"role": "user", "content": prompt}]
         elif isinstance(prompt, list):
-            prompt_messages = prompt
+            prompt_value = prompt
         else:
             continue
-        item: dict = {"prompt": prompt_messages}
+        item: dict = {"prompt": prompt_value}
         gold = row.get("response") or row.get("gold") or row.get("ground_truth")
-        if gold:
+        if gold and not isinstance(gold, (dict, list)):
             item["gold"] = str(gold)
             item["ground_truth"] = str(gold)
+        # BFCL AST reward columns (JSON strings or already-parsed structures).
+        for key in ("bfcl_category", "category", "bfcl_functions", "bfcl_ground_truth"):
+            if key in row and row[key] is not None and row[key] != "":
+                item[key if key != "category" else "bfcl_category"] = row[key]
         items.append(item)
     if not items:
         raise SystemExit(f"no GRPO rows in {path}")

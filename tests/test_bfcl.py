@@ -165,6 +165,9 @@ def test_load_bfcl_configs():
     assert suite.training.batch_size == 1
     assert "self_attn" in suite.lora.target_modules
 
+    bfcl_train = load_config(root / "configs/compare/bfcl_grpo.yaml")
+    assert bfcl_train.grpo.reward == "bfcl"
+
 
 def test_parse_empty_is_no_calls():
     assert parse_function_calls("") == []
