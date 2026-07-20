@@ -31,12 +31,6 @@ from sdft.online.reward import get_reward_fn
 
 console = Console()
 
-SYSTEM = (
-    "You are a SQLite assistant for a store database with tables "
-    f"{sqlenv.SCHEMA_DESCRIPTION}. "
-    "Answer the question with ONE SQLite query wrapped in <sql>...</sql>."
-)
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -51,7 +45,7 @@ def main() -> int:
 
     console.print(Rule("Learn to query a REAL database — text → SQL, executed on-device"))
     console.print(f"[dim]model={cfg.model.name}  offline  ·  real SQLite engine (read-only jail)  ·  "
-                  "coach + test on DISJOINT categories/cities[/]")
+                  "schema learned into the weights  ·  coach + test on DISJOINT categories/cities[/]")
 
     # Build the real database the model will query, and point the reward at it.
     sqlenv.build_db(args.store_db)
@@ -66,10 +60,12 @@ def main() -> int:
     console.print("[dim]loading model…[/]")
     ctrl = OnlineController.build(cfg)
 
+    # Serve schema-less: the model must have learned the schema into its weights
+    # (the gold queries it trained on). The schema lives only in the config's
+    # coach_instruction, used as a teacher hint while sampling candidates.
     def ask(question: str) -> str:
         return ctrl.backend.generate(
-            [{"role": "system", "content": SYSTEM}, {"role": "user", "content": question}],
-            temperature=0.0, max_new_tokens=64)
+            [{"role": "user", "content": question}], temperature=0.0, max_new_tokens=64)
 
     def held_out_rate(tag: str, show: bool = False):
         hits, sample = 0, None
