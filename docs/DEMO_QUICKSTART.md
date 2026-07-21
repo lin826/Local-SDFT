@@ -167,4 +167,6 @@ Read the run with `bpeek <jobid>` (live) or `bsub_outputs/<jobid>.out` (after).
   in `sdft/online/reward.py`.
 - More demos (continual learning, lifelong skill-accumulation + experience replay,
   inbox triage) are documented in [DEMO.md](DEMO.md).
+- How these three demos work under the hood — data, reward/shaper, and the shared
+  training loop — is written up in [IMPLEMENTATION.md](IMPLEMENTATION.md).
 ```
