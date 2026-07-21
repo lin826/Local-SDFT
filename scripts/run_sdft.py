@@ -352,6 +352,15 @@ def make_figure(results: dict) -> None:
         ax_drift.text((start + end) / 2, -0.115, f"{regime}\nitems {start + 1}–{end}",
                       transform=phase_axis, ha="center", va="top", fontsize=8.3,
                       color="#5f6368", fontweight="bold")
+    # B ships standalone on the blog too, so it carries its own compact legend.
+    from matplotlib.lines import Line2D
+    ax_drift.legend(handles=[
+        Line2D([], [], color=colors["Online-SDFT"], lw=2.6, marker="o", ms=5,
+               label="Online-SDFT"),
+        Line2D([], [], color=colors["ICL"], lw=1.8, marker="o", ms=3.8, label=icl_name),
+        Line2D([], [], color=colors["RAG"], lw=1.8, marker="o", ms=3.8, label=rag_name),
+        Line2D([], [], color=colors["ZS"], ls=":", lw=1.6, label="zero-shot floor"),
+    ], fontsize=7.5, loc="lower center", ncols=2, framealpha=0.95)
     ax_drift.set_xlim(-1, stream_len + 2)
     ax_drift.set_xlabel("Items streamed  (same causal history for every method)",
                         labelpad=36)
@@ -394,6 +403,16 @@ def make_figure(results: dict) -> None:
     out = FIG_DIR / "online_sdft_triage.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print("wrote", out, flush=True)
+
+    # Also export each panel on its own — the blog shows A/B/C full-width, one
+    # per "Reading the panels" paragraph, instead of three squeezed thumbnails.
+    renderer = fig.canvas.get_renderer()
+    for ax, suffix in ((ax_cost, "a"), (ax_drift, "b"), (ax_regret, "c")):
+        extent = (ax.get_tightbbox(renderer)
+                  .transformed(fig.dpi_scale_trans.inverted()))
+        panel_out = FIG_DIR / f"online_sdft_triage_{suffix}.png"
+        fig.savefig(panel_out, dpi=150, bbox_inches=extent.expanded(1.02, 1.04))
+        print("wrote", panel_out, flush=True)
 
 
 if __name__ == "__main__":
