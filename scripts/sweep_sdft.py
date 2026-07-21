@@ -5,9 +5,13 @@ guess with the live adapter, feedback, batch_size=1 updates with all-class
 replay, probe guardrail over the final regime — but probes only what the
 headline metric needs, so one config costs ~4 min instead of a full run:
 
-  metric   whole-week live mean: held-out accuracy per regime at its block-end
-           checkpoint (weekday@30, on-call@42, off-hours@60), averaged — the
-           same yardstick as Panel A. Ties break toward lower stream regret.
+  metric   set PRIMARY below. "live_mean" ranks by the whole-week live mean
+           (held-out accuracy per regime at its block-end checkpoint, averaged
+           — Panel A's yardstick) with regret as tiebreak; "regret" ranks by
+           accumulated stream mistakes (Panel C's yardstick) with the live
+           mean as tiebreak. Note: TEACHER_SHOTS only conditions the online
+           GUESS — the gradient target is the observed action either way — so
+           the shots axis moves the regret measurement, not the weights.
 
 Three stages, all automatic:
 
@@ -40,12 +44,13 @@ from triage_common import (
 )
 
 # --- the sweep space --------------------------------------------------------- #
-DEFAULT = {"lr": 1e-3, "steps": 8, "r": 8, "shots": 2, "replay": 16}   # adopted winner
-LR_GRID = (5e-4, 1e-3, 2e-3)
-STEPS_GRID = (3, 5, 8)
-R_GRID = (8, 32)          # stage B, around the winner (16 is the default centre)
-SHOTS_GRID = (0, 4)       # 0 = the model self-teaches from the bare prompt alone
-REPLAY_GRID = (8, 32)
+PRIMARY = "regret"        # "live_mean" (Panel A) or "regret" (Panel C) first
+DEFAULT = {"lr": 7e-4, "steps": 8, "r": 8, "shots": 0, "replay": 16}   # adopted winner
+LR_GRID = (7e-4, 1e-3)    # 5e-4 underperforms, 2e-3 collapses (earlier sweep)
+STEPS_GRID = (5, 6, 8)    # steps=5 scored regret 24 in the earlier sweep
+R_GRID = (16,)            # stage B, around the winner (8 is the default centre)
+SHOTS_GRID = (0,)         # 0 = guess with the bare prompt, i.e. the serving call
+REPLAY_GRID = (8,)        # 32 drowns the fresh item (earlier sweep)
 EXTRA_SEEDS = (8, 9)      # stage C robustness check (data stays seed-7)
 
 BLOCK_ENDS = tuple(zip([*DRIFTS, STREAM_LEN], (1, 2, 3)))   # (pos, phase)
@@ -104,7 +109,7 @@ def run_config(base, tok, stream, evals, cfg: dict, torch_seed: int = SEED) -> d
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     device_note = "cuda" if torch.cuda.is_available() else "mps/cpu"
-    print(f"model={MODEL_NAME} ({device_note})  metric=whole-week live mean", flush=True)
+    print(f"model={MODEL_NAME} ({device_note})  PRIMARY metric={PRIMARY}", flush=True)
 
     stream = build_stream(random.Random(SEED))
     for item in stream:   # the loop trains on prompts, same as the exported dataset
@@ -129,6 +134,8 @@ def main() -> None:
         return entry
 
     def rank(entry: dict) -> tuple:
+        if PRIMARY == "regret":
+            return (-entry["regret"], entry["live_mean"])
         return (entry["live_mean"], -entry["regret"])
 
     print("\n== stage A: LR x STEPS_PER_ITEM ==", flush=True)

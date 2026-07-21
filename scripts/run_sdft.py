@@ -34,21 +34,24 @@ from triage_common import (
     ACTIONS, BASELINES_JSON, DRIFTS, FIG_DIR, MODEL_NAME, OUT_DIR, REGIMES, SEED,
     STREAM_LEN, accuracy, build_eval, build_msgs, build_stream, generate,
     load_base_model, load_tokenizer, parse_action, phase_of, pick_device,
-    recent_demos, render_prompt,
+    render_prompt,
 )
 
 # --- training knobs (the blog's knob table) ---------------------------------- #
-# The winning setup from scripts/sweep_sdft.py (whole-week live mean, checked on
-# three torch seeds): r=8 / steps=8 beats the hand-tuned r=16 / steps=5 on every
-# seed and halves the adapter on disk.
+# The regret-primary winner from scripts/sweep_sdft.py, checked on three torch
+# seeds: stream regret 18/22/21 vs the accuracy-tuned lr=1e-3 sibling's
+# 28/20/23, giving up ~0.04 of whole-week mean (0.92/0.86/0.92 vs perfect on
+# seed 7). The online guess is the BARE serving call — the sweep showed teacher
+# demos only condition the guess (never the gradient) and the bare call guesses
+# best, so there is no TEACHER_SHOTS knob any more.
 LORA_R = 8                                       # adapter rank (~1.4 MB on disk)
 LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
 LORA_TARGET = r".*self_attn\.(q|k|v|out)_proj"   # LFM2 attention projections
-LR = 1e-3            # one persistent AdamW across the whole stream: the completion
+LR = 7e-4            # one persistent AdamW across the whole stream: the completion
                      # is 1-2 tokens (tiny loss), so it wants a larger step than a
-                     # scheduled batch trainer (5e-4 underperforms, 2e-3 collapses)
-TEACHER_SHOTS = 2    # recent decisions in context when the model makes its own call
+                     # scheduled batch trainer — but 1e-3 overshoots on the live
+                     # stream (regret 28 vs 18) and 2e-3 collapses outright
 REPLAY = 16          # sliding replay-buffer size (items; 32 drowns the fresh item)
 STEPS_PER_ITEM = 8   # batch_size=1 update steps per incoming item — 3-way wants
                      # more gradient than binary (3 stalls on the cold start)
@@ -140,8 +143,8 @@ def main() -> None:
     # best, and roll back to that snapshot before serving (auto-rollback on decay).
     best = {"acc": -1.0, "pos": None, "state": None}
     for i, item in enumerate(stream):
-        # the model's own call, with a couple of recent decisions in context
-        guess = generate(model, tok, [build_msgs(item, recent_demos(stream[:i], TEACHER_SHOTS))],
+        # the model's own call — the exact bare prompt it serves, nothing else
+        guess = generate(model, tok, [build_msgs(item)],
                          label=f"guess@{i + 1}", batch_size=1)[0]
         prediction = parse_action(guess)
         # feedback = 1 -> its call matched what you did (reinforce its own answer)
@@ -255,7 +258,7 @@ def main() -> None:
 
     results = {
         "config": {**config, "lora_r": LORA_R, "lora_alpha": LORA_ALPHA,
-                   "lora_dropout": LORA_DROPOUT, "lr": LR, "teacher_shots": TEACHER_SHOTS,
+                   "lora_dropout": LORA_DROPOUT, "lr": LR,
                    "replay": REPLAY, "steps_per_item": STEPS_PER_ITEM},
         "arms": arms,
         "sweeps": baselines["sweeps"],
