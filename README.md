@@ -123,12 +123,18 @@ lifts parallel to 62.5%.
 
 | Arm | Overall | Simple | Multiple | Parallel | Irrelevance | Mean lat (s) | tok/s | Train s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| base | — | — | — | — | — | — | — | — |
-| gold SFT | — | — | — | — | — | — | — | — |
-| SDFT | — | — | — | — | — | — | — | — |
-| GRPO | — | — | — | — | — | — | — | — |
+| base | 26.6% | 9.4% | 3.1% | 0.0% | 93.8% | 2.98 | 64 | — |
+| gold SFT | **66.4%** | 90.6% | 81.2% | 0.0% | 93.8% | 0.76 | 62 | 157.2 |
+| SDFT | 24.2% | 0.0% | 0.0% | 0.0% | 96.9% | 3.74 | 46 | 201.9 |
+| GRPO | 27.3% | 12.5% | 3.1% | 0.0% | 93.8% | 3.51 | 55 | 1473.7 |
 
-*Table filled when `outputs/compare/bfcl_1_2b_comparison_full.json` completes.*
+Adapters: `outputs/compare/bfcl-1_2b-{sft-gold,sdft,grpo}`
+(`outputs/compare/bfcl_1_2b_comparison_full.json`). Same `max_new_tokens=192`
+budget as the Instruct configs: **base / SDFT / GRPO often exhaust the budget
+inside `<think>…</think>`** (mean ~191 gen tokens) and emit no tool call, so
+AST scores collapse except irrelevance. **Gold SFT** short-circuits to tool
+calls (~47 tok) and jumps to 66.4% overall — but still 0% parallel. Raising
+the decode budget is the obvious follow-up for a fair Thinking bake-off.
 
 ### Qualitative — `/perf` (refusals → answers)
 
