@@ -178,7 +178,8 @@ leaderboard-equivalent when using the local judge. No GRPO.
 
 ```bash
 uv sync --extra alpacaeval
-# default local judge (Colab T4); optional: export ALPACA_EVAL_LOCAL_JUDGE=...
+# default local judge: Qwen/Qwen3.5-9B 4-bit (Colab T4); optional override:
+# export ALPACA_EVAL_LOCAL_JUDGE=...
 export JUDGE=local
 # or official: export JUDGE=openai OPENAI_API_KEY=...
 uv run python scripts/run_alpaca_eval.py \
