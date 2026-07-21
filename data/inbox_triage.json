@@ -20,64 +20,54 @@
  },
  "stream": [
   {
-   "channel": "slack",
-   "sender": "Diego (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-   "category": "teammate_fyi",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Diego (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Diego",
-   "snippet": "Reminder: your meeting with Diego begins soon.",
-   "category": "calendar_soon",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Diego\nReminder: your meeting with Diego begins soon."
-  },
-  {
    "channel": "email",
-   "sender": "Lena (your manager)",
-   "subject": "Need your call on the billing rewrite",
-   "snippet": "Quick decision needed on the billing rewrite \u2014 reviewers are waiting on you.",
-   "category": "mgr_project",
+   "sender": "Social",
+   "subject": "5 people liked your post",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
    "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena (your manager)\nSubject: Need your call on the billing rewrite\nQuick decision needed on the billing rewrite \u2014 reviewers are waiting on you."
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
   },
   {
    "channel": "email",
    "sender": "Receipts",
-   "subject": "Your payment to the mobile app was successful",
-   "snippet": "Payment of $12.00 received. Thanks for your order.",
+   "subject": "Your payment to SoundOff was successful",
+   "snippet": "Your invoice is attached. No action required.",
    "category": "receipt",
    "phase": 1,
    "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nPayment of $12.00 received. Thanks for your order."
-  },
-  {
-   "channel": "slack",
-   "sender": "Yuki (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-   "category": "teammate_fyi",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Yuki (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to SoundOff was successful\nYour invoice is attached. No action required."
   },
   {
    "channel": "email",
-   "sender": "Diego (your manager)",
+   "sender": "Yuki",
+   "subject": "Need your call on Project Nomad",
+   "snippet": "Can you weigh in before the standup? It's blocking Project Nomad.",
+   "category": "mgr_project",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Yuki\nSubject: Need your call on Project Nomad\nCan you weigh in before the standup? It's blocking Project Nomad."
+  },
+  {
+   "channel": "email",
+   "sender": "Yuki",
    "subject": "Need your call on Atlas",
    "snippet": "Can you weigh in before the standup? It's blocking Atlas.",
    "category": "mgr_project",
    "phase": 1,
    "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Diego (your manager)\nSubject: Need your call on Atlas\nCan you weigh in before the standup? It's blocking Atlas."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Yuki\nSubject: Need your call on Atlas\nCan you weigh in before the standup? It's blocking Atlas."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Yuki",
+   "snippet": "Reminder: your meeting with Yuki begins soon.",
+   "category": "calendar_soon",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
   },
   {
    "channel": "push",
@@ -90,484 +80,34 @@
    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
   },
   {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Yuki",
-   "snippet": "Reminder: your meeting with Yuki begins soon.",
-   "category": "calendar_soon",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
-  },
-  {
-   "channel": "email",
-   "sender": "Marcus (your manager)",
-   "subject": "Need your call on Atlas",
-   "snippet": "Are we shipping Atlas today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus (your manager)\nSubject: Need your call on Atlas\nAre we shipping Atlas today? Need your sign-off."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to Zephyr was successful",
-   "snippet": "Your invoice is attached. No action required.",
-   "category": "receipt",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Zephyr was successful\nYour invoice is attached. No action required."
-  },
-  {
-   "channel": "email",
-   "sender": "Yuki (your manager)",
-   "subject": "Need your call on Atlas",
-   "snippet": "Quick decision needed on Atlas \u2014 reviewers are waiting on you.",
-   "category": "mgr_project",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Yuki (your manager)\nSubject: Need your call on Atlas\nQuick decision needed on Atlas \u2014 reviewers are waiting on you."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: elevated error rate",
-   "snippet": "elevated error rate on the checkout service. Auto-generated.",
-   "category": "monitoring",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nelevated error rate on the checkout service. Auto-generated."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "You have 3 new followers",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: payment gateway timeouts",
-   "snippet": "Automated alert: payment gateway timeouts detected in production.",
-   "category": "monitoring",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: payment gateway timeouts\nAutomated alert: payment gateway timeouts detected in production."
-  },
-  {
-   "channel": "email",
-   "sender": "Nimbus Team",
-   "subject": "We miss you! Come back for 20% off",
-   "snippet": "Limited time only. Unsubscribe anytime.",
-   "category": "promo",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Nimbus Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to Kettle was successful",
-   "snippet": "Payment of $12.00 received. Thanks for your order.",
-   "category": "receipt",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Kettle was successful\nPayment of $12.00 received. Thanks for your order."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to Zephyr was successful",
-   "snippet": "Payment of $12.00 received. Thanks for your order.",
-   "category": "receipt",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Zephyr was successful\nPayment of $12.00 received. Thanks for your order."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: elevated error rate",
-   "snippet": "elevated error rate on the checkout service. Auto-generated.",
-   "category": "monitoring",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nelevated error rate on the checkout service. Auto-generated."
-  },
-  {
-   "channel": "email",
-   "sender": "the mobile app Team",
-   "subject": "New features you'll love",
-   "snippet": "Limited time only. Unsubscribe anytime.",
-   "category": "promo",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: the mobile app Team\nSubject: New features you'll love\nLimited time only. Unsubscribe anytime."
-  },
-  {
-   "channel": "email",
-   "sender": "Tom (your manager)",
-   "subject": "Need your call on Atlas",
-   "snippet": "Are we shipping Atlas today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on Atlas\nAre we shipping Atlas today? Need your sign-off."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: a pager alert",
-   "snippet": "Automated alert: a pager alert detected in production.",
-   "category": "monitoring",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: a pager alert\nAutomated alert: a pager alert detected in production."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Marcus",
-   "snippet": "Reminder: your meeting with Marcus begins soon.",
-   "category": "calendar_soon",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Marcus\nReminder: your meeting with Marcus begins soon."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Marcus",
-   "snippet": "Reminder: your meeting with Marcus begins soon.",
-   "category": "calendar_soon",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Marcus\nReminder: your meeting with Marcus begins soon."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Priya",
-   "snippet": "Reminder: your meeting with Priya begins soon.",
-   "category": "calendar_soon",
-   "phase": 1,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Priya\nReminder: your meeting with Priya begins soon."
-  },
-  {
    "channel": "slack",
-   "sender": "Priya (teammate)",
+   "sender": "Marcus",
    "subject": "fyi / no rush",
    "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
    "category": "teammate_fyi",
    "phase": 1,
    "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Priya (teammate)\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Marcus\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
   },
   {
    "channel": "push",
-   "sender": "Social",
-   "subject": "Someone mentioned you in a comment",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to Zephyr was successful",
-   "snippet": "Charge confirmed. View your billing history anytime.",
-   "category": "receipt",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Zephyr was successful\nCharge confirmed. View your billing history anytime."
-  },
-  {
-   "channel": "slack",
-   "sender": "Lena (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Shared some notes from the sync \u2014 no action needed today.",
-   "category": "teammate_fyi",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Lena (teammate)\nSubject: fyi / no rush\nShared some notes from the sync \u2014 no action needed today."
-  },
-  {
-   "channel": "slack",
-   "sender": "Marcus (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-   "category": "teammate_fyi",
-   "phase": 1,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Marcus (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
-  },
-  {
-   "channel": "email",
-   "sender": "Nimbus Team",
-   "subject": "We miss you! Come back for 20% off",
-   "snippet": "Limited time only. Unsubscribe anytime.",
-   "category": "promo",
-   "phase": 1,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Nimbus Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "Someone mentioned you in a comment",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 2,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: a DB failover",
-   "snippet": "a DB failover on the checkout service. Auto-generated.",
-   "category": "monitoring",
-   "phase": 2,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: a DB failover\na DB failover on the checkout service. Auto-generated."
-  },
-  {
-   "channel": "email",
-   "sender": "SoundOff Team",
-   "subject": "We miss you! Come back for 20% off",
-   "snippet": "Limited time only. Unsubscribe anytime.",
-   "category": "promo",
-   "phase": 2,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: SoundOff Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
-  },
-  {
-   "channel": "slack",
-   "sender": "Marcus (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-   "category": "teammate_fyi",
-   "phase": 2,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Marcus (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
-  },
-  {
-   "channel": "email",
-   "sender": "Tom (your manager)",
-   "subject": "Need your call on the search revamp",
-   "snippet": "Quick decision needed on the search revamp \u2014 reviewers are waiting on you.",
-   "category": "mgr_project",
-   "phase": 2,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on the search revamp\nQuick decision needed on the search revamp \u2014 reviewers are waiting on you."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Priya",
-   "snippet": "Reminder: your meeting with Priya begins soon.",
-   "category": "calendar_soon",
-   "phase": 2,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Priya\nReminder: your meeting with Priya begins soon."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: payment gateway timeouts",
-   "snippet": "Automated alert: payment gateway timeouts detected in production.",
-   "category": "monitoring",
-   "phase": 2,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: payment gateway timeouts\nAutomated alert: payment gateway timeouts detected in production."
-  },
-  {
-   "channel": "email",
-   "sender": "Sam (your manager)",
-   "subject": "Need your call on the billing rewrite",
-   "snippet": "Are we shipping the billing rewrite today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 2,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Sam (your manager)\nSubject: Need your call on the billing rewrite\nAre we shipping the billing rewrite today? Need your sign-off."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Yuki",
-   "snippet": "Reminder: your meeting with Yuki begins soon.",
-   "category": "calendar_soon",
-   "phase": 2,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
-  },
-  {
-   "channel": "email",
-   "sender": "Sam (your manager)",
-   "subject": "Need your call on the billing rewrite",
-   "snippet": "Are we shipping the billing rewrite today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 2,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Sam (your manager)\nSubject: Need your call on the billing rewrite\nAre we shipping the billing rewrite today? Need your sign-off."
-  },
-  {
-   "channel": "email",
-   "sender": "Marcus (your manager)",
-   "subject": "Need your call on Project Nomad",
-   "snippet": "Can you weigh in before the standup? It's blocking Project Nomad.",
-   "category": "mgr_project",
-   "phase": 2,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus (your manager)\nSubject: Need your call on Project Nomad\nCan you weigh in before the standup? It's blocking Project Nomad."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to Kettle was successful",
-   "snippet": "Your invoice is attached. No action required.",
-   "category": "receipt",
-   "phase": 2,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Kettle was successful\nYour invoice is attached. No action required."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "You have 3 new followers",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 3,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "Someone mentioned you in a comment",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 3,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
-  },
-  {
-   "channel": "slack",
-   "sender": "Yuki (teammate)",
-   "subject": "fyi / no rush",
-   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-   "category": "teammate_fyi",
-   "phase": 3,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Yuki (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "You have 3 new followers",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 3,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: checkout 5xx errors",
-   "snippet": "checkout 5xx errors on the checkout service. Auto-generated.",
-   "category": "monitoring",
-   "phase": 3,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: checkout 5xx errors\ncheckout 5xx errors on the checkout service. Auto-generated."
-  },
-  {
-   "channel": "email",
-   "sender": "Nimbus Team",
-   "subject": "48-hour sale \u2014 40% off",
-   "snippet": "Limited time only. Unsubscribe anytime.",
-   "category": "promo",
-   "phase": 3,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Nimbus Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
-  },
-  {
-   "channel": "email",
    "sender": "Receipts",
    "subject": "Your payment to Zephyr was successful",
    "snippet": "Your invoice is attached. No action required.",
    "category": "receipt",
-   "phase": 3,
+   "phase": 1,
    "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Zephyr was successful\nYour invoice is attached. No action required."
-  },
-  {
-   "channel": "calendar",
-   "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Yuki",
-   "snippet": "Reminder: your meeting with Yuki begins soon.",
-   "category": "calendar_soon",
-   "phase": 3,
-   "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to Zephyr was successful\nYour invoice is attached. No action required."
   },
   {
    "channel": "email",
-   "sender": "Aisha (your manager)",
-   "subject": "Need your call on the search revamp",
-   "snippet": "Are we shipping the search revamp today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 3,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Aisha (your manager)\nSubject: Need your call on the search revamp\nAre we shipping the search revamp today? Need your sign-off."
-  },
-  {
-   "channel": "system",
-   "sender": "Monitoring Bot",
-   "subject": "ALERT: checkout 5xx errors",
-   "snippet": "Automated alert: checkout 5xx errors detected in production.",
-   "category": "monitoring",
-   "phase": 3,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: checkout 5xx errors\nAutomated alert: checkout 5xx errors detected in production."
-  },
-  {
-   "channel": "email",
-   "sender": "Receipts",
-   "subject": "Your payment to the mobile app was successful",
-   "snippet": "Your invoice is attached. No action required.",
-   "category": "receipt",
-   "phase": 3,
+   "sender": "Priya",
+   "subject": "fyi / no rush",
+   "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
+   "category": "teammate_fyi",
+   "phase": 1,
    "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nYour invoice is attached. No action required."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "5 people liked your post",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 3,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
-  },
-  {
-   "channel": "push",
-   "sender": "Social",
-   "subject": "5 people liked your post",
-   "snippet": "Tap to see the activity.",
-   "category": "social",
-   "phase": 3,
-   "action": "INTERRUPT",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Priya\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
   },
   {
    "channel": "email",
@@ -575,29 +115,349 @@
    "subject": "New features you'll love",
    "snippet": "Limited time only. Unsubscribe anytime.",
    "category": "promo",
-   "phase": 3,
-   "action": "LATER",
+   "phase": 1,
+   "action": "ARCHIVE",
    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Kettle Team\nSubject: New features you'll love\nLimited time only. Unsubscribe anytime."
   },
   {
    "channel": "email",
-   "sender": "Tom (your manager)",
-   "subject": "Need your call on Project Nomad",
-   "snippet": "Are we shipping Project Nomad today? Need your sign-off.",
-   "category": "mgr_project",
-   "phase": 3,
-   "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on Project Nomad\nAre we shipping Project Nomad today? Need your sign-off."
+   "sender": "Receipts",
+   "subject": "Your payment to the mobile app was successful",
+   "snippet": "Charge confirmed. View your billing history anytime.",
+   "category": "receipt",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nCharge confirmed. View your billing history anytime."
   },
   {
-   "channel": "slack",
-   "sender": "Lena (teammate)",
+   "channel": "push",
+   "sender": "Nimbus Team",
+   "subject": "We miss you! Come back for 20% off",
+   "snippet": "Limited time only. Unsubscribe anytime.",
+   "category": "promo",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Nimbus Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Diego",
+   "snippet": "Reminder: your meeting with Diego begins soon.",
+   "category": "calendar_soon",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Diego\nReminder: your meeting with Diego begins soon."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Diego",
+   "snippet": "Reminder: your meeting with Diego begins soon.",
+   "category": "calendar_soon",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Diego\nReminder: your meeting with Diego begins soon."
+  },
+  {
+   "channel": "email",
+   "sender": "Lena",
+   "subject": "Need your call on the billing rewrite",
+   "snippet": "Quick decision needed on the billing rewrite \u2014 reviewers are waiting on you.",
+   "category": "mgr_project",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena\nSubject: Need your call on the billing rewrite\nQuick decision needed on the billing rewrite \u2014 reviewers are waiting on you."
+  },
+  {
+   "channel": "email",
+   "sender": "Lena",
    "subject": "fyi / no rush",
    "snippet": "Left a couple of comments on your PR whenever you get a sec.",
    "category": "teammate_fyi",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+  },
+  {
+   "channel": "email",
+   "sender": "Tom",
+   "subject": "fyi / no rush",
+   "snippet": "Left a couple of comments on your PR whenever you get a sec.",
+   "category": "teammate_fyi",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+  },
+  {
+   "channel": "push",
+   "sender": "SoundOff Team",
+   "subject": "We miss you! Come back for 20% off",
+   "snippet": "Limited time only. Unsubscribe anytime.",
+   "category": "promo",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: SoundOff Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
+  },
+  {
+   "channel": "slack",
+   "sender": "Sam",
+   "subject": "fyi / no rush",
+   "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
+   "category": "teammate_fyi",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Sam\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
+  },
+  {
+   "channel": "push",
+   "sender": "Receipts",
+   "subject": "Your payment to Nimbus was successful",
+   "snippet": "Charge confirmed. View your billing history anytime.",
+   "category": "receipt",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to Nimbus was successful\nCharge confirmed. View your billing history anytime."
+  },
+  {
+   "channel": "push",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: payment gateway timeouts",
+   "snippet": "Threshold breached \u2014 payment gateway timeouts. Dashboard link inside.",
+   "category": "monitoring",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Monitoring Bot\nSubject: ALERT: payment gateway timeouts\nThreshold breached \u2014 payment gateway timeouts. Dashboard link inside."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Yuki",
+   "snippet": "Reminder: your meeting with Yuki begins soon.",
+   "category": "calendar_soon",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
+  },
+  {
+   "channel": "push",
+   "sender": "Social",
+   "subject": "Someone mentioned you in a comment",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: a DB failover",
+   "snippet": "Threshold breached \u2014 a DB failover. Dashboard link inside.",
+   "category": "monitoring",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: a DB failover\nThreshold breached \u2014 a DB failover. Dashboard link inside."
+  },
+  {
+   "channel": "email",
+   "sender": "Marcus",
+   "subject": "Need your call on Atlas",
+   "snippet": "Quick decision needed on Atlas \u2014 reviewers are waiting on you.",
+   "category": "mgr_project",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus\nSubject: Need your call on Atlas\nQuick decision needed on Atlas \u2014 reviewers are waiting on you."
+  },
+  {
+   "channel": "email",
+   "sender": "Diego",
+   "subject": "Need your call on the search revamp",
+   "snippet": "Can you weigh in before the standup? It's blocking the search revamp.",
+   "category": "mgr_project",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Diego\nSubject: Need your call on the search revamp\nCan you weigh in before the standup? It's blocking the search revamp."
+  },
+  {
+   "channel": "email",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: elevated error rate",
+   "snippet": "Automated alert: elevated error rate detected in production.",
+   "category": "monitoring",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nAutomated alert: elevated error rate detected in production."
+  },
+  {
+   "channel": "email",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: elevated error rate",
+   "snippet": "Threshold breached \u2014 elevated error rate. Dashboard link inside.",
+   "category": "monitoring",
+   "phase": 1,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nThreshold breached \u2014 elevated error rate. Dashboard link inside."
+  },
+  {
+   "channel": "push",
+   "sender": "Receipts",
+   "subject": "Your payment to SoundOff was successful",
+   "snippet": "Your invoice is attached. No action required.",
+   "category": "receipt",
+   "phase": 1,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to SoundOff was successful\nYour invoice is attached. No action required."
+  },
+  {
+   "channel": "calendar",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Lena",
+   "snippet": "Reminder: your meeting with Lena begins soon.",
+   "category": "calendar_soon",
+   "phase": 1,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Lena\nReminder: your meeting with Lena begins soon."
+  },
+  {
+   "channel": "slack",
+   "sender": "Tom",
+   "subject": "Need your call on Project Nomad",
+   "snippet": "Are we shipping Project Nomad today? Need your sign-off.",
+   "category": "mgr_project",
+   "phase": 2,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Tom\nSubject: Need your call on Project Nomad\nAre we shipping Project Nomad today? Need your sign-off."
+  },
+  {
+   "channel": "calendar",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Lena",
+   "snippet": "Reminder: your meeting with Lena begins soon.",
+   "category": "calendar_soon",
+   "phase": 2,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Lena\nReminder: your meeting with Lena begins soon."
+  },
+  {
+   "channel": "push",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: an API outage",
+   "snippet": "an API outage on the checkout service. Auto-generated.",
+   "category": "monitoring",
+   "phase": 2,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Monitoring Bot\nSubject: ALERT: an API outage\nan API outage on the checkout service. Auto-generated."
+  },
+  {
+   "channel": "email",
+   "sender": "Lena",
+   "subject": "Need your call on the Q3 launch",
+   "snippet": "Can you weigh in before the standup? It's blocking the Q3 launch.",
+   "category": "mgr_project",
+   "phase": 2,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena\nSubject: Need your call on the Q3 launch\nCan you weigh in before the standup? It's blocking the Q3 launch."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Sam",
+   "snippet": "Reminder: your meeting with Sam begins soon.",
+   "category": "calendar_soon",
+   "phase": 2,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Sam\nReminder: your meeting with Sam begins soon."
+  },
+  {
+   "channel": "email",
+   "sender": "Receipts",
+   "subject": "Your payment to the mobile app was successful",
+   "snippet": "Charge confirmed. View your billing history anytime.",
+   "category": "receipt",
+   "phase": 2,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nCharge confirmed. View your billing history anytime."
+  },
+  {
+   "channel": "push",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: checkout 5xx errors",
+   "snippet": "Threshold breached \u2014 checkout 5xx errors. Dashboard link inside.",
+   "category": "monitoring",
+   "phase": 2,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Monitoring Bot\nSubject: ALERT: checkout 5xx errors\nThreshold breached \u2014 checkout 5xx errors. Dashboard link inside."
+  },
+  {
+   "channel": "push",
+   "sender": "the mobile app Team",
+   "subject": "New features you'll love",
+   "snippet": "Limited time only. Unsubscribe anytime.",
+   "category": "promo",
+   "phase": 2,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: the mobile app Team\nSubject: New features you'll love\nLimited time only. Unsubscribe anytime."
+  },
+  {
+   "channel": "email",
+   "sender": "Diego",
+   "subject": "Need your call on the Q3 launch",
+   "snippet": "Are we shipping the Q3 launch today? Need your sign-off.",
+   "category": "mgr_project",
+   "phase": 2,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Diego\nSubject: Need your call on the Q3 launch\nAre we shipping the Q3 launch today? Need your sign-off."
+  },
+  {
+   "channel": "email",
+   "sender": "Aisha",
+   "subject": "fyi / no rush",
+   "snippet": "Shared some notes from the sync \u2014 no action needed today.",
+   "category": "teammate_fyi",
+   "phase": 2,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Aisha\nSubject: fyi / no rush\nShared some notes from the sync \u2014 no action needed today."
+  },
+  {
+   "channel": "push",
+   "sender": "Social",
+   "subject": "Someone mentioned you in a comment",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 2,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Sam",
+   "subject": "Need your call on Atlas",
+   "snippet": "Are we shipping Atlas today? Need your sign-off.",
+   "category": "mgr_project",
+   "phase": 2,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Sam\nSubject: Need your call on Atlas\nAre we shipping Atlas today? Need your sign-off."
+  },
+  {
+   "channel": "email",
+   "sender": "Sam",
+   "subject": "fyi / no rush",
+   "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
+   "category": "teammate_fyi",
    "phase": 3,
    "action": "ARCHIVE",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Lena (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Sam\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
+  },
+  {
+   "channel": "email",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: elevated error rate",
+   "snippet": "Automated alert: elevated error rate detected in production.",
+   "category": "monitoring",
+   "phase": 3,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nAutomated alert: elevated error rate detected in production."
   },
   {
    "channel": "push",
@@ -610,77 +470,187 @@
    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
   },
   {
-   "channel": "calendar",
+   "channel": "email",
    "sender": "Calendar",
-   "subject": "Starts in 20 min: 1:1 with Sam",
-   "snippet": "Reminder: your meeting with Sam begins soon.",
+   "subject": "Starts in 20 min: 1:1 with Lena",
+   "snippet": "Reminder: your meeting with Lena begins soon.",
    "category": "calendar_soon",
    "phase": 3,
    "action": "LATER",
-   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Sam\nReminder: your meeting with Sam begins soon."
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Lena\nReminder: your meeting with Lena begins soon."
+  },
+  {
+   "channel": "slack",
+   "sender": "Tom",
+   "subject": "fyi / no rush",
+   "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
+   "category": "teammate_fyi",
+   "phase": 3,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Tom\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
+  },
+  {
+   "channel": "slack",
+   "sender": "Sam",
+   "subject": "Need your call on Project Nomad",
+   "snippet": "Quick decision needed on Project Nomad \u2014 reviewers are waiting on you.",
+   "category": "mgr_project",
+   "phase": 3,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Sam\nSubject: Need your call on Project Nomad\nQuick decision needed on Project Nomad \u2014 reviewers are waiting on you."
+  },
+  {
+   "channel": "email",
+   "sender": "Calendar",
+   "subject": "Starts in 20 min: 1:1 with Tom",
+   "snippet": "Reminder: your meeting with Tom begins soon.",
+   "category": "calendar_soon",
+   "phase": 3,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Tom\nReminder: your meeting with Tom begins soon."
+  },
+  {
+   "channel": "email",
+   "sender": "Social",
+   "subject": "You have 3 new followers",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 3,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Social",
+   "subject": "5 people liked your post",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 3,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
+  },
+  {
+   "channel": "push",
+   "sender": "Nimbus Team",
+   "subject": "48-hour sale \u2014 40% off",
+   "snippet": "Limited time only. Unsubscribe anytime.",
+   "category": "promo",
+   "phase": 3,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Nimbus Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
+  },
+  {
+   "channel": "email",
+   "sender": "Social",
+   "subject": "Someone mentioned you in a comment",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 3,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Receipts",
+   "subject": "Your payment to Kettle was successful",
+   "snippet": "Payment of $12.00 received. Thanks for your order.",
+   "category": "receipt",
+   "phase": 3,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Kettle was successful\nPayment of $12.00 received. Thanks for your order."
+  },
+  {
+   "channel": "email",
+   "sender": "Social",
+   "subject": "5 people liked your post",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 3,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Marcus",
+   "subject": "Need your call on the billing rewrite",
+   "snippet": "Can you weigh in before the standup? It's blocking the billing rewrite.",
+   "category": "mgr_project",
+   "phase": 3,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus\nSubject: Need your call on the billing rewrite\nCan you weigh in before the standup? It's blocking the billing rewrite."
+  },
+  {
+   "channel": "push",
+   "sender": "Receipts",
+   "subject": "Your payment to SoundOff was successful",
+   "snippet": "Charge confirmed. View your billing history anytime.",
+   "category": "receipt",
+   "phase": 3,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to SoundOff was successful\nCharge confirmed. View your billing history anytime."
+  },
+  {
+   "channel": "push",
+   "sender": "the mobile app Team",
+   "subject": "We miss you! Come back for 20% off",
+   "snippet": "Limited time only. Unsubscribe anytime.",
+   "category": "promo",
+   "phase": 3,
+   "action": "LATER",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: the mobile app Team\nSubject: We miss you! Come back for 20% off\nLimited time only. Unsubscribe anytime."
+  },
+  {
+   "channel": "email",
+   "sender": "Social",
+   "subject": "5 people liked your post",
+   "snippet": "Tap to see the activity.",
+   "category": "social",
+   "phase": 3,
+   "action": "INTERRUPT",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
+  },
+  {
+   "channel": "email",
+   "sender": "Monitoring Bot",
+   "subject": "ALERT: elevated error rate",
+   "snippet": "Threshold breached \u2014 elevated error rate. Dashboard link inside.",
+   "category": "monitoring",
+   "phase": 3,
+   "action": "ARCHIVE",
+   "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nThreshold breached \u2014 elevated error rate. Dashboard link inside."
   }
  ],
  "evals": {
   "1": [
    {
-    "channel": "email",
-    "sender": "Diego (your manager)",
-    "subject": "Need your call on the Q3 launch",
-    "snippet": "Are we shipping the Q3 launch today? Need your sign-off.",
-    "category": "mgr_project",
-    "phase": 1,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Diego (your manager)\nSubject: Need your call on the Q3 launch\nAre we shipping the Q3 launch today? Need your sign-off."
-   },
-   {
     "channel": "slack",
-    "sender": "Diego (teammate)",
+    "sender": "Sam",
     "subject": "fyi / no rush",
     "snippet": "Shared some notes from the sync \u2014 no action needed today.",
     "category": "teammate_fyi",
     "phase": 1,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Diego (teammate)\nSubject: fyi / no rush\nShared some notes from the sync \u2014 no action needed today."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Sam\nSubject: fyi / no rush\nShared some notes from the sync \u2014 no action needed today."
    },
    {
-    "channel": "system",
-    "sender": "Monitoring Bot",
-    "subject": "ALERT: elevated error rate",
-    "snippet": "Automated alert: elevated error rate detected in production.",
-    "category": "monitoring",
-    "phase": 1,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nAutomated alert: elevated error rate detected in production."
-   },
-   {
-    "channel": "calendar",
-    "sender": "Calendar",
-    "subject": "Starts in 20 min: 1:1 with Priya",
-    "snippet": "Reminder: your meeting with Priya begins soon.",
-    "category": "calendar_soon",
-    "phase": 1,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Priya\nReminder: your meeting with Priya begins soon."
-   },
-   {
-    "channel": "email",
-    "sender": "Kettle Team",
-    "subject": "48-hour sale \u2014 40% off",
-    "snippet": "Limited time only. Unsubscribe anytime.",
-    "category": "promo",
-    "phase": 1,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Kettle Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
-   },
-   {
-    "channel": "email",
+    "channel": "push",
     "sender": "Receipts",
     "subject": "Your payment to Kettle was successful",
-    "snippet": "Your invoice is attached. No action required.",
+    "snippet": "Payment of $12.00 received. Thanks for your order.",
     "category": "receipt",
     "phase": 1,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Kettle was successful\nYour invoice is attached. No action required."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to Kettle was successful\nPayment of $12.00 received. Thanks for your order."
+   },
+   {
+    "channel": "email",
+    "sender": "Calendar",
+    "subject": "Starts in 20 min: 1:1 with Diego",
+    "snippet": "Reminder: your meeting with Diego begins soon.",
+    "category": "calendar_soon",
+    "phase": 1,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Diego\nReminder: your meeting with Diego begins soon."
    },
    {
     "channel": "push",
@@ -693,96 +663,166 @@
     "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
    },
    {
-    "channel": "email",
+    "channel": "push",
     "sender": "Receipts",
-    "subject": "Your payment to Nimbus was successful",
-    "snippet": "Your invoice is attached. No action required.",
+    "subject": "Your payment to the mobile app was successful",
+    "snippet": "Payment of $12.00 received. Thanks for your order.",
     "category": "receipt",
     "phase": 1,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Nimbus was successful\nYour invoice is attached. No action required."
-   },
-   {
-    "channel": "system",
-    "sender": "Monitoring Bot",
-    "subject": "ALERT: an API outage",
-    "snippet": "Threshold breached \u2014 an API outage. Dashboard link inside.",
-    "category": "monitoring",
-    "phase": 1,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: an API outage\nThreshold breached \u2014 an API outage. Dashboard link inside."
-   },
-   {
-    "channel": "slack",
-    "sender": "Lena (teammate)",
-    "subject": "fyi / no rush",
-    "snippet": "Left a couple of comments on your PR whenever you get a sec.",
-    "category": "teammate_fyi",
-    "phase": 1,
-    "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Lena (teammate)\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nPayment of $12.00 received. Thanks for your order."
    },
    {
     "channel": "email",
-    "sender": "Tom (your manager)",
+    "sender": "Monitoring Bot",
+    "subject": "ALERT: an API outage",
+    "snippet": "an API outage on the checkout service. Auto-generated.",
+    "category": "monitoring",
+    "phase": 1,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: an API outage\nan API outage on the checkout service. Auto-generated."
+   },
+   {
+    "channel": "push",
+    "sender": "Monitoring Bot",
+    "subject": "ALERT: elevated error rate",
+    "snippet": "Threshold breached \u2014 elevated error rate. Dashboard link inside.",
+    "category": "monitoring",
+    "phase": 1,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Monitoring Bot\nSubject: ALERT: elevated error rate\nThreshold breached \u2014 elevated error rate. Dashboard link inside."
+   },
+   {
+    "channel": "email",
+    "sender": "Calendar",
+    "subject": "Starts in 20 min: 1:1 with Yuki",
+    "snippet": "Reminder: your meeting with Yuki begins soon.",
+    "category": "calendar_soon",
+    "phase": 1,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Yuki\nReminder: your meeting with Yuki begins soon."
+   },
+   {
+    "channel": "email",
+    "sender": "Yuki",
+    "subject": "fyi / no rush",
+    "snippet": "Shared some notes from the sync \u2014 no action needed today.",
+    "category": "teammate_fyi",
+    "phase": 1,
+    "action": "LATER",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Yuki\nSubject: fyi / no rush\nShared some notes from the sync \u2014 no action needed today."
+   },
+   {
+    "channel": "email",
+    "sender": "Tom",
     "subject": "Need your call on the Q3 launch",
     "snippet": "Quick decision needed on the Q3 launch \u2014 reviewers are waiting on you.",
     "category": "mgr_project",
     "phase": 1,
     "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on the Q3 launch\nQuick decision needed on the Q3 launch \u2014 reviewers are waiting on you."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom\nSubject: Need your call on the Q3 launch\nQuick decision needed on the Q3 launch \u2014 reviewers are waiting on you."
    },
    {
-    "channel": "calendar",
-    "sender": "Calendar",
-    "subject": "Starts in 20 min: 1:1 with Marcus",
-    "snippet": "Reminder: your meeting with Marcus begins soon.",
-    "category": "calendar_soon",
+    "channel": "email",
+    "sender": "SoundOff Team",
+    "subject": "48-hour sale \u2014 40% off",
+    "snippet": "Limited time only. Unsubscribe anytime.",
+    "category": "promo",
+    "phase": 1,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: SoundOff Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
+   },
+   {
+    "channel": "email",
+    "sender": "Priya",
+    "subject": "Need your call on the Q3 launch",
+    "snippet": "Can you weigh in before the standup? It's blocking the Q3 launch.",
+    "category": "mgr_project",
     "phase": 1,
     "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Marcus\nReminder: your meeting with Marcus begins soon."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Priya\nSubject: Need your call on the Q3 launch\nCan you weigh in before the standup? It's blocking the Q3 launch."
    }
   ],
   "2": [
    {
-    "channel": "email",
-    "sender": "Kettle Team",
-    "subject": "48-hour sale \u2014 40% off",
-    "snippet": "Limited time only. Unsubscribe anytime.",
-    "category": "promo",
+    "channel": "push",
+    "sender": "Social",
+    "subject": "Someone mentioned you in a comment",
+    "snippet": "Tap to see the activity.",
+    "category": "social",
     "phase": 2,
     "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Kettle Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
    },
    {
-    "channel": "system",
+    "channel": "email",
     "sender": "Monitoring Bot",
     "subject": "ALERT: checkout 5xx errors",
     "snippet": "checkout 5xx errors on the checkout service. Auto-generated.",
     "category": "monitoring",
     "phase": 2,
     "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: checkout 5xx errors\ncheckout 5xx errors on the checkout service. Auto-generated."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: checkout 5xx errors\ncheckout 5xx errors on the checkout service. Auto-generated."
    },
    {
     "channel": "email",
-    "sender": "Tom (your manager)",
+    "sender": "Calendar",
+    "subject": "Starts in 20 min: 1:1 with Aisha",
+    "snippet": "Reminder: your meeting with Aisha begins soon.",
+    "category": "calendar_soon",
+    "phase": 2,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Aisha\nReminder: your meeting with Aisha begins soon."
+   },
+   {
+    "channel": "email",
+    "sender": "Receipts",
+    "subject": "Your payment to Nimbus was successful",
+    "snippet": "Your invoice is attached. No action required.",
+    "category": "receipt",
+    "phase": 2,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to Nimbus was successful\nYour invoice is attached. No action required."
+   },
+   {
+    "channel": "email",
+    "sender": "Marcus",
     "subject": "Need your call on Atlas",
-    "snippet": "Are we shipping Atlas today? Need your sign-off.",
+    "snippet": "Can you weigh in before the standup? It's blocking Atlas.",
     "category": "mgr_project",
     "phase": 2,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on Atlas\nAre we shipping Atlas today? Need your sign-off."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus\nSubject: Need your call on Atlas\nCan you weigh in before the standup? It's blocking Atlas."
+   },
+   {
+    "channel": "email",
+    "sender": "Yuki",
+    "subject": "fyi / no rush",
+    "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
+    "category": "teammate_fyi",
+    "phase": 2,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Yuki\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
+   },
+   {
+    "channel": "email",
+    "sender": "SoundOff Team",
+    "subject": "48-hour sale \u2014 40% off",
+    "snippet": "Limited time only. Unsubscribe anytime.",
+    "category": "promo",
+    "phase": 2,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: SoundOff Team\nSubject: 48-hour sale \u2014 40% off\nLimited time only. Unsubscribe anytime."
    },
    {
     "channel": "push",
-    "sender": "Social",
-    "subject": "5 people liked your post",
-    "snippet": "Tap to see the activity.",
-    "category": "social",
+    "sender": "Monitoring Bot",
+    "subject": "ALERT: a pager alert",
+    "snippet": "a pager alert on the checkout service. Auto-generated.",
+    "category": "monitoring",
     "phase": 2,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: 5 people liked your post\nTap to see the activity."
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Monitoring Bot\nSubject: ALERT: a pager alert\na pager alert on the checkout service. Auto-generated."
    },
    {
     "channel": "calendar",
@@ -795,86 +835,136 @@
     "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Sam\nReminder: your meeting with Sam begins soon."
    },
    {
-    "channel": "email",
-    "sender": "Marcus (your manager)",
-    "subject": "Need your call on Project Nomad",
-    "snippet": "Quick decision needed on Project Nomad \u2014 reviewers are waiting on you.",
-    "category": "mgr_project",
-    "phase": 2,
-    "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus (your manager)\nSubject: Need your call on Project Nomad\nQuick decision needed on Project Nomad \u2014 reviewers are waiting on you."
-   },
-   {
-    "channel": "email",
-    "sender": "Lena (your manager)",
+    "channel": "slack",
+    "sender": "Lena",
     "subject": "Need your call on Project Nomad",
     "snippet": "Are we shipping Project Nomad today? Need your sign-off.",
     "category": "mgr_project",
     "phase": 2,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena (your manager)\nSubject: Need your call on Project Nomad\nAre we shipping Project Nomad today? Need your sign-off."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Lena\nSubject: Need your call on Project Nomad\nAre we shipping Project Nomad today? Need your sign-off."
    },
    {
     "channel": "email",
-    "sender": "Priya (your manager)",
+    "sender": "Marcus",
     "subject": "Need your call on the search revamp",
-    "snippet": "Are we shipping the search revamp today? Need your sign-off.",
+    "snippet": "Quick decision needed on the search revamp \u2014 reviewers are waiting on you.",
     "category": "mgr_project",
     "phase": 2,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Priya (your manager)\nSubject: Need your call on the search revamp\nAre we shipping the search revamp today? Need your sign-off."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Marcus\nSubject: Need your call on the search revamp\nQuick decision needed on the search revamp \u2014 reviewers are waiting on you."
    },
    {
     "channel": "email",
-    "sender": "Receipts",
-    "subject": "Your payment to the mobile app was successful",
-    "snippet": "Payment of $12.00 received. Thanks for your order.",
-    "category": "receipt",
+    "sender": "Lena",
+    "subject": "Need your call on Project Nomad",
+    "snippet": "Can you weigh in before the standup? It's blocking Project Nomad.",
+    "category": "mgr_project",
     "phase": 2,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to the mobile app was successful\nPayment of $12.00 received. Thanks for your order."
-   },
-   {
-    "channel": "slack",
-    "sender": "Sam (teammate)",
-    "subject": "fyi / no rush",
-    "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
-    "category": "teammate_fyi",
-    "phase": 2,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Sam (teammate)\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
-   },
-   {
-    "channel": "system",
-    "sender": "Monitoring Bot",
-    "subject": "ALERT: a pager alert",
-    "snippet": "Automated alert: a pager alert detected in production.",
-    "category": "monitoring",
-    "phase": 2,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: a pager alert\nAutomated alert: a pager alert detected in production."
-   },
-   {
-    "channel": "calendar",
-    "sender": "Calendar",
-    "subject": "Starts in 20 min: 1:1 with Tom",
-    "snippet": "Reminder: your meeting with Tom begins soon.",
-    "category": "calendar_soon",
-    "phase": 2,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Tom\nReminder: your meeting with Tom begins soon."
+    "action": "LATER",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Lena\nSubject: Need your call on Project Nomad\nCan you weigh in before the standup? It's blocking Project Nomad."
    }
   ],
   "3": [
    {
-    "channel": "calendar",
+    "channel": "email",
+    "sender": "Social",
+    "subject": "Someone mentioned you in a comment",
+    "snippet": "Tap to see the activity.",
+    "category": "social",
+    "phase": 3,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
+   },
+   {
+    "channel": "slack",
+    "sender": "Sam",
+    "subject": "fyi / no rush",
+    "snippet": "Left a couple of comments on your PR whenever you get a sec.",
+    "category": "teammate_fyi",
+    "phase": 3,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Sam\nSubject: fyi / no rush\nLeft a couple of comments on your PR whenever you get a sec."
+   },
+   {
+    "channel": "email",
     "sender": "Calendar",
-    "subject": "Starts in 20 min: 1:1 with Priya",
-    "snippet": "Reminder: your meeting with Priya begins soon.",
+    "subject": "Starts in 20 min: 1:1 with Lena",
+    "snippet": "Reminder: your meeting with Lena begins soon.",
     "category": "calendar_soon",
     "phase": 3,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Priya\nReminder: your meeting with Priya begins soon."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Lena\nReminder: your meeting with Lena begins soon."
+   },
+   {
+    "channel": "slack",
+    "sender": "Yuki",
+    "subject": "Need your call on Atlas",
+    "snippet": "Can you weigh in before the standup? It's blocking Atlas.",
+    "category": "mgr_project",
+    "phase": 3,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Yuki\nSubject: Need your call on Atlas\nCan you weigh in before the standup? It's blocking Atlas."
+   },
+   {
+    "channel": "push",
+    "sender": "Social",
+    "subject": "You have 3 new followers",
+    "snippet": "Tap to see the activity.",
+    "category": "social",
+    "phase": 3,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
+   },
+   {
+    "channel": "slack",
+    "sender": "Yuki",
+    "subject": "Need your call on Project Nomad",
+    "snippet": "Quick decision needed on Project Nomad \u2014 reviewers are waiting on you.",
+    "category": "mgr_project",
+    "phase": 3,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Yuki\nSubject: Need your call on Project Nomad\nQuick decision needed on Project Nomad \u2014 reviewers are waiting on you."
+   },
+   {
+    "channel": "calendar",
+    "sender": "Calendar",
+    "subject": "Starts in 20 min: 1:1 with Sam",
+    "snippet": "Reminder: your meeting with Sam begins soon.",
+    "category": "calendar_soon",
+    "phase": 3,
+    "action": "LATER",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Sam\nReminder: your meeting with Sam begins soon."
+   },
+   {
+    "channel": "email",
+    "sender": "Social",
+    "subject": "Someone mentioned you in a comment",
+    "snippet": "Tap to see the activity.",
+    "category": "social",
+    "phase": 3,
+    "action": "INTERRUPT",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
+   },
+   {
+    "channel": "push",
+    "sender": "Zephyr Team",
+    "subject": "New features you'll love",
+    "snippet": "Limited time only. Unsubscribe anytime.",
+    "category": "promo",
+    "phase": 3,
+    "action": "LATER",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Zephyr Team\nSubject: New features you'll love\nLimited time only. Unsubscribe anytime."
+   },
+   {
+    "channel": "email",
+    "sender": "Monitoring Bot",
+    "subject": "ALERT: payment gateway timeouts",
+    "snippet": "Threshold breached \u2014 payment gateway timeouts. Dashboard link inside.",
+    "category": "monitoring",
+    "phase": 3,
+    "action": "ARCHIVE",
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Monitoring Bot\nSubject: ALERT: payment gateway timeouts\nThreshold breached \u2014 payment gateway timeouts. Dashboard link inside."
    },
    {
     "channel": "push",
@@ -888,103 +978,13 @@
    },
    {
     "channel": "push",
-    "sender": "Social",
-    "subject": "Someone mentioned you in a comment",
-    "snippet": "Tap to see the activity.",
-    "category": "social",
-    "phase": 3,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: Someone mentioned you in a comment\nTap to see the activity."
-   },
-   {
-    "channel": "email",
     "sender": "Receipts",
-    "subject": "Your payment to SoundOff was successful",
-    "snippet": "Charge confirmed. View your billing history anytime.",
+    "subject": "Your payment to Nimbus was successful",
+    "snippet": "Payment of $12.00 received. Thanks for your order.",
     "category": "receipt",
     "phase": 3,
     "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Receipts\nSubject: Your payment to SoundOff was successful\nCharge confirmed. View your billing history anytime."
-   },
-   {
-    "channel": "email",
-    "sender": "Priya (your manager)",
-    "subject": "Need your call on the Q3 launch",
-    "snippet": "Are we shipping the Q3 launch today? Need your sign-off.",
-    "category": "mgr_project",
-    "phase": 3,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Priya (your manager)\nSubject: Need your call on the Q3 launch\nAre we shipping the Q3 launch today? Need your sign-off."
-   },
-   {
-    "channel": "slack",
-    "sender": "Diego (teammate)",
-    "subject": "fyi / no rush",
-    "snippet": "Thinking about refactoring the utils, curious what you think sometime.",
-    "category": "teammate_fyi",
-    "phase": 3,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: slack\nFrom: Diego (teammate)\nSubject: fyi / no rush\nThinking about refactoring the utils, curious what you think sometime."
-   },
-   {
-    "channel": "push",
-    "sender": "Social",
-    "subject": "You have 3 new followers",
-    "snippet": "Tap to see the activity.",
-    "category": "social",
-    "phase": 3,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
-   },
-   {
-    "channel": "system",
-    "sender": "Monitoring Bot",
-    "subject": "ALERT: a pager alert",
-    "snippet": "Automated alert: a pager alert detected in production.",
-    "category": "monitoring",
-    "phase": 3,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: system\nFrom: Monitoring Bot\nSubject: ALERT: a pager alert\nAutomated alert: a pager alert detected in production."
-   },
-   {
-    "channel": "calendar",
-    "sender": "Calendar",
-    "subject": "Starts in 20 min: 1:1 with Diego",
-    "snippet": "Reminder: your meeting with Diego begins soon.",
-    "category": "calendar_soon",
-    "phase": 3,
-    "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: calendar\nFrom: Calendar\nSubject: Starts in 20 min: 1:1 with Diego\nReminder: your meeting with Diego begins soon."
-   },
-   {
-    "channel": "email",
-    "sender": "Tom (your manager)",
-    "subject": "Need your call on Project Nomad",
-    "snippet": "Can you weigh in before the standup? It's blocking Project Nomad.",
-    "category": "mgr_project",
-    "phase": 3,
-    "action": "ARCHIVE",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Tom (your manager)\nSubject: Need your call on Project Nomad\nCan you weigh in before the standup? It's blocking Project Nomad."
-   },
-   {
-    "channel": "push",
-    "sender": "Social",
-    "subject": "You have 3 new followers",
-    "snippet": "Tap to see the activity.",
-    "category": "social",
-    "phase": 3,
-    "action": "INTERRUPT",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Social\nSubject: You have 3 new followers\nTap to see the activity."
-   },
-   {
-    "channel": "email",
-    "sender": "Kettle Team",
-    "subject": "New features you'll love",
-    "snippet": "Limited time only. Unsubscribe anytime.",
-    "category": "promo",
-    "phase": 3,
-    "action": "LATER",
-    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: email\nFrom: Kettle Team\nSubject: New features you'll love\nLimited time only. Unsubscribe anytime."
+    "prompt": "Triage this inbox item into one of INTERRUPT (buzz the user now), LATER (hold it for the digest), or ARCHIVE (never surface it). Answer with exactly one of INTERRUPT, LATER, or ARCHIVE.\n\nChannel: push\nFrom: Receipts\nSubject: Your payment to Nimbus was successful\nPayment of $12.00 received. Thanks for your order."
    }
   ]
  }
