@@ -25,9 +25,9 @@ Also in this repo:
 - **Online learning** chat (`/data`) — tone as implicit feedback, tiny LoRA updates
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-  (ZS / ICL / CoT inference + gold SFT + SDFT LoRA; train on alpaca-cleaned,
-  generate on AE2, pairwise win-rate via local open judge ≈ AE2 protocol or
-  optional official GPT-4-Turbo; no GRPO)
+  (**standalone**, no repo clone): ZS / ICL / CoT + gold SFT + SDFT LoRA;
+  train on alpaca-cleaned, generate on AE2, pairwise win-rate via local open
+  judge ≈ AE2 protocol or optional official GPT-4-Turbo; no GRPO)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -177,9 +177,10 @@ Custom local JSONL: point a config at an Alpaca-style file (`dataset: json` +
 `data_files: ...`) and run the Quick-start three steps with `--config`.
 
 Colab (AE2-style win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-— train gold SFT / SDFT on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT +
-adapters on AE2 instructions, then pairwise judge for `win_rate` (local open
-model ≈ AE2 protocol by default; optional official GPT-4-Turbo + LC). Not
+— **standalone notebook** (no Local-SDFT clone/import). Train gold SFT / SDFT
+on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT + adapters on AE2
+instructions, then pairwise judge for `win_rate` (local open model ≈ AE2
+protocol by default; optional official GPT-4-Turbo + LC). Not
 leaderboard-equivalent when using the local judge. No GRPO.
 
 ```bash

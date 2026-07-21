@@ -44,7 +44,7 @@ flowchart LR
 | `sdft/merge.py` | Fold adapter into base weights |
 | `sdft/config.py` | YAML → dataclasses (single source of knobs) |
 | `sdft/rewards.py` | Local reward fns for GRPO (`instruction`, `boxed`, `bfcl`) |
-| `sdft/alpacaeval_ablation.py` | AE2 prompt strategies (ZS / FS / CoT) for `/perf` + Colab |
+| `sdft/alpacaeval_ablation.py` | AE2 prompt strategies (ZS / FS / CoT) for `/perf` (Colab inlines its own) |
 | `sdft/alpacaeval_score.py` | AE2 score dispatch (`JUDGE=local|openai`) → win-rate / LC |
 | `sdft/alpacaeval_local_judge.py` | Local open HF pairwise judge ≈ AE2 protocol (not GPT-4-Turbo LC) |
 | `sdft/peft_utils.py` | Shared `adapter_ready` / chat model loading |
@@ -83,10 +83,11 @@ uv run python scripts/run_bfcl_eval.py --suite 230m --num-examples 32
 # Batch-size-1 Alpaca heuristic (secondary)
 uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --max-grpo-steps 16
 
-# Colab AE2-style win-rate (train alpaca-cleaned → generate AE2 → judge):
+# Colab AE2-style win-rate (standalone notebook, no repo clone):
 #   notebooks/local_sdft_colab.ipynb
 #   JUDGE=local (default) — Qwen3.5-9B 4-bit ≈ AE2 protocol, not LC leaderboard
 #   JUDGE=openai OPENAI_API_KEY=... — official GPT-4-Turbo win_rate / LC
+#   (CLI cousin still uses the package:)
 #   uv sync --extra alpacaeval && \
 #     uv run python scripts/run_alpaca_eval.py --model-outputs ... --name sdft
 ```
