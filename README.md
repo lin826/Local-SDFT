@@ -26,8 +26,8 @@ Also in this repo:
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
   (**standalone**, no repo clone): ZS / ICL / CoT + gold SFT + SDFT LoRA;
-  train on alpaca-cleaned, generate on AE2, pairwise win-rate via local open
-  judge ≈ AE2 protocol or optional official GPT-4-Turbo; no GRPO)
+  train on alpaca-cleaned, generate on AE2, pairwise win-rate via hard-coded
+  Qwen/Qwen3.5-9B 4-bit local judge ≈ AE2 protocol; no GRPO)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -86,7 +86,8 @@ Numbers are from local Apple Silicon runs (MPS, ~32 GB). Artifacts under
 **local AST subset**, not the official Berkeley Function-Calling Leaderboard.
 AlpacaEval-style scoring: local open judge ≈ AE2 pairwise protocol (not
 leaderboard-equivalent); official GPT-4-Turbo LC win-rate needs `JUDGE=openai`
-+ `OPENAI_API_KEY` (Colab notebook / `scripts/run_alpaca_eval.py`).
++ `OPENAI_API_KEY` via `scripts/run_alpaca_eval.py`. Colab uses the local
+Qwen/Qwen3.5-9B 4-bit judge only.
 
 ### BFCL-v3 local AST — where SDFT shines
 
@@ -179,9 +180,8 @@ Custom local JSONL: point a config at an Alpaca-style file (`dataset: json` +
 Colab (AE2-style win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
 — **standalone notebook** (no Local-SDFT clone/import). Train gold SFT / SDFT
 on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT + adapters on AE2
-instructions, then pairwise judge for `win_rate` (local open model ≈ AE2
-protocol by default; optional official GPT-4-Turbo + LC). Not
-leaderboard-equivalent when using the local judge. No GRPO.
+instructions, then hard-coded **Qwen/Qwen3.5-9B** 4-bit pairwise judge for
+`win_rate` (≈ AE2 protocol; not LC leaderboard-equivalent). No GRPO.
 
 ```bash
 uv sync --extra alpacaeval

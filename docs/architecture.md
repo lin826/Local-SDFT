@@ -85,9 +85,8 @@ uv run python scripts/run_batch1_comparison.py --num-train 32 --num-eval 16 --ma
 
 # Colab AE2-style win-rate (standalone notebook, no repo clone):
 #   notebooks/local_sdft_colab.ipynb
-#   JUDGE=local (default) — Qwen3.5-9B 4-bit ≈ AE2 protocol, not LC leaderboard
-#   JUDGE=openai OPENAI_API_KEY=... — official GPT-4-Turbo win_rate / LC
-#   (CLI cousin still uses the package:)
+#   hard-coded Qwen/Qwen3.5-9B 4-bit pairwise judge ≈ AE2 protocol (not LC)
+#   (CLI cousin still uses the package; supports JUDGE=local|openai:)
 #   uv sync --extra alpacaeval && \
 #     uv run python scripts/run_alpaca_eval.py --model-outputs ... --name sdft
 ```
