@@ -202,6 +202,20 @@ def build_eval(rng: random.Random, phase: int) -> list[dict]:
     return build_slice(EVAL_SPECS[phase], phase, rng)
 
 
+def phase_of(pos: int) -> int:
+    """Regime of stream position `pos` (1-indexed). Position 0 — nothing
+    streamed yet — counts as the upcoming weekday regime."""
+    if pos <= DRIFTS[0]:
+        return 1
+    return 2 if pos <= DRIFTS[1] else 3
+
+
+def recent_demos(history: list[dict], k: int) -> list[tuple[dict, str]]:
+    """The k most recent observed decisions, oldest first — the causal ICL
+    context (and the SDFT teacher's recent-decision window)."""
+    return [(item, item["action"]) for item in history[-k:]]
+
+
 def export_dataset(stream: list[dict], evals: dict[int, list[dict]]) -> None:
     """Write the seeded dataset — with prompts pre-rendered — to DATA_OUT.
 
@@ -262,6 +276,21 @@ def build_msgs(item: dict, demos: list[tuple[dict, str]] | None = None) -> list[
         messages += demo_messages(demo_item, demo_action)
     messages.append({"role": "user", "content": render_prompt(item)})
     return messages
+
+
+def make_retriever(store: list[dict]):
+    """RAG's index: bag-of-words overlap against a decision history
+    (a stand-in for an on-device vector index). `upto` restricts retrieval to
+    store[:upto] — the online setting, where only past decisions exist yet."""
+    vocab = [set(re.findall(r"\w+", render_prompt(item).lower())) for item in store]
+
+    def retrieve(item: dict, k: int, upto: int | None = None) -> list[tuple[dict, str]]:
+        query = set(re.findall(r"\w+", render_prompt(item).lower()))
+        pool = range(len(store) if upto is None else min(upto, len(store)))
+        ranked = sorted(pool, key=lambda i: -len(query & vocab[i]))
+        return [(store[i], store[i]["action"]) for i in ranked[:k]]
+
+    return retrieve
 
 
 ACTION_RE = re.compile(r"\b(" + "|".join(ACTIONS) + r")\b", re.IGNORECASE)

@@ -1,18 +1,21 @@
 """Online SDFT on the drifting inbox stream — the loop the blog post describes.
 
-The four steps, exactly as in drafts/blog-online-sdft-triage.md:
+The steps, exactly as in drafts/blog-online-sdft-triage.md:
 
   1. A tiny dataset: a stream that drifts twice
        seeded synthetic inbox; the 3-way policy flips at DRIFTS (triage_common)
-  2. The feedback loop: the model supervises itself
-       the model makes its own call; the observed action is the only supervision:
-       feedback = 1 (reinforce its own on-policy answer) or 0 (correct toward yours)
-  3. The online update: attach LoRA once, stream batch_size=1 steps with replay,
-       and keep the best adapter on the current regime (the probe guardrail)
+  2. The online loop, one item at a time (prequential: test, THEN train)
+       the model makes its own call with the current adapter — that prediction
+       is scored for the regret curve BEFORE the label lands; your observed
+       action is the only supervision: feedback = 1 (reinforce its on-policy
+       answer) or 0 (correct toward yours); then batch_size=1 updates w/ replay
+  3. The probe guardrail: keep the best adapter on the current regime
   4. Serving: bare prompt — the adapter carries the policy
 
-Reads outputs/triage-showcase/baselines.json (run scripts/run_baselines.py first)
-and writes results.json, the trained adapter, and the two-panel blog figure.
+Reads outputs/triage-showcase/baselines.json (run scripts/run_baselines.py
+first) and writes results.json, the trained adapter, and the three-panel blog
+figure: A whole-week accuracy vs token bill, B current-regime curves, C
+accumulated regret.
 
 Run:  uv run python scripts/run_sdft.py
 """
@@ -30,7 +33,8 @@ from peft import (LoraConfig, get_peft_model, get_peft_model_state_dict,
 from triage_common import (
     ACTIONS, BASELINES_JSON, DRIFTS, FIG_DIR, MODEL_NAME, OUT_DIR, REGIMES, SEED,
     STREAM_LEN, accuracy, build_eval, build_msgs, build_stream, generate,
-    load_base_model, load_tokenizer, parse_action, pick_device, render_prompt,
+    load_base_model, load_tokenizer, parse_action, phase_of, pick_device,
+    recent_demos, render_prompt,
 )
 
 # --- training knobs (the blog's knob table) --------------------------------- #
@@ -90,9 +94,10 @@ def main() -> None:
                          "first (the figure compares against the ZS / ICL / RAG arms it writes).")
     baselines = json.loads(BASELINES_JSON.read_text())
     config = baselines["config"]
-    if (config["model"], config["seed"], config["stream_len"]) != (MODEL_NAME, SEED, STREAM_LEN):
-        raise SystemExit("baselines.json was produced with a different model/seed/stream — "
-                         "re-run scripts/run_baselines.py")
+    if (config["model"], config["seed"], config["stream_len"],
+            config["checkpoints"]) != (MODEL_NAME, SEED, STREAM_LEN, list(CHECKPOINTS)):
+        raise SystemExit("baselines.json was produced with a different model/seed/stream/"
+                         "checkpoint grid — re-run scripts/run_baselines.py")
 
     device = pick_device()
     print(f"device={device}  model={MODEL_NAME}", flush=True)
@@ -105,37 +110,13 @@ def main() -> None:
     tok = load_tokenizer()
     base = load_base_model(device)
 
-    # -- 2. the feedback loop: the model supervises itself -------------------- #
-    print("\n== self-distillation: the model guesses, your behaviour confirms/corrects ==",
-          flush=True)
-
-    def recent_decisions(i: int) -> list[tuple[dict, str]]:
-        return [(stream[j], stream[j]["action"]) for j in range(max(0, i - TEACHER_SHOTS), i)]
-
-    teacher_msgs = [build_msgs(stream[i], recent_decisions(i)) for i in range(len(stream))]
-    guesses = generate(base, tok, teacher_msgs, label="self-guess")
-
-    # feedback = 1 -> its guess matched what you did (reinforce its own answer)
-    # feedback = 0 -> it missed (correct: train on your action instead)
-    rows = []
-    for item, guess in zip(stream, guesses):
-        prediction = parse_action(guess)
-        rows.append({
-            "prompt": render_prompt(item),
-            "target": item["action"],    # when feedback == 1 this IS the model's own answer
-            "action": item["action"],
-            "pred": prediction,
-            "feedback": 1 if prediction == item["action"] else 0,
-        })
-    n_reinforced = sum(row["feedback"] for row in rows)   # numeric feedback -> a plain sum
-    reinforce_frac = n_reinforced / len(rows)
-    with (OUT_DIR / "sdft_targets.jsonl").open("w") as fh:
-        for row in rows:
-            fh.write(json.dumps(row) + "\n")
-    print(f"  reinforced (model already right): {n_reinforced}/{len(rows)}", flush=True)
-
-    # -- 3. the online update: attach LoRA once, stream batch_size=1 ---------- #
-    print("\n== online SDFT: per-item batch_size=1 updates with replay + checkpoints ==",
+    # -- 2+3. the online loop: guess -> feedback -> batch_size=1 update ------- #
+    # Prequential (test-then-train): at each item the CURRENT adapter makes the
+    # call first — that prediction feeds the regret curve and the feedback bit —
+    # and only then does the item become training signal. The base model never
+    # sees the future, and neither does any baseline (they get the same causal
+    # history in run_baselines.py).
+    print("\n== online SDFT: guess with the live adapter, then update on the item ==",
           flush=True)
     model = get_peft_model(base, LoraConfig(
         r=LORA_R, lora_alpha=LORA_ALPHA, lora_dropout=LORA_DROPOUT,
@@ -147,13 +128,27 @@ def main() -> None:
             model, tok, [build_msgs(item) for item in evals[phase]], label=label))
 
     curve = {"pos": [], "acc_p1": [], "acc_p2": [], "acc_p3": []}
+    sdft_regret = [0]
+    rows: list[dict] = []
     replay_buffer: list[dict] = []
     sampler = random.Random(SEED)
     # Probe guardrail: 3-way over-trains and *decays* past its peak, so during the
     # final regime snapshot the adapter whenever the current-policy probe is at its
     # best, and roll back to that snapshot before serving (auto-rollback on decay).
     best = {"acc": -1.0, "pos": None, "state": None}
-    for i, row in enumerate(rows):
+    for i, item in enumerate(stream):
+        # the model's own call, with a couple of recent decisions in context
+        guess = generate(model, tok, [build_msgs(item, recent_demos(stream[:i], TEACHER_SHOTS))],
+                         label=f"guess@{i + 1}", batch_size=1)[0]
+        prediction = parse_action(guess)
+        # feedback = 1 -> its call matched what you did (reinforce its own answer)
+        # feedback = 0 -> it missed (correct: train on your action instead)
+        row = {"prompt": render_prompt(item), "target": item["action"],
+               "action": item["action"], "pred": prediction,
+               "feedback": int(prediction == item["action"])}
+        rows.append(row)
+        sdft_regret.append(sdft_regret[-1] + 1 - row["feedback"])
+
         replay_buffer = (replay_buffer + [row])[-REPLAY:]
         # pair the fresh item with one replayed item from EACH other class, so
         # every batch_size=1 update cycles all three actions (binary's
@@ -173,10 +168,19 @@ def main() -> None:
                     heldout_accuracy(phase, f"sdft@{pos}/p{phase}"))
             report = "  ".join(f"{regime}={curve[f'acc_p{phase}'][-1]:.2f}"
                                for phase, regime in zip((1, 2, 3), REGIMES))
-            print(f"  checkpoint {pos}: {report}", flush=True)
+            print(f"  checkpoint {pos}: {report}  (stream mistakes so far: "
+                  f"{sdft_regret[-1]}/{pos})", flush=True)
             if pos > DRIFTS[1] and curve["acc_p3"][-1] >= best["acc"]:
                 best = {"acc": curve["acc_p3"][-1], "pos": pos,
                         "state": copy.deepcopy(get_peft_model_state_dict(model))}
+
+    n_reinforced = sum(row["feedback"] for row in rows)
+    reinforce_frac = n_reinforced / len(rows)
+    with (OUT_DIR / "sdft_targets.jsonl").open("w") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
+    print(f"  reinforced (model already right, measured online): "
+          f"{n_reinforced}/{len(rows)}", flush=True)
 
     if best["state"] is not None:            # roll back to the probe-kept best
         set_peft_model_state_dict(model, best["state"])
@@ -188,7 +192,15 @@ def main() -> None:
     # -- 4. serving: bare prompt, adapter carries the policy ------------------ #
     model.save_pretrained(str(ADAPTER_DIR))
     adapter_bytes = (ADAPTER_DIR / "adapter_model.safetensors").stat().st_size
-    sdft_cur = best["acc"] if best["state"] is not None else curve["acc_p3"][-1]
+
+    # Score the SERVED adapter on all three regime policies — Panel A plots the
+    # mean, the same whole-week yardstick every baseline arm gets.
+    print("\n== served adapter across the whole week ==", flush=True)
+    served = {regime: heldout_accuracy(phase, f"served/{regime}")
+              for phase, regime in zip((1, 2, 3), REGIMES)}
+    served_mean = sum(served.values()) / len(served)
+    print("  " + "  ".join(f"{regime}={acc:.2f}" for regime, acc in served.items())
+          + f"  mean={served_mean:.2f}", flush=True)
 
     # "One item, four minds": among the off-hours social pushes the baselines
     # answered, pick one the served adapter gets right where zero-shot doesn't.
@@ -210,26 +222,46 @@ def main() -> None:
 
     arms = {name: dict(arm) for name, arm in baselines["arms"].items()}
     arms["Online-SDFT"] = {
-        "acc_by_regime": {regime: curve[f"acc_p{phase}"][-1]
-                          for phase, regime in zip((1, 2, 3), REGIMES)},
-        "acc_cur": sdft_cur, "acc_old": curve["acc_p1"][-1],
-        "tok_per_query": arms["ZS"]["tok_per_query"],   # served bare
+        "acc_by_regime": served, "acc_mean": served_mean,   # week-END adapter, re-graded
+        "tok_per_query": arms["ZS"]["tok_per_query"],       # served bare
         "labels_needed": 0,
     }
-    arms["Online-SDFT"]["acc_by_regime"][REGIMES[2]] = sdft_cur   # probe-kept adapter
+
+    # Panel B curve for SDFT: held-out accuracy on the regime that is current at
+    # each checkpoint; position 0 (nothing streamed, adapter still identity) is
+    # exactly the zero-shot value — every method starts from the same point.
+    curves = dict(baselines["curves"])
+    curves["SDFT"] = [curves["zs_by_phase"][REGIMES[0]]] + [
+        curve[f"acc_p{phase_of(pos)}"][idx] for idx, pos in enumerate(curve["pos"])]
+
+    # Panel A grades the week AS LIVED: each regime scored while it is live (its
+    # block-end checkpoint — the same three positions for every method), then
+    # averaged. The week-end snapshot above stays in results.json as the honest
+    # "and if you froze Friday's context and re-graded the whole week" number.
+    block_ends = [*DRIFTS, STREAM_LEN]
+    for name, key in (("ZS", "ZS"), (f"ICL k={config['icl_k']}", "ICL"),
+                      (f"RAG k={config['rag_k']}", "RAG"), ("Online-SDFT", "SDFT")):
+        live = {regime: (curves["zs_by_phase"][regime] if key == "ZS"
+                         else curves[key][curves["pos"].index(pos)])
+                for pos, regime in zip(block_ends, REGIMES)}
+        arms[name]["acc_live_by_regime"] = live
+        arms[name]["acc_mean_live"] = sum(live.values()) / len(live)
+
+    regret = dict(baselines["regret"])
+    regret["SDFT"] = sdft_regret
 
     results = {
         "config": {**config, "lora_r": LORA_R, "lora_alpha": LORA_ALPHA,
                    "lora_dropout": LORA_DROPOUT, "lr": LR, "teacher_shots": TEACHER_SHOTS,
-                   "replay": REPLAY, "steps_per_item": STEPS_PER_ITEM,
-                   "checkpoints": list(CHECKPOINTS)},
+                   "replay": REPLAY, "steps_per_item": STEPS_PER_ITEM},
         "arms": arms,
         "sweeps": baselines["sweeps"],
         "curve": curve,
+        "curves": curves,
+        "regret": regret,
         "sdft_best": {"pos": best["pos"], "acc": best["acc"]},
         "qualitative": qualitative,
         "adapter_bytes": adapter_bytes,
-        "teacher_self_acc": reinforce_frac,
         "reinforce_frac": reinforce_frac,  # fraction of the stream that was pure self-distillation
     }
     (OUT_DIR / "results.json").write_text(json.dumps(results, indent=2))
@@ -246,12 +278,14 @@ def make_figure(results: dict) -> None:
     from matplotlib.transforms import blended_transform_factory
 
     arms = results["arms"]
-    curve = results["curve"]
+    curves = results["curves"]
+    regret = results["regret"]
     drifts = results["config"]["drifts"]
     stream_len = results["config"]["stream_len"]
+    icl_name = f"ICL k={results['config']['icl_k']}"
+    rag_name = f"RAG k={results['config']['rag_k']}"
     zs_tokens = arms["ZS"]["tok_per_query"]
     colors = {"ZS": "#9aa0a6", "ICL": "#e8710a", "RAG": "#d93025", "Online-SDFT": "#1a73e8"}
-    regime_colors = {"weekday": "#7b3fa0", "on-call": "#1a73e8", "off-hours": "#0b8043"}
 
     def arm_color(name: str) -> str:
         for prefix, color in colors.items():
@@ -259,69 +293,91 @@ def make_figure(results: dict) -> None:
                 return color
         return "#5f6368"
 
-    fig, (ax_cost, ax_drift) = plt.subplots(1, 2, figsize=(12.6, 4.9))
+    fig, (ax_cost, ax_drift, ax_regret) = plt.subplots(1, 3, figsize=(18.4, 4.9))
 
-    # Panel A: accuracy on the CURRENT policy vs the recurring prompt-token bill
+    # Panel A: whole-week accuracy — each regime scored while it is live (its
+    # block-end checkpoint), averaged — vs the recurring prompt-token bill.
     for name, arm in arms.items():
-        x, y = arm["tok_per_query"], arm["acc_cur"] * 100
+        x, y = arm["tok_per_query"], arm["acc_mean_live"] * 100
         ax_cost.scatter(x, y, s=170, color=arm_color(name), zorder=3,
                         edgecolor="white", linewidth=1.5)
-        dy = 3.2 if not name.startswith("RAG") else -5.0
+        dy = 3.2 if not name.startswith("RAG") else -12.0   # RAG sits ~ICL's x; dodge below
         ax_cost.annotate(name, (x, y), textcoords="offset points", xytext=(8, dy),
                          fontsize=10.5, fontweight="bold", color=arm_color(name))
     ax_cost.set_xlabel("Recurring prompt tokens / query  (on-device cost, every notification)")
-    ax_cost.set_ylabel("Accuracy on current policy  (%)")
-    ax_cost.set_title("A.  Best-of-sweep baselines vs a bare prompt", fontsize=12,
-                      fontweight="bold")
+    ax_cost.set_ylabel("Whole-week accuracy: mean over regimes,\neach scored while live  (%)")
+    ax_cost.set_title("A.  Whole-week accuracy vs the recurring token bill",
+                      fontsize=12, fontweight="bold")
     ax_cost.grid(True, alpha=0.25)
     ax_cost.set_ylim(0, 105)
     ax_cost.axvspan(0, zs_tokens + 22, color="#1a73e8", alpha=0.05)
     ax_cost.text((zs_tokens + 22) / 2, 6, "bare-prompt zone\n(weights carry the policy)",
                  ha="center", fontsize=8.5, color="#1a73e8", style="italic")
 
-    # Panel B: continual adaptation across TWO drifts (three regimes, one adapter)
-    icl_rag = {n: a for n, a in arms.items() if n.startswith(("ICL", "RAG"))}
-    ref_arm = max(icl_rag.values(), key=lambda arm: arm["acc_cur"])
-    ref = ref_arm["acc_cur"] * 100   # the winning frozen baseline, priced at ITS tokens
-    mult = max(1, round(ref_arm["tok_per_query"] / max(zs_tokens, 1)))
-    ax_drift.axhline(ref, color="#e8710a", ls=":", lw=1.6)
-    ax_drift.text(1, ref - 2.5 if ref > 93 else ref + 2,   # pin the label on the line
-                  f"best ICL / RAG on off-hours  (+{mult}× tokens every call)",
-                  fontsize=7.6, color="#e8710a", ha="left",
-                  va="top" if ref > 93 else "bottom")
+    # Panel B: current-regime accuracy along the stream. Every method starts at
+    # the zero-shot value (position 0 = nothing streamed) and gets the same
+    # causal history; the dotted grey steps are the zero-shot floor per regime.
     for x in drifts:
         ax_drift.axvline(x, color="#5f6368", ls="--", lw=1.2)
-    # No legend box: the curves share colors with the phase sub-titles below the
-    # axis, so those labels double as the key.
-    for phase, regime in zip((1, 2, 3), REGIMES):
-        ax_drift.plot(curve["pos"], [v * 100 for v in curve[f"acc_p{phase}"]], "-o",
-                      color=regime_colors[regime], lw=2.2, ms=4.5)
+    for (start, end), regime in zip(zip([0, *drifts], [*drifts, stream_len]), REGIMES):
+        ax_drift.hlines(curves["zs_by_phase"][regime] * 100, start, end,
+                        color=colors["ZS"], ls=":", lw=1.6, zorder=1)
+    for key, name in (("SDFT", "Online-SDFT"), ("ICL", icl_name), ("RAG", rag_name)):
+        ax_drift.plot(curves["pos"], [v * 100 for v in curves[key]], "-o",
+                      color=colors[key if key != "SDFT" else "Online-SDFT"],
+                      lw=2.6 if key == "SDFT" else 1.8,
+                      ms=5 if key == "SDFT" else 3.8,
+                      alpha=1.0 if key == "SDFT" else 0.85, zorder=4 if key == "SDFT" else 3)
     kept = results.get("sdft_best") or {}
     if kept.get("pos"):   # star the checkpoint the probe guardrail serves
         ax_drift.scatter([kept["pos"]], [kept["acc"] * 100], marker="*", s=300,
-                         color=regime_colors[REGIMES[2]], edgecolor="white",
+                         color=colors["Online-SDFT"], edgecolor="white",
                          linewidth=1.2, zorder=5)
         near_top = kept["acc"] > 0.88          # dodge below the star near the ceiling
         ax_drift.annotate("probe keeps\nthis adapter", (kept["pos"], kept["acc"] * 100),
                           textcoords="offset points",
                           xytext=(0, -24 if near_top else 10), fontsize=7.5,
-                          color=regime_colors[REGIMES[2]], ha="center", fontweight="bold")
+                          color=colors["Online-SDFT"], ha="center", fontweight="bold")
 
-    # Per-phase sub-titles along the x-axis: tint each regime's span and label it.
+    # Per-phase sub-titles along the x-axis (neutral grey: the curves are
+    # methods now, not regimes).
     phase_axis = blended_transform_factory(ax_drift.transData, ax_drift.transAxes)
     bounds = [0, *drifts, stream_len]
-    for start, end, regime in zip(bounds, bounds[1:], REGIMES):
-        ax_drift.axvspan(start, end, color=regime_colors[regime], alpha=0.045, zorder=0)
+    for index, (start, end, regime) in enumerate(zip(bounds, bounds[1:], REGIMES)):
+        if index % 2:   # alternate tint so the regime spans read at a glance
+            ax_drift.axvspan(start, end, color="#5f6368", alpha=0.05, zorder=0)
         ax_drift.text((start + end) / 2, -0.115, f"{regime}\nitems {start + 1}–{end}",
                       transform=phase_axis, ha="center", va="top", fontsize=8.3,
-                      color=regime_colors[regime], fontweight="bold")
-    ax_drift.set_xlim(0, stream_len + 2)
-    ax_drift.set_xlabel("Items streamed  (one batch_size=1 update each)", labelpad=36)
-    ax_drift.set_ylabel("Held-out accuracy  (%)")
-    ax_drift.set_title("B.  Weights track each regime — two drifts, one adapter",
-                       fontsize=12, fontweight="bold")
+                      color="#5f6368", fontweight="bold")
+    ax_drift.set_xlim(-1, stream_len + 2)
+    ax_drift.set_xlabel("Items streamed  (same causal history for every method)",
+                        labelpad=36)
+    ax_drift.set_ylabel("Held-out accuracy on the CURRENT regime  (%)")
+    ax_drift.set_title("B.  Who tracks the drifting policy", fontsize=12, fontweight="bold")
     ax_drift.set_ylim(0, 105)
     ax_drift.grid(True, alpha=0.25)
+
+    # Panel C: accumulated regret — cumulative mistakes on the streamed items,
+    # each predicted before its label lands (prequential).
+    for x in drifts:
+        ax_regret.axvline(x, color="#5f6368", ls="--", lw=1.2)
+    series = (("ZS", "ZS", ":"), ("ICL", icl_name, "-"),
+              ("RAG", rag_name, "-"), ("SDFT", "Online-SDFT", "-"))
+    for key, name, style in series:
+        color = colors[key if key != "SDFT" else "Online-SDFT"]
+        ax_regret.plot(regret["pos"], regret[key], style, drawstyle="steps-post",
+                       color=color, lw=2.6 if key == "SDFT" else 1.8, label=name,
+                       zorder=4 if key == "SDFT" else 3)
+        ax_regret.annotate(str(regret[key][-1]), (stream_len, regret[key][-1]),
+                           textcoords="offset points", xytext=(6, -3), fontsize=9,
+                           color=color, fontweight="bold")
+    ax_regret.set_xlim(-1, stream_len + 4)
+    ax_regret.set_xlabel("Items streamed")
+    ax_regret.set_ylabel("Cumulative mistakes on streamed items")
+    ax_regret.set_title("C.  Accumulated regret on the live stream",
+                        fontsize=12, fontweight="bold")
+    ax_regret.grid(True, alpha=0.25)
+    ax_regret.legend(fontsize=8.5, loc="upper left", framealpha=0.95)
 
     adapter_mb = results["adapter_bytes"] / 1e6
     fig.suptitle(
