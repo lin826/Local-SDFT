@@ -226,3 +226,4 @@ outputs/
 drafts/
 .browser-verify-screenshots/
 scripts/tmp_demo_sweep/
+.DS_Store
