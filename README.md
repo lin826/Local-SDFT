@@ -116,8 +116,10 @@ python -m sdft.online.cli chat  --config configs/online.yaml
 python -m sdft.online.cli serve --config configs/online.yaml
 ```
 
-**The demo:** [`docs/DEMO.md`](docs/DEMO.md) — "Airplane-Mode Coach": teach the model a
-behavior in ~3 minutes, offline, and watch a success curve climb on held-out prompts.
+**The demos:** [`docs/DEMO_QUICKSTART.md`](docs/DEMO_QUICKSTART.md) — three self-contained,
+narrated runs for **QA**, **tool use**, and **database interaction** (one command each).
+Full catalogue (continual/lifelong learning, replay, inbox triage, the "Airplane-Mode
+Coach" web UI): [`docs/DEMO.md`](docs/DEMO.md).
 
 **Learning signals** → demonstrations: corrections (weight 1.0), accepted replies on
 conversation close (0.5), or reward-selected on-policy samples when `online.reward_fn` is
