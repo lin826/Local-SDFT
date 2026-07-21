@@ -1,0 +1,86 @@
+──────── Inbox assistant — learns your triage while you clear your mail ────────
+model=LiquidAI/LFM2-1.2B  offline/on-device  held-out mail disjoint from 
+coaching: True
+loading model…
+trainable params: 18,284,544 || all params: 1,188,625,152 || trainable%: 1.5383
+────────── 1. Before: the assistant doesn't know how you handle mail ───────────
+  'Statement of charges' (you'd DELEGATE): 'To handle this email effectively, 
+follow these steps:\n\n1. **'
+  'Headcount plan' (you'd FLAG): "To effectively handle Priya's email regarding 
+the headcount "
+  'Coffee next week?' (you'd SCHEDULE): 'To handle this email effectively, you 
+should aim to be profe'
+  base                   handled your way   0.0%  
+─────────────── 2. You clear your inbox, fixing its suggestions ────────────────
+  after inbox pass 1     handled your way   0.0%  
+                         corrected 30/30 this pass  train_loss=7.224
+  after inbox pass 2     handled your way   0.0%  
+                         corrected 29/30 this pass  train_loss=6.119
+  after inbox pass 3     handled your way   0.0%  
+                         corrected 29/30 this pass  train_loss=6.142
+  after inbox pass 4     handled your way   0.0%  
+                         corrected 27/30 this pass  train_loss=5.272
+  after inbox pass 5     handled your way   0.0%  
+                         corrected 29/30 this pass  train_loss=3.780
+  after inbox pass 6     handled your way   0.0%  
+                         corrected 29/30 this pass  train_loss=2.527
+─────────── 3. Tomorrow's inbox — new senders/subjects it never saw ────────────
+  adapter ON (learned)   handled your way   0.0%  
+  by category: invoice=0/3  manager=0/3  meeting=0/3  newsletter=0/3  
+question=0/3
+  ✗ ar@datacenter.net          'Statement of charges'     → None (you: DELEGATE)
+  ✗ priya@acme.com             'Headcount plan'           → REPLY (you: FLAG)
+  ✗ jordan@clientx.com         'Coffee next week?'        → REPLY (you: 
+SCHEDULE)
+  ✗ weekly@founderletters.com  'Founder notes'            → None (you: ARCHIVE)
+  ✗ morgan@acme.com            'Where are the logs'       → None (you: REPLY)
+  ✗ recruiter@talenthub.com    'Intro call'               → None (you: SCHEDULE)
+──────────────────── 4. A/B: toggle the learned adapter off ────────────────────
+  adapter OFF (base)     handled your way   0.0%  
+──────────────────────────────────── Result ────────────────────────────────────
+  handled your way (held-out):  base 0%  →  learned 0%   (adapter off again: 0%)
+  New emails, new senders — it applied YOUR policy. It learned your rules from a
+few corrections, on-device; it didn't memorize your inbox.
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p6-r20-n2>
+Subject: Job 256327: <sdft_inbox> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_inbox> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 00:19:21 2026
+Job was executed on host(s) <p6-r20-n2>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 00:19:23 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Mon Jul 20 00:19:23 2026
+Terminated at Mon Jul 20 00:25:40 2026
+Results reported at Mon Jul 20 00:25:40 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/demo_inbox.sh 6
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   387.91 sec.
+    Max Memory :                                 2180 MB
+    Average Memory :                             1483.85 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                264
+    Run time :                                   384 sec.
+    Turnaround time :                            379 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/inbox_256327.err> for stderr output of this job.
+

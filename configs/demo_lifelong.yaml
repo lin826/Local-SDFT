@@ -1,0 +1,35 @@
+# Lifelong skill-accumulation demo: a curriculum of trigger-keyed skills
+# (summarize / calc / list / sign-off) introduced one at a time over a long
+# horizon. Run twice — WITHOUT replay (catastrophic forgetting) and WITH replay
+# (a growing, stable repertoire). Demonstrations are tagged by skill so the
+# replay buffer rehearses each learned skill evenly.
+#
+#   python scripts/demo_lifelong.py
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  reward_fn: "skill_summary"   # first skill; the script advances the curriculum
+  reward_num_samples: 4
+  loss_type: "sft"             # RAFT-style: completion-NLL on the shaped target
+  sample_temperature: 0.8
+  max_completion_tokens: 96
+  serve_temperature: 0.0
+  serve_max_new_tokens: 96
+  lr: 2.0e-4
+  min_new_demos: 1
+  steps_per_update: 4
+  demos_per_step: 4            # 16 demo-slots/update
+  replay_ratio: 0.5            # the script overrides this per run (0.0 vs this)
+  max_per_topic_per_batch: 4   # don't throttle the skill being learned
+  eval_every_n_updates: 0
+  db_path: "data/demo_lifelong.db"
+  adapters_dir: "data/demo_lifelong_adapters"

@@ -1,0 +1,36 @@
+# "Airplane-Mode Coach" demo: teach the model a house reply style, live & offline.
+# Reward-selected on-policy self-distillation (RAFT-style) drives the success curve.
+#
+#   python -m sdft.online.cli demo  --config configs/demo_house_style.yaml
+#   python -m sdft.online.cli serve --config configs/demo_house_style.yaml   # web UI
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  # Include the SwiGLU MLP projections, not just attention — more capacity to
+  # change output *format*, which attention-only LoRA barely moves.
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  reward_fn: "house_style"   # TL;DR line + <=3 bullets + a closing question
+  reward_num_samples: 4      # rollouts per prompt; keep the best-rewarded
+  loss_type: "sft"           # RAFT-style: completion-NLL on the (shaped) target — stable
+  # A hint elicits decent content on a cold-start model; the registered
+  # house_style shaper then guarantees a full-marks target from that content.
+  coach_instruction: >-
+    Answer concisely in a few short sentences.
+  sample_temperature: 0.8
+  max_completion_tokens: 96
+  lr: 2.0e-4                 # SFT is stable; push hard enough to imprint the format
+  min_new_demos: 4
+  steps_per_update: 6        # gradient steps per update
+  demos_per_step: 4          # batch of 4 demos per step (24 slots/update w/ replay)
+  replay_ratio: 0.5
+  eval_every_n_updates: 0    # demo drives eval explicitly via /v1/demo/eval
+  db_path: "data/demo_sdft.db"
+  adapters_dir: "data/demo_adapters"

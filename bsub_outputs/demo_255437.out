@@ -1,0 +1,44 @@
+NVIDIA H100 80GB HBM3, 81559 MiB
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p4-r08-n4>
+Subject: Job 255437: <sdft_demo> in cluster <BLUEVELA_LSF> Exited
+
+Job <sdft_demo> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:52:56 2026
+Job was executed on host(s) <p4-r08-n4>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:52:58 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Sun Jul 19 22:52:58 2026
+Terminated at Sun Jul 19 22:53:00 2026
+Results reported at Sun Jul 19 22:53:00 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/bv-demo.sh configs/demo_house_style.yaml 6
+------------------------------------------------------------
+
+Exited with exit code 2.
+
+Resource usage summary:
+
+    CPU time :                                   0.31 sec.
+    Max Memory :                                 15 MB
+    Average Memory :                             15.00 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              1
+    Max Threads :                                2
+    Run time :                                   2 sec.
+    Turnaround time :                            4 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/demo_255437.err> for stderr output of this job.
+

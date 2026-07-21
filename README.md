@@ -287,3 +287,43 @@ To also adapt MLPs or conv blocks, extend the regex, e.g.
 - LFM2.5 is released under the [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-230M)
   (free below $10M annual revenue).
 - This project code is MIT (see `LICENSE`).
+
+## Online SDFT — learn while serving (`sdft.online`)
+
+The pipeline above distills **once** from a dataset. The `sdft.online` package keeps
+distilling **during serving**: the model answers users, and its corrections, accepted
+replies, and reward-selected on-policy samples become demonstrations that drive small
+LoRA updates — with versioned adapters and one-command rollback. Same LFM2.5-230M, same
+LoRA targets; designed to run on a laptop or phone.
+
+```bash
+uv sync --extra online
+
+# chat while it learns (CLI — good for cluster/debug)
+python -m sdft.online.cli chat  --config configs/online.yaml
+#   /correct <text>   your edit becomes the golden answer
+#   /train /stats /rollback [v] /new /quit
+
+# web UI + OpenAI-compatible server (also an OpenClaw-RL harness target)
+python -m sdft.online.cli serve --config configs/online.yaml
+```
+
+**The demos:** [`docs/DEMO_QUICKSTART.md`](docs/DEMO_QUICKSTART.md) — three self-contained,
+narrated runs for **QA**, **tool use**, and **database interaction** (one command each).
+Full catalogue (continual/lifelong learning, replay, inbox triage, the "Airplane-Mode
+Coach" web UI): [`docs/DEMO.md`](docs/DEMO.md).
+
+**Learning signals** → demonstrations: corrections (weight 1.0), accepted replies on
+conversation close (0.5), or reward-selected on-policy samples when `online.reward_fn` is
+set (RAFT-style; powers the hands-free demo curve). The teacher is the *same* model
+conditioned on the demonstration — one model in memory, per-token forward-KL loss.
+
+**Anti-forgetting:** LoRA-only updates + a replay buffer + an optional KL-to-base anchor
+(`online.beta_kl_base`) + a probe guardrail that auto-rolls-back on degradation
+(`online.eval_every_n_updates`).
+
+**Relationship to OpenClaw-RL** (which also learns online): see
+[`docs/OPENCLAW.md`](docs/OPENCLAW.md). Short version — OpenClaw-RL is RL from automated
+environment rewards on a GPU cluster; this is SDFT from live human feedback on an edge
+device. Our server honors their `X-Session-Id` / `X-Turn-Type` / `X-Session-Done` harness
+contract, so an OpenClaw client can point at it unchanged.

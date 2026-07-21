@@ -1,0 +1,34 @@
+# Continual-learning demo: mode A (briefing) -> mode B (terse) -> mode A again.
+# Shows plasticity + fast recovery (savings) on-device.
+#
+#   python scripts/demo_continual.py
+#
+# The script switches the active reward task per phase via controller.set_task();
+# reward_fn here is just the starting mode.
+
+model:
+  name: "LiquidAI/LFM2.5-230M"
+  dtype: "float32"
+
+lora:
+  r: 32
+  alpha: 64
+  target_modules: '.*(self_attn\.(q|k|v|out)_proj|feed_forward\.w[123])'
+
+online:
+  backend: "torch"
+  reward_fn: "house_style"   # starting mode; the demo switches tasks per phase
+  reward_num_samples: 4
+  loss_type: "sft"
+  coach_instruction: >-
+    Answer concisely in a few short sentences.
+  sample_temperature: 0.8
+  max_completion_tokens: 96
+  lr: 2.0e-4
+  min_new_demos: 4
+  steps_per_update: 6
+  demos_per_step: 4
+  replay_ratio: 0.5
+  eval_every_n_updates: 0
+  db_path: "data/demo_continual.db"
+  adapters_dir: "data/demo_continual_adapters"

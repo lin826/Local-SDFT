@@ -1,0 +1,73 @@
+NVIDIA H100 80GB HBM3, 81559 MiB
+fresh run: cleared prior demo state
+loading LiquidAI/LFM2.5-230M · task=house_style · loss=sft
+trainable params: 6,193,152 || all params: 235,886,336 || trainable%: 2.6255
+Airplane-Mode Coach (offline, on-device)
+  before coaching    mean_r 0.17 success   0.0%  demos=0  ███
+  after round 1      mean_r 0.22 success   0.0%  demos=4  ████
+           train_loss=2.161
+  after round 2      mean_r 0.11 success   0.0%  demos=8  ██
+           train_loss=1.512
+  after round 3      mean_r 0.67 success  66.7%  demos=12  █████████████
+           train_loss=0.947
+  after round 4      mean_r 0.94 success 100.0%  demos=16  ███████████████████
+           train_loss=0.516
+  after round 5      mean_r 0.89 success 100.0%  demos=20  ██████████████████
+           train_loss=0.284
+  after round 6      mean_r 0.89 success 100.0%  demos=24  ██████████████████
+           train_loss=0.186
+toggling adapter OFF (base) for A/B…
+  adapter OFF (base) mean_r 0.17 success   0.0%  demos=24  ███
+  adapter ON (learned) mean_r 0.89 success 100.0%  demos=24  ██████████████████
+sample held-out replies (adapter ON):
+  Q: What is the difference between TCP and UDP?
+  A(r=1.00): 'TL;DR: TCP (Transmission Control Protocol) and UDP (User Datagram 
+Protocol) are both transport protocols, but they differ in how they handle data 
+delivery.\n- TCP ensures reliable delivery by sending p'
+  Q: How do I debug a memory leak?
+  A(r=0.67): 'TL;DR: To debug a memory leak, you can try the following 
+steps:.\n- Identify the specific memory allocation and deallocation code that is
+causing the issue.\n- Check for any unused objects or resources '
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p1-r09-n3>
+Subject: Job 255513: <sdft_demo> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_demo> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 23:11:10 2026
+Job was executed on host(s) <p1-r09-n3>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 23:11:12 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Sun Jul 19 23:11:12 2026
+Terminated at Sun Jul 19 23:13:48 2026
+Results reported at Sun Jul 19 23:13:48 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/bv-demo.sh configs/demo_house_style.yaml 6
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   183.53 sec.
+    Max Memory :                                 1740 MB
+    Average Memory :                             1614.74 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                264
+    Run time :                                   161 sec.
+    Turnaround time :                            158 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/demo_255513.err> for stderr output of this job.
+

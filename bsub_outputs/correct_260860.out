@@ -1,0 +1,71 @@
+─────────────── Correct it once — the fix generalizes, on-device ───────────────
+model=LiquidAI/LFM2.5-230M  offline  your rule: 'answer in ONE sentence'  ·  
+correct on cooking, test on programming
+loading model…
+trainable params: 6,193,152 || all params: 235,886,336 || trainable%: 2.6255
+─────────────── Before — you haven't told it your preference yet ───────────────
+  base                       one-sentence on held-out   0.0%  
+  e.g. Q: What is a hash map?
+       A: 'A hash map, also known as a hash table, is a data structure that 
+stores key-value pairs in an array using a hash functio'…
+─────────── You fix its replies a few times (cooking questions only) ───────────
+  after 1 correction(s)      one-sentence on held-out   0.0%  
+  after 2 correction(s)      one-sentence on held-out   0.0%  
+  after 3 correction(s)      one-sentence on held-out   0.0%  
+  after 4 correction(s)      one-sentence on held-out  50.0%  ████████████
+─────────────────── After — a held-out programming question ────────────────────
+  adapter ON (learned)       one-sentence on held-out  50.0%  ████████████
+  Q: What is a hash map?
+  A: 'A hash map is a data structure that stores key-value pairs in an array. It
+allows for fast lookup, insertion, and deletion of elements based on their 
+keys.'   ✗
+─────────────────────────── A/B: toggle the fix off ────────────────────────────
+  adapter OFF (base)         one-sentence on held-out   0.0%  
+──────────────────────────────────── Result ────────────────────────────────────
+  4 plain corrections on cooking → one-sentence habit on held-out programming: 
+base 0% → learned 50% (off again: 0%).
+  You told it once, by fixing a few replies. It generalized to a different 
+topic, on-device — you never have to say it again.
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p1-r14-n3>
+Subject: Job 260860: <sdft_c1> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_c1> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 07:08:43 2026
+Job was executed on host(s) <p1-r14-n3>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 07:08:45 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Mon Jul 20 07:08:45 2026
+Terminated at Mon Jul 20 07:11:25 2026
+Results reported at Mon Jul 20 07:11:25 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/demo_correct_once.sh
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   100.24 sec.
+    Max Memory :                                 1751 MB
+    Average Memory :                             945.29 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                264
+    Run time :                                   163 sec.
+    Turnaround time :                            162 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/correct_260860.err> for stderr output of this job.
+

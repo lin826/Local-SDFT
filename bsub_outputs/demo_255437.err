@@ -1,0 +1,4 @@
+usage: sdft-online [-h] [--config CONFIG] [--model MODEL]
+                   [--backend {torch,echo}]
+                   {chat,serve,demo,stats} ...
+sdft-online: error: unrecognized arguments: --config configs/demo_house_style.yaml

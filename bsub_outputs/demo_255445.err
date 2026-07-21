@@ -1,0 +1,47 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/online/cli.py", line 169, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/online/cli.py", line 165, in main
+    return {"chat": cmd_chat, "serve": cmd_serve, "demo": cmd_demo, "stats": cmd_stats}[args.cmd](args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/online/cli.py", line 102, in cmd_demo
+    ctrl = OnlineController.build(cfg)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/online/controller.py", line 53, in build
+    backend.load()
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/online/trainer.py", line 53, in load
+    self.tokenizer = load_tokenizer(self.cfg.model)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft/sdft/utils.py", line 27, in load_tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(cfg.name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/transformers/models/auto/tokenization_auto.py", line 905, in from_pretrained
+    return tokenizer_class.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/transformers/tokenization_utils_base.py", line 1716, in from_pretrained
+    resolved_vocab_files[file_id] = cached_file(
+                                    ^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/transformers/utils/hub.py", line 293, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/transformers/utils/hub.py", line 527, in cached_files
+    raise e
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/transformers/utils/hub.py", line 437, in cached_files
+    hf_hub_download(
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1236, in _hf_hub_download_to_cache_dir
+    _download_to_tmp_and_move(
+  File "/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1910, in _download_to_tmp_and_move
+    with tmp_path.open("wb") as f:
+         ^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 122] Disk quota exceeded

@@ -1,0 +1,84 @@
+─────────── Tool-calling demo — the model learns to use a calculator ───────────
+model=LiquidAI/LFM2.5-230M  offline/on-device  held-out numbers disjoint from 
+coaching: True
+loading model…
+trainable params: 6,193,152 || all params: 235,886,336 || trainable%: 2.6255
+────────────────── 1. Base model answers arithmetic freehand ───────────────────
+  Q: What is 347 + 288?
+     reply: 'To find the sum of 347 and 288, we simply add them together:\n\n347
++ 28'  (tool call: False)  truth=635
+  Q: What is 913 - 476?
+     reply: 'To find the difference between 913 and 476, subtract:\n\n\[\n913 - 
+476 = '  (tool call: False)  truth=437
+  Q: What is 128 * 47?
+     reply: 'To calculate \\(128 \\times 47\\), we can break it down as 
+follows:\n\n\[\n1'  (tool call: False)  truth=6016
+  base                 held-out correct   0.0%  
+────────────────── 2. Coach it (reward = correct calc() call) ──────────────────
+  after round 1        held-out correct   0.0%  
+                       train_loss=2.274
+  after round 2        held-out correct 100.0%  ████████████████████████
+                       train_loss=0.203
+  after round 3        held-out correct 100.0%  ████████████████████████
+                       train_loss=0.000
+  after round 4        held-out correct 100.0%  ████████████████████████
+                       train_loss=0.000
+  after round 5        held-out correct 100.0%  ████████████████████████
+                       train_loss=0.000
+  after round 6        held-out correct 100.0%  ████████████████████████
+                       train_loss=0.000
+─────────────── 3. Held-out problems (numbers never coached on) ────────────────
+  adapter ON (learned) held-out correct 100.0%  ████████████████████████
+  ✓ What is 347 + 288?  ->  '347 + 288' = 635  (truth 635)
+  ✓ What is 913 - 476?  ->  '913 - 476' = 437  (truth 437)
+  ✓ What is 128 * 47?  ->  '128 * 47' = 6016  (truth 6016)
+  ✓ What is 654 + 279?  ->  '654 + 279' = 933  (truth 933)
+──────────────────── 4. A/B: toggle the learned adapter off ────────────────────
+  adapter OFF (base)   held-out correct   0.0%  
+──────────────────────────────────── Result ────────────────────────────────────
+  held-out correct:  base 0%  ->  learned 100%   (adapter off again: 0%)
+  The held-out numbers never appeared in coaching, so this is a learned skill 
+(question -> tool call), not memorized answers.
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p4-r26-n4>
+Subject: Job 255620: <sdft_toolcall> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_toolcall> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 23:25:35 2026
+Job was executed on host(s) <p4-r26-n4>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 23:25:35 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Sun Jul 19 23:25:35 2026
+Terminated at Sun Jul 19 23:27:21 2026
+Results reported at Sun Jul 19 23:27:21 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/demo_toolcall.sh 6
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   77.33 sec.
+    Max Memory :                                 1975 MB
+    Average Memory :                             1110.35 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                454
+    Run time :                                   112 sec.
+    Turnaround time :                            106 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/toolcall_255620.err> for stderr output of this job.
+

@@ -1,0 +1,57 @@
+NVIDIA H100 80GB HBM3, 81559 MiB
+loading LiquidAI/LFM2.5-230M · task=house_style
+trainable params: 688,128 || all params: 230,381,312 || trainable%: 0.2987
+Airplane-Mode Coach (offline, on-device)
+  before coaching    success@held-out   0.0% 
+  after round 1      success@held-out   0.0% 
+  after round 2      success@held-out   0.0% 
+  after round 3      success@held-out   0.0% 
+  after round 4      success@held-out   0.0% 
+  after round 5      success@held-out   0.0% 
+  after round 6      success@held-out   0.0% 
+toggling adapter OFF (base) for A/B…
+  adapter OFF (base) success@held-out   0.0% 
+  adapter ON (learned) success@held-out   0.0% 
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p1-r09-n3>
+Subject: Job 255464: <sdft_demo> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_demo> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:56:20 2026
+Job was executed on host(s) <p1-r09-n3>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Sun Jul 19 22:56:20 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Sun Jul 19 22:56:20 2026
+Terminated at Sun Jul 19 22:59:24 2026
+Results reported at Sun Jul 19 22:59:24 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/bv-demo.sh configs/demo_house_style.yaml 6
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   188.24 sec.
+    Max Memory :                                 1744 MB
+    Average Memory :                             1558.88 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                169
+    Run time :                                   190 sec.
+    Turnaround time :                            184 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/demo_255464.err> for stderr output of this job.
+

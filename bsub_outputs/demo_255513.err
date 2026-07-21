@@ -1,0 +1,5 @@
+Loading weights:   0%|          | 0/132 [00:00<?, ?it/s]Loading weights:  80%|███████▉  | 105/132 [00:00<00:00, 1037.06it/s]Loading weights: 100%|██████████| 132/132 [00:00<00:00, 1175.35it/s]
+/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/peft/utils/save_and_load.py:372: UserWarning: Could not find a config file in LiquidAI/LFM2.5-230M - will assume that the vocabulary was not modified.
+  warnings.warn(
+/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/lib/python3.12/site-packages/peft/utils/save_and_load.py:372: UserWarning: Could not find a config file in LiquidAI/LFM2.5-230M - will assume that the vocabulary was not modified.
+  warnings.warn(

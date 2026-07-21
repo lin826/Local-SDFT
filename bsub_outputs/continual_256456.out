@@ -1,0 +1,64 @@
+─────────── Continual learning — adapt now, recover old skills fast ────────────
+model=LiquidAI/LFM2.5-230M  offline/on-device  mode A = briefing (TL;DR + 
+bullets + question)  ·  mode B = direct one-line answer
+loading model…
+trainable params: 6,193,152 || all params: 235,886,336 || trainable%: 2.6255
+  start            A   0.0%                    B   0.0% 
+────────────────────── Phase 1 — learn mode A (briefing) ───────────────────────
+  learn A pass 1   A   0.0%                    B   0.0% 
+  learn A pass 2   A  33.3% █████              B   0.0% 
+  learn A pass 3   A 100.0% ████████████████   B   0.0% 
+─────────────── Phase 2 — switch to mode B (direct); A may fade ────────────────
+  learn B pass 1   A  33.3% █████              B   0.0% 
+  learn B pass 2   A 100.0% ████████████████   B   0.0% 
+  learn B pass 3   A  83.3% █████████████      B   0.0% 
+  learn B pass 4   A  33.3% █████              B  66.7% ███████████
+─────────────────────── Phase 3 — switch BACK to mode A ────────────────────────
+  relearn A pass 1 A  83.3% █████████████      B  16.7% ███
+─────────────────────── Result — fast recovery (savings) ───────────────────────
+  mode A reached competence in 3 pass(es) the first time, 1 on return.
+  → recovered the old skill 2 pass(es) faster — forgetting is cheap because 
+re-adaptation is fast.
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@p6-r20-n2>
+Subject: Job 256456: <sdft_cont> in cluster <BLUEVELA_LSF> Done
+
+Job <sdft_cont> was submitted from host <p6-r29-n2> by user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 00:53:44 2026
+Job was executed on host(s) <p6-r20-n2>, in queue <preemptable>, as user <zwhong> in cluster <BLUEVELA_LSF> at Mon Jul 20 00:53:46 2026
+</u/zwhong> was used as the home directory.
+</proj/inf-scaling/zwhong/projs/local_online_sdft/.claude/worktrees/feat-online-sdft> was used as the working directory.
+Started at Mon Jul 20 00:53:46 2026
+Terminated at Mon Jul 20 00:58:54 2026
+Results reported at Mon Jul 20 00:58:54 2026
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+env PYTHON=/proj/inf-scaling/zwhong/projs/local_online_sdft/.venv-gpu/bin/python bash scripts/demo_continual.sh --max-passes 6
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   300.24 sec.
+    Max Memory :                                 1867 MB
+    Average Memory :                             1632.00 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                264
+    Run time :                                   310 sec.
+    Turnaround time :                            310 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <bsub_outputs/continual_256456.err> for stderr output of this job.
+
