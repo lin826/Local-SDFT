@@ -57,17 +57,14 @@ PROJECTS = ["Atlas", "the Q3 launch", "the billing rewrite", "Project Nomad", "t
 PRODUCTS = ["Nimbus", "the mobile app", "SoundOff", "Kettle", "Zephyr"]
 INCIDENTS = ["payment latency", "checkout 5xx errors", "a pager alert", "an API outage",
              "elevated error rate", "payment gateway timeouts", "a DB failover"]
-ADS = ["email", "push"]
-COMMS=["email", "slack"]
-EVENTS=["email", "calendar"]
-ALERTS=["email", "push", "slack"]
+
 
 def pick(rng: random.Random, options: list[str]) -> str:
     return options[rng.randrange(len(options))]
 
 
 def gen_item(category: str, rng: random.Random) -> dict:
-    """One synthetic inbox item: {channel, sender, subject, snippet, category}."""
+    """One synthetic inbox item: {subject, snippet}."""
     if category == "mgr_project":
         project = pick(rng, PROJECTS)
         manager = pick(rng, NAMES)
@@ -76,35 +73,29 @@ def gen_item(category: str, rng: random.Random) -> dict:
             f"Quick decision needed on {project} — reviewers are waiting on you.",
             f"Are we shipping {project} today? Need your sign-off.",
         ])
-        return {"channel": pick(rng,COMMS), "sender": f"{manager}",
-                "subject": f"Need your call on {project}", "snippet": snippet,
-                "category": category}
+        return {"subject": f"Need your call on {project} FROM {manager}", "snippet": snippet}
     if category == "teammate_fyi":
-        teammate = pick(rng, NAMES)
+        sender = f"{pick(rng, NAMES)}"
         snippet = pick(rng, [
             "Left a couple of comments on your PR whenever you get a sec.",
             "Shared some notes from the sync — no action needed today.",
             "Thinking about refactoring the utils, curious what you think sometime.",
         ])
-        return {"channel": pick(rng,COMMS), "sender": f"{teammate}",
-                "subject": "fyi / no rush", "snippet": snippet, "category": category}
+        return {"subject": f"fyi / no rush FROM {sender}", "snippet": snippet}
     if category == "calendar_soon":
         who = pick(rng, NAMES)
-        return {"channel": pick(rng,EVENTS), "sender": "Calendar",
-                "subject": f"Starts in 20 min: 1:1 with {who}",
-                "snippet": f"Reminder: your meeting with {who} begins soon.",
-                "category": category}
+        return {"subject": f"Starts in 20 min: 1:1 with {who}",
+                "snippet": f"Reminder: your meeting with {who} begins soon."}
     if category == "promo":
-        product = pick(rng, PRODUCTS)
+        sender = f"{pick(rng, PRODUCTS)} Team"
         subject = pick(rng, ["48-hour sale — 40% off", "New features you'll love",
                              "We miss you! Come back for 20% off"])
-        return {"channel": pick(rng,ADS), "sender": f"{product} Team", "subject": subject,
-                "snippet": "Limited time only. Unsubscribe anytime.", "category": category}
+        return {"subject": f"{subject} FROM {sender}",
+                "snippet": "Limited time only. Unsubscribe anytime."}
     if category == "social":
         subject = pick(rng, ["5 people liked your post", "You have 3 new followers",
                              "Someone mentioned you in a comment"])
-        return {"channel": pick(rng,ADS), "sender": "Social", "subject": subject,
-                "snippet": "Tap to see the activity.", "category": category}
+        return {"subject": subject, "snippet": "Tap to see the activity."}
     if category == "receipt":
         product = pick(rng, PRODUCTS)
         snippet = pick(rng, [
@@ -112,9 +103,7 @@ def gen_item(category: str, rng: random.Random) -> dict:
             "Your invoice is attached. No action required.",
             "Charge confirmed. View your billing history anytime.",
         ])
-        return {"channel": pick(rng,ADS), "sender": "Receipts",
-                "subject": f"Your payment to {product} was successful",
-                "snippet": snippet, "category": category}
+        return {"subject": f"Your payment to {product} was successful", "snippet": snippet}
     if category == "monitoring":
         incident = pick(rng, INCIDENTS)
         snippet = pick(rng, [
@@ -122,8 +111,7 @@ def gen_item(category: str, rng: random.Random) -> dict:
             f"Threshold breached — {incident}. Dashboard link inside.",
             f"{incident} on the checkout service. Auto-generated.",
         ])
-        return {"channel": pick(rng,ALERTS), "sender": "Monitoring Bot",
-                "subject": f"ALERT: {incident}", "snippet": snippet, "category": category}
+        return {"subject": f"[ALERT] {incident}", "snippet": snippet}
     raise ValueError(category)
 
 
@@ -149,9 +137,7 @@ def true_action(category: str, phase: int) -> str:
 
 
 def item_block(item: dict) -> str:
-    return (f"Channel: {item['channel']}\n"
-            f"From: {item['sender']}\n"
-            f"Subject: {item['subject']}\n"
+    return (f"Subject: {item['subject']}\n"
             f"{item['snippet']}")
 
 
@@ -189,6 +175,7 @@ def build_slice(mix: dict, phase: int, rng: random.Random) -> list[dict]:
     for category, count in mix.items():
         for _ in range(count):
             item = gen_item(category, rng)
+            item["category"] = category   # bookkeeping only — never rendered into the prompt
             item["phase"] = phase
             item["action"] = true_action(category, phase)
             items.append(item)
