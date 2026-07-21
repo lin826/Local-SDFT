@@ -26,8 +26,8 @@ import re
 
 from triage_common import (
     ACTIONS, BASELINES_JSON, DATA_OUT, DRIFTS, EVAL_N, MODEL_NAME, OUT_DIR, REGIMES,
-    SEED, STREAM_LEN, accuracy, build_eval, build_msgs, build_stream, generate,
-    load_base_model, load_tokenizer, pick_device, prompt_tokens, render_prompt,
+    SEED, STREAM_LEN, accuracy, build_eval, build_msgs, build_stream, export_dataset,
+    generate, load_base_model, load_tokenizer, pick_device, prompt_tokens, render_prompt,
 )
 
 # --- baseline knobs --------------------------------------------------------- #
@@ -63,7 +63,6 @@ def make_retriever(store: list[dict]):
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    DATA_OUT.parent.mkdir(parents=True, exist_ok=True)
     device = pick_device()
     print(f"device={device}  model={MODEL_NAME}", flush=True)
 
@@ -72,11 +71,9 @@ def main() -> None:
     evals = {phase: build_eval(random.Random(SEED + phase), phase) for phase in (1, 2, 3)}
     eval_cur = evals[3]   # the *current* policy is the final regime: off-hours
 
-    with DATA_OUT.open("w") as fh:
-        for item in stream:
-            fh.write(json.dumps(item) + "\n")
-    print(f"wrote stream -> {DATA_OUT} ({len(stream)} items; regimes {REGIMES}; "
-          f"drifts@{DRIFTS})", flush=True)
+    export_dataset(stream, evals)   # the committed copy the Colab notebook fetches
+    print(f"wrote dataset -> {DATA_OUT} ({len(stream)} stream + 3x{EVAL_N} eval items; "
+          f"regimes {REGIMES}; drifts@{DRIFTS})", flush=True)
 
     tok = load_tokenizer()
     base = load_base_model(device)

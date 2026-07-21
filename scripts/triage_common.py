@@ -13,6 +13,7 @@ in run_sdft.py.
 
 from __future__ import annotations
 
+import json
 import os
 import random
 import re
@@ -42,7 +43,7 @@ MAX_NEW = 40         # generated tokens per reply (the answer itself is 1-2 toke
 
 OUT_DIR = Path("outputs/triage-showcase")
 BASELINES_JSON = OUT_DIR / "baselines.json"
-DATA_OUT = Path("data/inbox_triage.jsonl")
+DATA_OUT = Path("data/inbox_triage.json")   # committed — the Colab notebook fetches it
 FIG_DIR = Path("docs/assets")
 
 
@@ -199,6 +200,25 @@ def build_stream(rng: random.Random) -> list[dict]:
 
 def build_eval(rng: random.Random, phase: int) -> list[dict]:
     return build_slice(EVAL_SPECS[phase], phase, rng)
+
+
+def export_dataset(stream: list[dict], evals: dict[int, list[dict]]) -> None:
+    """Write the seeded dataset — with prompts pre-rendered — to DATA_OUT.
+
+    The file is committed to the repo, so the Colab notebook fetches the exact
+    items the scripts trained on instead of regenerating them at runtime."""
+    def enrich(item: dict) -> dict:
+        return {**item, "prompt": render_prompt(item)}
+
+    payload = {
+        "config": {"seed": SEED, "stream_len": STREAM_LEN, "drifts": list(DRIFTS),
+                   "regimes": list(REGIMES), "actions": list(ACTIONS), "eval_n": EVAL_N},
+        "stream": [enrich(item) for item in stream],
+        "evals": {str(phase): [enrich(item) for item in items]
+                  for phase, items in evals.items()},
+    }
+    DATA_OUT.parent.mkdir(parents=True, exist_ok=True)
+    DATA_OUT.write_text(json.dumps(payload, indent=1) + "\n")
 
 
 # --------------------------------------------------------------------------- #

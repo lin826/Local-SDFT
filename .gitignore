@@ -218,7 +218,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # --- Local-SDFT project ---
-data/
+data/*                       # runtime data stays untracked...
+!data/inbox_triage.json      # ...except the seeded triage dataset the Colab fetches
 outputs/
 *.gguf
 drafts/
