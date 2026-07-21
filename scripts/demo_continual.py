@@ -28,7 +28,7 @@ from rich.rule import Rule
 
 from sdft.config import load_config
 from sdft.online.controller import OnlineController
-from sdft.online.demo import HELDOUT_PROMPTS, prompts_for, success_on
+from sdft.online.demo import prompts_for, success_on
 from sdft.online.reward import get_reward_fn
 
 console = Console()

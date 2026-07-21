@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import statistics
 import time
 from pathlib import Path
@@ -17,10 +16,9 @@ from ..data import build_teacher_messages, load_examples, sample_fewshots
 from ..peft_utils import adapter_ready, load_chat_model, peft_adapter_metadata
 from ..toolcall.loop import ToolLoopConfig, run_tool_loop
 from ..utils import load_model, load_tokenizer, pick_device, to_model_device
-from .latency import LatencyPhases, ms as _ms, percentile as _percentile
+from .latency import LatencyPhases, percentile as _percentile
 from .paths import (
     new_run_id,
-    performance_dir,
     performance_index_path,
     performance_result_path,
     utc_now_iso,

@@ -169,7 +169,6 @@ def main() -> int:
 
     def eval_context(tag, ctx_fn):
         hits, overhead = 0, 0
-        bare = 0
         for q in HELDOUT:
             msgs = ctx_fn(q)
             reply = ctrl.backend.generate(msgs, temperature=0.0, max_new_tokens=64)

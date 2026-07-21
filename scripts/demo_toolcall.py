@@ -26,7 +26,6 @@ from rich.rule import Rule
 from sdft.config import load_config
 from sdft.online.controller import OnlineController
 from sdft.online.demo import prompts_for
-from sdft.online.reward import get_reward_fn
 from sdft.online.tools import extract_arithmetic, parse_calc_call, run_calc_call, safe_eval
 
 console = Console()
@@ -50,7 +49,6 @@ def main() -> int:
     cfg = load_config(args.config)
     assert cfg.online.reward_fn == "calc_tool", "use configs/demo_toolcall.yaml"
     coach_prompts, heldout = prompts_for("calc_tool")
-    rfn = get_reward_fn("calc_tool")
 
     # Prove the premise: held-out numbers are disjoint from coaching numbers.
     coach_nums = {n for p in coach_prompts for n in _nums(p)}

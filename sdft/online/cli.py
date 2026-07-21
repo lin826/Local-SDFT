@@ -139,7 +139,7 @@ def cmd_demo(args) -> int:
     # A/B: base vs learned on the SAME held-out set
     console.print("[dim]toggling adapter OFF (base) for A/B…[/]")
     ctrl.rollback(0); report("adapter OFF (base)")
-    final = ctrl.rollback(ctrl.stats()["adapter_versions"] - 1); report("adapter ON (learned)")
+    ctrl.rollback(ctrl.stats()["adapter_versions"] - 1); report("adapter ON (learned)")
     # Receipts: show two held-out replies with the learned adapter on.
     res = success_on(ctrl.backend, rfn, heldout_prompts, threshold=args.threshold)
     console.print("[dim]sample held-out replies (adapter ON):[/]")

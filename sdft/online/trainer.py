@@ -11,7 +11,6 @@ the full vocabulary (GKD / on-policy SDFT default).
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from ..config import Config
 from ..utils import load_model, load_tokenizer, pick_device
