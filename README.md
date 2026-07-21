@@ -25,9 +25,10 @@ Also in this repo:
 - **Online learning** chat (`/data`) — tone as implicit feedback, tiny LoRA updates
 - **Perf chat** (`/perf`) — base vs SDFT side-by-side with streaming + ablations
 - **Colab notebook** — [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-  (**standalone**, no repo clone): ZS / ICL / CoT + gold SFT + SDFT LoRA;
-  train on alpaca-cleaned, generate on AE2, pairwise win-rate via hard-coded
-  Qwen/Qwen3.5-9B 4-bit local judge ≈ AE2 protocol; no GRPO)
+  (**standalone**, no repo clone): few-step curated demo — seeded
+  `alpaca-cleaned[:STEP_COUNT]` with `batch_size=1`, ZS / ICL / CoT + gold SFT
+  + SDFT LoRA, fast heuristic scoreboard + side-by-side table (no slow AE2
+  judge); no GRPO)
 
 See [docs/architecture.md](docs/architecture.md) for the package map.
 
@@ -177,11 +178,14 @@ uv run python -m web.app   # → http://127.0.0.1:8765/perf
 Custom local JSONL: point a config at an Alpaca-style file (`dataset: json` +
 `data_files: ...`) and run the Quick-start three steps with `--config`.
 
-Colab (AE2-style win-rate): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
-— **standalone notebook** (no Local-SDFT clone/import). Train gold SFT / SDFT
-on `yahma/alpaca-cleaned`, generate ZS / ICL / CoT + adapters on AE2
-instructions, then hard-coded **Qwen/Qwen3.5-9B** 4-bit pairwise judge for
-`win_rate` (≈ AE2 protocol; not LC leaderboard-equivalent). No GRPO.
+Colab (few-step demo): [`notebooks/local_sdft_colab.ipynb`](notebooks/local_sdft_colab.ipynb)
+— **standalone notebook** (no Local-SDFT clone/import). Shuffle
+`yahma/alpaca-cleaned` with a fixed seed, take `[:STEP_COUNT]` (default 32),
+train gold SFT / SDFT with `batch_size=1` for that many steps, then batched
+ZS / ICL / CoT / adapter generations on the **same** slice. Primary metrics
+are refusal rate / length / instruction reward + a qualitative table (not a
+full AE2 / Qwen judge pass). One base load covers teacher → train → eval.
+No GRPO.
 
 ```bash
 uv sync --extra alpacaeval
