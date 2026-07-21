@@ -119,20 +119,35 @@ def main() -> None:
 
     # -- accumulated regret on the stream itself (Panel C) --------------------- #
     # Prequential: predict item t with the history 1..t-1, THEN reveal the label.
+    # k is swept HERE too — Panel C shows each baseline at its LEAST-REGRET k,
+    # which may differ from its whole-week-accuracy k (most flattering per metric).
     print("\n== accumulated regret: predict each streamed item before its label ==",
           flush=True)
-    regret: dict[str, list] = {"pos": list(range(STREAM_LEN + 1))}
-    for method, k in (("ZS", 0), ("ICL", icl_k), ("RAG", rag_k)):
+
+    def regret_curve(method: str, k: int, label: str) -> list[int]:
         msgs = [build_msgs(item,
                            None if method == "ZS" else demos_for(method, item, k, i))
                 for i, item in enumerate(stream)]
-        predictions = [parse_action(reply)
-                       for reply in generate(base, tok, msgs, label=f"regret/{method.lower()}")]
+        predictions = [parse_action(reply) for reply in generate(base, tok, msgs, label=label)]
         cumulative = [0]
         for prediction, item in zip(predictions, stream):
             cumulative.append(cumulative[-1] + int(prediction != item["action"]))
-        regret[method] = cumulative
-        print(f"  {method}: {cumulative[-1]}/{STREAM_LEN} mistakes", flush=True)
+        return cumulative
+
+    regret: dict[str, list] = {"pos": list(range(STREAM_LEN + 1)),
+                               "ZS": regret_curve("ZS", 0, "regret/zs")}
+    print(f"  ZS: {regret['ZS'][-1]}/{STREAM_LEN} mistakes", flush=True)
+    regret_sweep: dict[str, dict[int, int]] = {}
+    regret_k: dict[str, int] = {}
+    for method in ("ICL", "RAG"):
+        curves_by_k = {k: regret_curve(method, k, f"regret/{method.lower()} k={k}")
+                       for k in K_SWEEP}
+        regret_sweep[method] = {k: curve[-1] for k, curve in curves_by_k.items()}
+        regret_k[method] = min(K_SWEEP, key=lambda k: (regret_sweep[method][k], k))
+        regret[method] = curves_by_k[regret_k[method]]
+        table = "  ".join(f"k={k}:{final}" for k, final in regret_sweep[method].items())
+        print(f"  {method}: {table}  -> least-regret k={regret_k[method]} "
+              f"({regret[method][-1]}/{STREAM_LEN} mistakes)", flush=True)
 
     # The qualitative drifted items — off-hours `social` pushes that should now
     # INTERRUPT. Capture every candidate's baseline replies (end-of-week
@@ -155,8 +170,10 @@ def main() -> None:
         "config": {"model": MODEL_NAME, "seed": SEED, "stream_len": STREAM_LEN,
                    "drifts": list(DRIFTS), "regimes": list(REGIMES), "eval_n": EVAL_N,
                    "k_sweep": list(K_SWEEP), "icl_k": icl_k, "rag_k": rag_k,
+                   "icl_k_regret": regret_k["ICL"], "rag_k_regret": regret_k["RAG"],
                    "checkpoints": list(CHECKPOINTS)},
         "sweeps": sweeps,
+        "regret_sweep": regret_sweep,
         "arms": {
             "ZS": {**zs_arm, "labels_needed": 0},
             f"ICL k={icl_k}": {**sweeps["ICL"][icl_k], "labels_needed": icl_k},

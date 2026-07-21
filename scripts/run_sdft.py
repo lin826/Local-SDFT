@@ -37,29 +37,32 @@ from triage_common import (
     recent_demos, render_prompt,
 )
 
-# --- training knobs (the blog's knob table) --------------------------------- #
-LORA_R = 16                                      # adapter rank (~2.8 MB on disk)
-LORA_ALPHA = 32
+# --- training knobs (the blog's knob table) ---------------------------------- #
+# The winning setup from scripts/sweep_sdft.py (whole-week live mean, checked on
+# three torch seeds): r=8 / steps=8 beats the hand-tuned r=16 / steps=5 on every
+# seed and halves the adapter on disk.
+LORA_R = 8                                       # adapter rank (~1.4 MB on disk)
+LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
 LORA_TARGET = r".*self_attn\.(q|k|v|out)_proj"   # LFM2 attention projections
 LR = 1e-3            # one persistent AdamW across the whole stream: the completion
                      # is 1-2 tokens (tiny loss), so it wants a larger step than a
-                     # scheduled batch trainer (2e-4 stalls, 3e-3 diverges)
+                     # scheduled batch trainer (5e-4 underperforms, 2e-3 collapses)
 TEACHER_SHOTS = 2    # recent decisions in context when the model makes its own call
-REPLAY = 16          # sliding replay-buffer size (items)
-STEPS_PER_ITEM = 5   # batch_size=1 update steps per incoming item — 3-way wants
+REPLAY = 16          # sliding replay-buffer size (items; 32 drowns the fresh item)
+STEPS_PER_ITEM = 8   # batch_size=1 update steps per incoming item — 3-way wants
                      # more gradient than binary (3 stalls on the cold start)
 CHECKPOINTS = tuple(range(6, STREAM_LEN + 1, 6))   # eval every 6 streamed items
 
 ADAPTER_DIR = OUT_DIR / "adapter-online-sdft"
 
 
-def make_updater(model, tok):
+def make_updater(model, tok, lr: float = LR):
     """One persistent AdamW across the whole stream — Adam momentum carries between
     items, so each batch_size=1 step nudges rather than lurches. Loss is on the
     completion tokens only (exact split by concatenating token ids)."""
     trainable = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable, lr=LR)
+    optimizer = torch.optim.AdamW(trainable, lr=lr)
     eos = tok.eos_token or ""
     device = next(model.parameters()).device
 
@@ -358,11 +361,14 @@ def make_figure(results: dict) -> None:
     ax_drift.grid(True, alpha=0.25)
 
     # Panel C: accumulated regret — cumulative mistakes on the streamed items,
-    # each predicted before its label lands (prequential).
+    # each predicted before its label lands (prequential). ICL and RAG show at
+    # their LEAST-REGRET k, which may differ from their whole-week-accuracy k.
     for x in drifts:
         ax_regret.axvline(x, color="#5f6368", ls="--", lw=1.2)
-    series = (("ZS", "ZS", ":"), ("ICL", icl_name, "-"),
-              ("RAG", rag_name, "-"), ("SDFT", "Online-SDFT", "-"))
+    series = (("ZS", "ZS", ":"),
+              ("ICL", f"ICL k={results['config']['icl_k_regret']}", "-"),
+              ("RAG", f"RAG k={results['config']['rag_k_regret']}", "-"),
+              ("SDFT", "Online-SDFT", "-"))
     for key, name, style in series:
         color = colors[key if key != "SDFT" else "Online-SDFT"]
         ax_regret.plot(regret["pos"], regret[key], style, drawstyle="steps-post",
@@ -374,7 +380,7 @@ def make_figure(results: dict) -> None:
     ax_regret.set_xlim(-1, stream_len + 4)
     ax_regret.set_xlabel("Items streamed")
     ax_regret.set_ylabel("Cumulative mistakes on streamed items")
-    ax_regret.set_title("C.  Accumulated regret on the live stream",
+    ax_regret.set_title("C.  Accumulated regret — baselines at their least-regret k",
                         fontsize=12, fontweight="bold")
     ax_regret.grid(True, alpha=0.25)
     ax_regret.legend(fontsize=8.5, loc="upper left", framealpha=0.95)
