@@ -887,7 +887,15 @@ alpacaeval = [
     { name = "alpaca-eval" },
 ]
 dev = [
+    { name = "httpx" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pytest" },
+]
+online = [
+    { name = "fastapi" },
+    { name = "rich" },
+    { name = "uvicorn" },
 ]
 toolcall = [
     { name = "jinja2" },
@@ -899,18 +907,23 @@ requires-dist = [
     { name = "alpaca-eval", marker = "extra == 'alpacaeval'", specifier = ">=0.6" },
     { name = "datasets", specifier = ">=3.6" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'online'", specifier = ">=0.115" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "jinja2", marker = "extra == 'toolcall'", specifier = ">=3.0" },
+    { name = "numpy", marker = "extra == 'dev'", specifier = ">=1.26" },
     { name = "peft", specifier = ">=0.15" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rich", marker = "extra == 'online'", specifier = ">=13" },
     { name = "torch", specifier = ">=2.6" },
     { name = "transformers", specifier = ">=4.54" },
     { name = "trl", specifier = ">=0.19" },
+    { name = "uvicorn", marker = "extra == 'online'", specifier = ">=0.30" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
-provides-extras = ["toolcall", "alpacaeval", "dev"]
+provides-extras = ["toolcall", "alpacaeval", "online", "dev"]
 
 [[package]]
 name = "markdown-it-py"
