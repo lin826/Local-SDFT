@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 from typing import Any, Mapping, TypeVar
 
 import torch
@@ -28,6 +29,23 @@ def pick_device() -> str:
     if torch.cuda.is_available():
         return "cuda"
     return "cpu"
+
+
+def release_cuda_memory() -> None:
+    """Drop unreachable tensors and flush the CUDA caching allocator.
+
+    PyTorch keeps free blocks in its caching allocator after ``del model``;
+    without ``empty_cache()`` nvidia-smi / Colab still show the VRAM as used.
+    Call after deleting large GPU-resident objects (teacher, judge, etc.).
+    """
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if hasattr(torch, "mps") and torch.backends.mps.is_available():
+        try:
+            torch.mps.empty_cache()
+        except Exception:
+            pass
 
 
 def load_tokenizer(cfg: ModelConfig) -> PreTrainedTokenizerBase:

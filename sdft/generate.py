@@ -17,11 +17,17 @@ import torch
 
 from .config import Config, load_config
 from .data import build_teacher_messages, load_examples, sample_fewshots
-from .utils import load_model, load_tokenizer, pick_device, to_model_device
+from .utils import load_model, load_tokenizer, pick_device, release_cuda_memory, to_model_device
 
 
 @torch.inference_mode()
 def generate_responses(cfg: Config, examples: list[dict], device: str) -> list[str | None]:
+    """Generate teacher rewrites, then free the model so VRAM is reusable.
+
+    Without an explicit ``del`` + ``release_cuda_memory()``, the teacher weights
+    stay referenced until the function frame is collected, and CUDA's caching
+    allocator still holds the blocks — Colab OOM on the next train/judge load.
+    """
     tokenizer = load_tokenizer(cfg.model)
     tokenizer.padding_side = "left"  # batched generation needs left padding
     model = load_model(cfg.model, device)
@@ -32,38 +38,42 @@ def generate_responses(cfg: Config, examples: list[dict], device: str) -> list[s
     rng = random.Random(cfg.data.seed)
     results: list[str | None] = [None] * len(examples)
 
-    for start in range(0, len(examples), gen.batch_size):
-        batch = examples[start : start + gen.batch_size]
-        prompts = [
-            tokenizer.apply_chat_template(
-                build_teacher_messages(
-                    sample_fewshots(examples, start + i, gen.num_shots, rng),
-                    example["prompt"],
-                ),
-                tokenize=False,
-                add_generation_prompt=True,
+    try:
+        for start in range(0, len(examples), gen.batch_size):
+            batch = examples[start : start + gen.batch_size]
+            prompts = [
+                tokenizer.apply_chat_template(
+                    build_teacher_messages(
+                        sample_fewshots(examples, start + i, gen.num_shots, rng),
+                        example["prompt"],
+                    ),
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                for i, example in enumerate(batch)
+            ]
+            # The chat template already emits BOS; don't add another.
+            enc = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False)
+            enc = to_model_device(enc, model)
+            out = model.generate(
+                **enc,
+                max_new_tokens=gen.max_new_tokens,
+                do_sample=do_sample,
+                temperature=gen.temperature if do_sample else None,
+                top_p=gen.top_p if do_sample else None,
+                pad_token_id=tokenizer.pad_token_id,
             )
-            for i, example in enumerate(batch)
-        ]
-        # The chat template already emits BOS; don't add another.
-        enc = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False)
-        enc = to_model_device(enc, model)
-        out = model.generate(
-            **enc,
-            max_new_tokens=gen.max_new_tokens,
-            do_sample=do_sample,
-            temperature=gen.temperature if do_sample else None,
-            top_p=gen.top_p if do_sample else None,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-        new_tokens = out[:, enc["input_ids"].shape[1] :]
-        for i, text in enumerate(tokenizer.batch_decode(new_tokens, skip_special_tokens=True)):
-            text = text.strip()
-            results[start + i] = text if len(text) >= gen.min_response_chars else None
-        done = min(start + gen.batch_size, len(examples))
-        print(f"  generated {done}/{len(examples)}", flush=True)
-
-    return results
+            new_tokens = out[:, enc["input_ids"].shape[1] :]
+            for i, text in enumerate(tokenizer.batch_decode(new_tokens, skip_special_tokens=True)):
+                text = text.strip()
+                results[start + i] = text if len(text) >= gen.min_response_chars else None
+            done = min(start + gen.batch_size, len(examples))
+            print(f"  generated {done}/{len(examples)}", flush=True)
+        return results
+    finally:
+        # Mirror local-judge cleanup: drop refs then flush the CUDA cache.
+        del model, tokenizer
+        release_cuda_memory()
 
 
 def main() -> None:

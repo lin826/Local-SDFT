@@ -388,13 +388,9 @@ def evaluate_with_local_judge(
             )
     finally:
         del model
-        try:
-            import torch
+        from .utils import release_cuda_memory
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except Exception:
-            pass
+        release_cuda_memory()
 
     # Prefer alpaca_eval's metric helper when importable.
     try:
