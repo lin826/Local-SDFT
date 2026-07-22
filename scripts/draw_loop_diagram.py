@@ -1,7 +1,7 @@
 """Draw the online-SDFT loop diagram for the blog post.
 
 One model, two roles: the served model makes its own bare-prompt call (TEACH),
-your behaviour referees it with one bit (CHECK), and a few batch_size=1 LoRA
+your behavior referees it with one bit (CHECK), and a few batch_size=1 LoRA
 steps distill the kept-or-corrected action back into the adapter (LEARN).
 Replaces the old ASCII-art block in drafts/blog-online-sdft-triage.md.
 
@@ -53,7 +53,7 @@ def main() -> None:
     box(ax, 38, 26, 26, 9, BLUE, "TEACH — the serving call",
         "LFM2.5-230M + LoRA\n(the adapter so far)")
     box(ax, 96, 26, 24, 9, ORANGE, "CHECK — one-bit referee",
-        "your behaviour\nopen now / let it wait / never")
+        "your behavior\nopen now / let it wait / never")
     box(ax, 52, 4, 32, 9, PURPLE, "LEARN — batch_size=1",
         "a few LoRA steps on the target\n(+ one replay item per other class)")
 
@@ -79,7 +79,7 @@ def main() -> None:
     ax.text(4, 49.0, "One model, two roles — the online SDFT loop",
             fontsize=12.5, fontweight="bold", color="#202124", va="top")
     ax.text(4, 44.8, "teacher and student are the same 230M network; "
-                     "your behaviour only referees",
+                     "your behavior only referees",
             fontsize=9.5, color=GREY, va="top")
 
     fig.tight_layout()
