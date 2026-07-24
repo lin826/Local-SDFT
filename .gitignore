@@ -223,7 +223,8 @@ data/*
 !data/inbox_triage.json
 outputs/
 *.gguf
-drafts/
+drafts/*
+!drafts/linkedin-online-sft-triage.md
 .browser-verify-screenshots/
 scripts/tmp_demo_sweep/
 .DS_Store
